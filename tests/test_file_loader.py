@@ -351,3 +351,107 @@ class TestFileLoader:
             with patch('os.path.getsize', return_value=100):
                 with pytest.raises(ValueError, match="Format de fichier non supporté"):
                     load_file(str(file_path))
+
+# ============================================================================
+# Chargement depuis la mémoire (interface web)
+# ============================================================================
+
+class TestLoadDataframeFromBytes:
+    """load_dataframe doit accepter des octets, sans fichier sur le disque.
+
+    C'est la porte d'entrée utilisée par l'interface web : `st.file_uploader`
+    fournit un contenu en mémoire et un nom, jamais un chemin.
+    """
+
+    def test_csv_depuis_octets(self):
+        """Un CSV en octets est chargé avec détection du séparateur."""
+        from src.file_loader import load_dataframe
+        data = "nom;age\nAlice;30\nBob;25\n".encode("utf-8")
+        df = load_dataframe(data, "gens.csv")
+        assert list(df.columns) == ["nom", "age"]
+        assert len(df) == 2
+
+    def test_csv_separateur_virgule(self):
+        """Le séparateur virgule est détecté aussi bien que le point-virgule."""
+        from src.file_loader import load_dataframe
+        data = b"a,b\n1,2\n3,4\n"
+        df = load_dataframe(data, "x.csv")
+        assert list(df.columns) == ["a", "b"]
+
+    def test_csv_encodage_latin1(self):
+        """Un CSV en latin1 est décodé sans perte."""
+        from src.file_loader import load_dataframe
+        data = "ville;région\nLille;Hauts-de-France\n".encode("latin1")
+        df = load_dataframe(data, "villes.csv")
+        assert "région" in df.columns
+        assert df.iloc[0]["ville"] == "Lille"
+
+    def test_json_depuis_octets(self):
+        """Un JSON en octets est chargé."""
+        from src.file_loader import load_dataframe
+        data = b'[{"a": 1, "b": 2}, {"a": 3, "b": 4}]'
+        df = load_dataframe(data, "data.json")
+        assert len(df) == 2
+        assert list(df.columns) == ["a", "b"]
+
+    def test_jsonl_depuis_octets(self):
+        """Un JSONL en octets est chargé ligne par ligne."""
+        from src.file_loader import load_dataframe
+        data = b'{"a": 1}\n{"a": 2}\n{"a": 3}\n'
+        df = load_dataframe(data, "data.jsonl")
+        assert len(df) == 3
+
+    def test_jsonl_ignore_les_lignes_invalides(self):
+        """Une ligne corrompue ne fait pas perdre tout le fichier."""
+        from src.file_loader import load_dataframe
+        data = b'{"a": 1}\nCECI N\'EST PAS DU JSON\n{"a": 2}\n'
+        df = load_dataframe(data, "data.jsonl")
+        assert len(df) == 2
+
+    def test_excel_depuis_octets(self):
+        """Un classeur Excel en octets est chargé."""
+        import io
+
+        from src.file_loader import load_dataframe
+        buffer = io.BytesIO()
+        pd.DataFrame({"x": [1, 2], "y": ["a", "b"]}).to_excel(buffer, index=False)
+        df = load_dataframe(buffer.getvalue(), "classeur.xlsx")
+        assert list(df.columns) == ["x", "y"]
+        assert len(df) == 2
+
+    def test_accepte_un_flux_binaire(self):
+        """Un objet type fichier est accepté comme des octets bruts."""
+        import io
+
+        from src.file_loader import load_dataframe
+        flux = io.BytesIO(b"a,b\n1,2\n")
+        df = load_dataframe(flux, "x.csv")
+        assert len(df) == 1
+
+    def test_csv_vide_renvoie_dataframe_vide(self):
+        """Un contenu vide donne un DataFrame vide, sans lever."""
+        from src.file_loader import load_dataframe
+        assert load_dataframe(b"", "vide.csv").empty
+
+    def test_extension_inconnue_mais_json_detecte(self):
+        """Un JSON portant une extension inconnue est tout de même reconnu."""
+        from src.file_loader import load_dataframe
+        df = load_dataframe(b'[{"a": 1}]', "mystere.dat")
+        assert len(df) == 1
+
+    def test_extension_inconnue_et_contenu_non_json(self):
+        """Un format indéterminable lève une erreur explicite."""
+        from src.file_loader import load_dataframe
+        with pytest.raises(ValueError, match="non supporté"):
+            load_dataframe(b"du texte quelconque", "mystere.dat")
+
+    def test_aucun_fichier_cree_sur_le_disque(self):
+        """Le chargement en mémoire n'écrit rien : pas de fichier temporaire."""
+        import tempfile
+        from pathlib import Path
+
+        from src.file_loader import load_dataframe
+        tmp = Path(tempfile.gettempdir())
+        avant = set(tmp.glob("*"))
+        load_dataframe(b"a,b\n1,2\n", "ephemere.csv")
+        assert set(tmp.glob("*")) == avant

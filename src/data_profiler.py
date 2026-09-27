@@ -1,4 +1,5 @@
 # src/data_profiler.py
+import datetime
 import os
 import pandas as pd
 from dataclasses import dataclass
@@ -25,6 +26,21 @@ class PlotSpec:
     section: str
     title: str
     build: Callable[[], Figure]
+
+def build_report_path(reports_dir, source_path, fmt: str) -> Path:
+    """Compose le chemin horodaté d'un rapport de profilage.
+
+    Args:
+        reports_dir: Répertoire de destination.
+        source_path: Fichier source, dont le nom de base est réutilisé.
+        fmt: Extension du rapport (`"md"` ou `"html"`).
+
+    Returns:
+        Le chemin complet du rapport.
+    """
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M')
+    return Path(reports_dir) / f"profiling_{Path(source_path).stem}_{timestamp}.{fmt}"
+
 
 class DataProfiler:
     """Analyse descriptive d'un DataFrame avec génération de rapport."""
@@ -728,66 +744,140 @@ class DataProfiler:
 
 
     def generate_html_report(self, output_filename: str = "data/processed/data_profiling_report.html") -> str:
-        """Génère un rapport HTML avec graphiques intégrés."""
-        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-        
+        """Sauvegarde le rapport HTML, graphiques compris.
+
+        Args:
+            output_filename: Chemin du fichier à écrire.
+
+        Returns:
+            Le chemin du fichier écrit.
+        """
+        return self.write_report(output_filename, fmt="html")
+
+    # ----------------------------------------------------------------------
+    # Rapports : rendu en mémoire, écriture, et choix du format
+    # ----------------------------------------------------------------------
+
+    def render_report(self, fmt: str = "md") -> str:
+        """Produit le rapport en mémoire, sans aucun accès au disque.
+
+        C'est ce que consomme l'interface web : elle propose le contenu au
+        téléchargement sans jamais rien écrire sur le serveur.
+
+        Args:
+            fmt: Format demandé, `"md"` ou `"html"`.
+
+        Returns:
+            Le contenu du rapport.
+
+        Raises:
+            ValueError: Si le format demandé n'est pas reconnu.
+        """
+        if fmt not in ("md", "html"):
+            raise ValueError(f"Format de rapport inconnu : {fmt!r}. Attendu 'md' ou 'html'.")
+
         if not self.profile_results:
             self.run_analysis()
-            
-        # Générer le rapport HTML avec graphiques intégrés
-        report_content = self._generate_html_report()
-        
-        with open(output_filename, "w", encoding="utf-8") as f:
-            f.write(report_content)
-            
-        print(f"📄 Rapport HTML sauvegardé : {output_filename}")
-        return output_filename
 
-    def interactive_report_choice(self, reports_dir, input_file):
-        """Permet de choisir le format de rapport de manière interactive"""
-        print("\n--- 📊 Choix du Format de Rapport d'analyse ---")
-        print("Souhaitez-vous un rapport en format Markdown (.md) ou HTML avec graphiques ?")
-        print("1. Markdown (.md)")
-        print("2. HTML avec graphiques")
-        
-        import datetime
-        
-        choice = input("⏳ Votre choix (1 ou 2) : ").strip()
-        
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M')
-        
-        if choice == "1":
-            report_filename = reports_dir / f"profiling_{input_file.stem}_{timestamp}.md"
-            self.generate_md_report(str(report_filename))
-        elif choice == "2":
-            report_filename = reports_dir / f"profiling_{input_file.stem}_{timestamp}.html"
-            self.generate_html_report(str(report_filename))
+        return self._generate_markdown_report() if fmt == "md" else self._generate_html_report()
+
+    def write_report(self, output_filename, fmt: str = "md") -> str:
+        """Écrit le rapport sur le disque.
+
+        Args:
+            output_filename: Chemin du fichier à écrire.
+            fmt: Format demandé, `"md"` ou `"html"`.
+
+        Returns:
+            Le chemin du fichier écrit.
+        """
+        content = self.render_report(fmt)
+
+        path_obj = Path(output_filename)
+        path_obj.parent.mkdir(parents=True, exist_ok=True)
+        path_obj.write_text(content, encoding="utf-8")
+
+        label = "Rapport HTML sauvegardé" if fmt == "html" else "Rapport sauvegardé"
+        print(f"📄 {label} : {output_filename}")
+        return str(output_filename)
+
+    def interactive_report_choice(self, reports_dir, input_file, *, choice: str = None):
+        """Choisit le format du rapport de profilage et l'écrit.
+
+        Args:
+            reports_dir: Répertoire de destination.
+            input_file: Fichier source, dont le nom sert à composer celui du rapport.
+            choice: Format imposé — `"1"`/`"md"` ou `"2"`/`"html"`. Si omis, la
+                question est posée en terminal. C'est par ce paramètre que
+                l'interface web transmet le choix fait dans un widget.
+
+        Returns:
+            Le chemin du rapport écrit.
+        """
+        if choice is None:
+            print("\n--- 📊 Choix du Format de Rapport d'analyse ---")
+            print("Souhaitez-vous un rapport en format Markdown (.md) ou HTML avec graphiques ?")
+            print("1. Markdown (.md)")
+            print("2. HTML avec graphiques")
+            try:
+                choice = input("⏳ Votre choix (1 ou 2) : ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nℹ️ Aucune réponse lisible : génération par défaut en Markdown.")
+                choice = "1"
+
+        normalise = str(choice).strip().lower()
+        if normalise in ("2", "html"):
+            fmt = "html"
+        elif normalise in ("1", "md", "markdown"):
+            fmt = "md"
         else:
             print("❌ Choix non valide. Génération par défaut en Markdown.")
-            report_filename = reports_dir / f"profiling_{input_file.stem}_{timestamp}.md"
-            self.generate_md_report(str(report_filename))
-            
-    def run_profiling_workflow(self, source_path: Path, reports_dir: Path) -> Dict[str, Any]:
-        """
-        Exécute le profilage complet et génère le rapport choisi.
-        Retourne uniquement les résultats d'analyse.
+            fmt = "md"
+
+        report_path = build_report_path(reports_dir, input_file, fmt)
+        return self.write_report(str(report_path), fmt=fmt)
+
+    def run_profiling_workflow(self, source_path: Path, reports_dir: Path, *,
+                               report_format: str = None, generate_report: bool = True,
+                               raise_on_error: bool = False) -> Dict[str, Any]:
+        """Exécute le profilage complet et, éventuellement, écrit un rapport.
+
+        Args:
+            source_path: Fichier analysé, dont le nom sert à composer celui du rapport.
+            reports_dir: Répertoire de destination des rapports.
+            report_format: Format imposé du rapport ; question posée en terminal si omis.
+            generate_report: À False, seule l'analyse est effectuée — c'est le mode
+                utilisé par l'interface web, qui n'écrit rien sur le serveur.
+            raise_on_error: À True, les erreurs remontent à l'appelant au lieu
+                d'être avalées. L'interface web l'active pour pouvoir afficher
+                un message d'erreur explicite, là où la ligne de commande
+                préfère continuer le pipeline.
+
+        Returns:
+            Les résultats d'analyse, ou un dictionnaire vide en cas d'erreur
+            tolérée.
+
+        Raises:
+            Exception: Toute erreur survenue pendant le profilage, si
+                `raise_on_error` est vrai.
         """
         print("⏳ Lancement du profilage...")
-        
+
         try:
-            # 1. Analyse
             results = self.run_analysis()
-            
-            # 2. Choix et génération du rapport
-            self.interactive_report_choice(reports_dir, source_path)
-            
+
+            if generate_report:
+                self.interactive_report_choice(reports_dir, source_path, choice=report_format)
+
             print(f"✅ Profilage terminé ({len(results.keys())} critères analysés).")
             return results
 
         except Exception as e:
-            # On capture l'erreur mais on ne crash pas tout le pipeline
+            if raise_on_error:
+                raise
+            # En ligne de commande, on préfère un pipeline qui continue à un crash.
             print(f"⚠️ Erreur lors du profilage : {e}")
-            return {} # Retourne un dictionnaire vide pour éviter les NoneType plus loin
+            return {}
 
 
 class PreCleaningProfiler(DataProfiler):

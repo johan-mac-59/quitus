@@ -1090,4 +1090,94 @@ La couche graphique est devenue un **service réutilisable** plutôt qu'un effet
 
 ---
 
+## Étape 32 : Découplage Interface / Logique Métier : Vers une Architecture Bi-Façade 🔌🖥️
+
+Cette étape est le pivot du chantier. Jusqu'ici, les modules de `src/` **posaient** des questions ; désormais ils **reçoivent** des réponses. Ce renversement est ce qui rend possible une interface web sans dupliquer une ligne de logique métier.
+
+### 1. Le problème : quatre points de blocage invisibles en local
+Le pipeline interrogeait l'utilisateur à quatre endroits, via `input()` : deux pour les décisions de nettoyage lourd (outliers, valeurs manquantes), un pour le format du rapport de profilage, un pour la génération du rapport de nettoyage.
+
+Dans un terminal, ce dialogue est un atout. Dans un navigateur, il n'existe pas de terminal : `input()` lève une exception. Et le pipeline se comportait alors de la pire manière possible — non pas en signalant l'erreur, mais en l'avalant : le bloc `try/except` de `run_profiling_workflow` interceptait l'exception et retournait un dictionnaire **vide**. Le profilage disparaissait silencieusement, et le nettoyage se poursuivait sans contexte.
+
+Le même défaut affectait la ligne de commande dans un cas courant : dès que la sortie était redirigée vers un fichier ou un tube, Python retombait sur l'encodage ANSI du système (cp1252 sous Windows), incapable d'encoder les emojis du pipeline. Le script mourait sur son **premier message d'accueil**.
+
+### 2. Le principe retenu : la question devient un paramètre
+Plutôt que de dupliquer l'orchestration dans deux points d'entrée, chaque fonction interactive a été transformée selon une règle unique :
+
+* **elle conserve sa signature et son comportement** — la ligne de commande n'est pas affectée ;
+* **elle gagne un paramètre nommé de contournement** (`answer=`, `choice=`, `generate=`, `report_format=`) qui court-circuite l'invite ;
+* **elle acquiert une garde de fin de flux** (`except EOFError, KeyboardInterrupt`) qui retient la valeur par défaut documentée au lieu de lever ou de boucler sans fin.
+
+Cette troisième propriété est la plus précieuse : elle rend les modules importables depuis n'importe quel contexte dépourvu de terminal — serveur web, intégration continue, ou simple redirection de sortie.
+
+### 3. L'extraction des résumés purs
+Pour que l'interface web puisse **présenter la même information** sans hériter d'un affichage conçu pour un terminal, la partie descriptive a été extraite en deux fonctions pures :
+
+* **`summarize_outliers()`** → nombre d'outliers par colonne ;
+* **`summarize_missing_values()`** → nombre et pourcentage de valeurs manquantes par colonne.
+
+Elles ne savent rien afficher : elles renvoient des données structurées **et** une liste de lignes de texte prêtes à l'emploi. La ligne de commande imprime les lignes ; l'interface web ignore les lignes et exploite les données brutes pour composer ses propres cases à cocher et menus déroulants. Chaque façade reste maîtresse de sa présentation.
+
+### 4. La chasse aux anomalies : ce que l'audit a révélé
+Le paramétrage a servi de révélateur. Cinq anomalies ont été corrigées, dont deux sérieuses.
+
+**a) Le bug de l'écrêtage fantôme, enfin élucidé.**
+`get_user_decisions` transmettait `profiler_results['outliers']` — le sous-dictionnaire — à une fonction qui cherchait la clé `'outliers'` *dans* ce qu'elle recevait. La recherche échouait toujours, d'un niveau de profondeur. Conséquence : la fonction concluait « aucune valeur aberrante détectée » et retournait `False` **sans jamais poser la question**. L'écrêtage était silencieusement désactivé dès qu'un profilage existait.
+
+L'illusion était parfaite : la question suivante (valeurs manquantes), elle, fonctionnait. Une réponse `y` donnée pour les outliers était en réalité consommée par cette question suivante, donnant l'impression que tout fonctionnait. Le défaut remontait à bien avant le refactor de l'Étape 27 — il vivait alors dans `main.py` et y avait été déplacé tel quel.
+
+**b) Un constat de conception plus profond : l'ordre du pipeline.**
+Le correctif précédent en a révélé un second, structurel. Le profilage a lieu **avant** la correction des types. Or une colonne de montants au format `"1 200,50 €"` est encore du **texte** à ce stade : `select_dtypes(number)` ne la voit pas, et le profileur n'y détecte donc **aucun outlier** — alors que la même colonne, une fois convertie, en révèle plusieurs.
+
+Autrement dit : l'utilisateur ne se voyait jamais proposer d'écrêter précisément la colonne qui en avait le plus besoin. Le diagnostic a été complété par une estimation sur les colonnes textuelles convertibles, explicitement signalée comme telle dans l'affichage (« après correction des types »). Le décompte reste indicatif — c'est `clip_outliers` qui tranche, sur des types définitivement corrigés — mais la question est désormais posée.
+
+**c) La priorité de la consigne sur le pré-diagnostic.**
+Corollaire du point précédent : une consigne explicite doit primer sur une vérification heuristique. Si l'utilisateur demande l'écrêtage, le refuser au motif que le profilage n'a rien vu revient à annuler silencieusement sa demande. L'ordre de priorité est désormais strict — consigne explicite, puis question, puis défaut.
+
+**d) `clean_whitespace` fabriquait de fausses catégories.**
+La fonction appliquait `astype(str)` à l'ensemble d'une colonne, transformant chaque `NaN` en la chaîne littérale `"nan"`. Le reste du pipeline la traitait ensuite comme une modalité textuelle légitime — elle apparaissait dans les graphiques de répartition et faussait les cardinalités. Les valeurs manquantes sont maintenant masquées et préservées.
+
+**e) L'encodage de la sortie console.**
+`main.py` force désormais `stdout` et `stderr` en UTF-8 au démarrage, ce qui rend le script utilisable avec une sortie redirigée.
+
+### 5. Le chargement depuis la mémoire
+`load_file()` ne savait partir que d'un chemin sur disque. Or un fichier déposé dans un navigateur n'a pas de chemin : il arrive sous forme d'octets en mémoire.
+
+Le module a été réorganisé autour d'un **coeur orienté octets** (`load_dataframe(octets, nom)`), les fonctions orientées chemin devenant de simples enveloppes. Toute la logique de détection — format, encodage, séparateur — vit désormais en un seul endroit, ce qui garantit un comportement rigoureusement identique entre les deux modes.
+
+L'alternative — écrire le fichier reçu dans un fichier temporaire pour réutiliser `load_file` — a été écartée : elle aurait exigé une logique de nettoyage, échoué sur un système de fichiers en lecture seule, et relu des octets déjà présents en mémoire. Les **29 tests existants du loader passent sans modification**, preuve que le contrat public est intact.
+
+### 6. Deux garde-fous nouveaux
+**`src/console_capture.py`** détourne `stdout`, `stderr` et le journal racine vers un tampon mémoire, que l'interface web affichera dans un volet dépliable. Le pipeline reste ainsi bavard et traçable dans le navigateur, sans qu'aucun module métier n'ait à connaître Streamlit. Le traitement explicite du module `logging` n'est pas redondant : un `StreamHandler` construit avant la redirection a capturé la référence à `sys.stderr` et continuerait d'écrire dans la vraie sortie d'erreur.
+
+**`tests/test_integrite_source.py`** ajoute des contrôles structurels, nés d'un incident survenu pendant cette étape : un refactor a laissé `generate_enhanced_report` **définie deux fois** dans le même module. Python retient silencieusement la dernière définition — en l'occurrence l'ancienne version, celle qu'on venait de remplacer. Aucun test fonctionnel n'a échoué, parce qu'aucun ne couvrait cette fonction. Le nouveau fichier détecte désormais :
+
+* toute fonction ou méthode **définie deux fois** ;
+* tout module de `src/` qui **importerait streamlit** — la frontière du modèle bi-façade est ainsi vérifiée automatiquement ;
+* tout appel à `input()` **dépourvu de garde** de fin de flux ;
+* toute fonction publique **sans docstring**.
+
+### 7. Un point d'entrée en ligne de commande digne de ce nom
+`main.py` n'impose plus de chemins codés en dur. Il accepte `--input`, `--output`, `--reports`, `--format-rapport`, et deux modes non interactifs (`--oui-a-tout`, `--non-interactif`) précieux pour l'automatisation. Il retourne un code de sortie exploitable et affiche enfin le chemin du rapport de nettoyage, que `generate_enhanced_report` se contentait jusque-là d'imprimer sans le retourner.
+
+Un **échantillon synthétique** de 312 lignes est désormais versionné dans `data/samples/`, reproduisant toutes les anomalies du jeu réel (formats de date mélangés, variations de casse, symboles monétaires, séparateurs décimaux français, doublons, valeurs extrêmes) sans contenir aucune donnée personnelle. Le `.gitignore` a été ajusté pour l'autoriser — avec une subtilité : il fallait écrire `data/*` et non `data/`, car git ne descend pas dans un répertoire ignoré et n'y évaluerait donc jamais une exception.
+
+### 8. Résultat : un audit complet du mode terminal
+Six scénarios ont été validés de bout en bout avant tout développement de l'interface web :
+
+| Scénario | Résultat |
+|---|---|
+| Fin de flux immédiate | Aucun blocage, aucune trace, code de sortie 0 |
+| `--oui-a-tout` | **3 outliers écrêtés** sur l'échantillon |
+| `--non-interactif` | Traitements lourds refusés, pipeline complet |
+| Interactif, réponse `y` | Question posée, **écrêtage effectif** |
+| Interactif, réponse `n` | Écrêtage refusé, rapport ignoré |
+| Jeu réel, 73 810 lignes | **2 795 outliers écrêtés**, 1 447 doublons, 22 160 valeurs comblées |
+
+Cette dernière ligne mérite d'être soulignée : sur le jeu de référence, l'ancien code corrigeait **zéro** outlier. La fonctionnalité était annoncée, documentée, testée en apparence — et inopérante.
+
+**233 tests passent**, contre 121 à l'étape précédente. La logique métier est désormais totalement agnostique de son interface : c'est le socle sur lequel l'application web peut être bâtie sans rien réécrire.
+
+---
+
 *Projet en cours de développement - Capacité d'analyse visuelle et reporting autonome validée.*

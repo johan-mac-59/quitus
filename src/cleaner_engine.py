@@ -33,19 +33,28 @@ def clean_whitespace(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     cols_to_process = df_cleaned.select_dtypes(include=['object', 'string']).columns
 
     for col in cols_to_process:
-        # On convertit temporairement en string pour nettoyer, même si c'est déjà string
-        # C'est important pour capturer les NaN qui deviennent le mot "nan" qu'on peut traiter si besoin
-        original_str = df_cleaned[col].astype(str)
-        
-        cleaned_values = original_str.str.strip().str.replace(r'\s+', ' ', regex=True)
-        
-        # CORRECTION : On compare les versions string pour éviter les pièges des NaN (NaN != NaN est True)
-        changed_mask = original_str != cleaned_values
-        
-        n_modified += changed_mask.sum()
-        
+        original = df_cleaned[col]
+
+        # Les valeurs manquantes doivent rester manquantes. Un astype(str) global
+        # les transformerait en la chaîne littérale "nan", que le reste du
+        # pipeline traiterait ensuite comme une vraie catégorie textuelle.
+        null_mask = original.isna()
+
+        cleaned_values = (
+            original.astype(str)
+            .str.strip()
+            .str.replace(r'\s+', ' ', regex=True)
+        )
+        cleaned_values = cleaned_values.where(~null_mask, original)
+
+        # On ne compte que les valeurs réellement présentes ET réellement modifiées.
+        # Comparer deux NaN renverrait toujours « différent ».
+        changed_mask = (~null_mask) & (original.astype(str) != cleaned_values)
+
+        n_modified += int(changed_mask.sum())
+
         df_cleaned[col] = cleaned_values
-        
+
     return df_cleaned, n_modified
 
 def fix_numeric_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
@@ -515,173 +524,340 @@ def clip_outliers(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
     return df, corrections
 
-def ask_user_outlier_correction(df: pd.DataFrame, stats: dict, profiler_results: dict = None) -> bool:
-    """
-    Demande à l'utilisateur s'il veut corriger les outliers.
-    
-    Args:
-        df: DataFrame à nettoyer
-        stats: Dictionnaire contenant les statistiques de nettoyage actuelles
-        profiler_results: Résultats du DataProfiler pour connaître les outliers détectés
-        
-    Returns:
-        bool: True si l'utilisateur veut corriger, False sinon
-    """
-    print("\n" + "="*60)
-    print("⚠️  Gestion des Valeurs Aberrantes (Outliers)")
-    print("="*60)
-    
-    # Récupération des outliers détectés dans le profiler
-    outlier_cols = {}
-    
-    if profiler_results and 'outliers' in profiler_results:
-        outlier_cols = profiler_results['outliers']
-    elif 'outliers_corrected' in stats:
-        # Si on a déjà les outliers corrigés, on les récupère
-        outlier_cols = stats['outliers_corrected']
-    
-    # Si on n'a pas d'outliers détectés
-    if not outlier_cols or (isinstance(outlier_cols, dict) and len(outlier_cols) == 0):
-        print("✅ Aucune valeur aberrante détectée dans les données.")
-        return False
-    
-    # Afficher les outliers détectés
-    print(f"🔍 {len(outlier_cols)} colonne(s) contient(ent) des valeurs aberrantes :")
-    
-    # Si c'est un dict avec le format de sortie du profiler
-    if isinstance(outlier_cols, dict):
-        for col, info in outlier_cols.items():
-            if isinstance(info, dict) and 'count' in info:
-                print(f"   • {col}: {info['count']} outliers détectés")
-            else:
-                # Format pour les anciens résultats
-                print(f"   • {col}: {info} outliers détectés")
-    else:
-        # Format simplifié
-        print(f"   • Détectés dans {len(outlier_cols)} colonnes")
-    
-    print("\nLes valeurs aberrantes sont corrigées par la méthode IQR (clipping).")
-    print("Cela peut modifier les bornes statistiques et altérer les distributions.")
-    print("Souhaitez-vous corriger ces valeurs aberrantes ?")
-    print("(Répondez par 'y' (oui) ou 'n' (non). Par défaut : 'n')")
-    
-    while True:
-        reponse = input("⏳ Votre choix [y/n, entrée par défaut 'n'] : ").strip().lower()
-        
-        # Réponse par défaut si l'utilisateur appuie juste sur Entrée
-        if reponse == "":
-            print("❌ Choix par défaut : Ne pas corriger les outliers")
-            return False
-            
-        if reponse in ['y', 'yes', 'o', 'oui']:
-            print("✅ Vous avez choisi de corriger les valeurs aberrantes.")
-            return True
-        elif reponse in ['n', 'no', 'non']:
-            print("❌ Vous avez choisi de ne pas corriger les outliers.")
-            return False
-        else:
-            print("⚠️ Veuillez répondre par 'y' (oui) ou 'n' (non).")
-            print("⏳  Appuyez sur Entrée pour choisir 'n' par défaut.")
+SEPARATEUR = "=" * 60
 
-def ask_user_missing_values_correction(df: pd.DataFrame, stats: dict, profiler_results: dict = None) -> bool:
-    """
-    Demande à l'utilisateur s'il veut combler les valeurs manquantes.
-    
+
+def summarize_outliers(df: pd.DataFrame, stats: dict = None,
+                       profiler_results: dict = None) -> dict:
+    """Résume les valeurs aberrantes détectées, sans aucune entrée/sortie.
+
+    Fonction pure : l'interface en ligne de commande s'en sert pour composer son
+    affichage, l'interface web pour remplir le texte d'aide de ses widgets.
+
     Args:
-        df: DataFrame à nettoyer
-        stats: Dictionnaire contenant les statistiques de nettoyage actuelles
-        profiler_results: Résultats du DataProfiler pour connaître les valeurs manquantes
-        
+        df: DataFrame analysé.
+        stats: Statistiques de nettoyage déjà collectées, éventuellement porteuses
+            d'une clé `outliers_corrected`.
+        profiler_results: Résultats complets du profileur, porteurs d'une clé
+            `outliers`.
+
     Returns:
-        bool: True si l'utilisateur veut combler, False sinon
+        Un dictionnaire à trois clés : `has_outliers` (bool), `columns`
+        (nom de colonne -> nombre d'outliers) et `lines` (lignes de texte
+        prêtes à afficher).
     """
-    print("\n" + "="*60)
-    print("⚠️  Gestion des Valeurs Manquantes")
-    print("="*60)
-    
-    # Compter les valeurs manquantes totales
-    total_missing = df.isnull().sum().sum()
-    
-    if total_missing == 0:
-        print("✅ Aucune valeur manquante détectée dans les données.")
-        return False
-    
-    print(f"🔍 {total_missing} valeurs manquantes détectées dans l'ensemble du dataset")
-    
-    # Afficher le nombre par colonne
-    missing_by_col = df.isnull().sum()
-    missing_by_col = missing_by_col[missing_by_col > 0]
-    
-    if len(missing_by_col) > 0:
-        print("Répartition par colonne :")
-        for col, count in missing_by_col.items():
-            percentage = (count / len(df)) * 100
-            print(f"   • {col}: {count} ({percentage:.1f}%)")
-    
-    print("\nLes valeurs manquantes sont comblées automatiquement :")
-    print("- Pour les colonnes numériques : médiane")
-    print("- Pour les colonnes catégorielles : mode")
-    print("Souhaitez-vous combler ces valeurs manquantes ?")
-    print("(Répondez par 'y' (oui) ou 'n' (non). Par défaut : 'n')")
-    
-    while True:
-        reponse = input("⏳ Votre choix [y/n, entrée par défaut 'n'] : ").strip().lower()
-        
-        # Réponse par défaut si l'utilisateur appuie juste sur Entrée
-        if reponse == "":
-            print("✅ Choix par défaut : Na pas combler les valeurs manquantes")
-            return False
-            
-        if reponse in ['y', 'yes', 'o', 'oui']:
-            print("✅ Vous avez choisi de combler les valeurs manquantes.")
-            return True
-        elif reponse in ['n', 'no', 'non']:
-            print("❌ Vous avez choisi de ne pas combler les valeurs manquantes.")
-            return False
-        else:
-            print("⚠️ Veuillez répondre par 'y' (oui) ou 'n' (non).")
-            print("⏳  Appuyez sur Entrée pour choisir 'y' par défaut.")
-            
-def get_user_decisions(initial_df: pd.DataFrame, profiler_results: dict) -> Tuple[bool, bool]:
-    """
-    Demande à l'utilisateur s'il veut corriger les outliers et remplir les valeurs manquantes.
-    
-    Args:
-        initial_df: DataFrame initial
-        profiler_results: Résultats du DataProfiler
-        
-    Returns:
-        Tuple[bool, bool]: (correct_outliers, fill_missing)
-    """
-    print("\n" + "="*60)
-    print("🔧 Décisions de Nettoyage Avancé")
-    print("="*60)
-    
-    correct_outliers = True
-    fill_missing = True
-    
-    if profiler_results:
-        # Outliers
-        if 'outliers' in profiler_results and profiler_results['outliers']:
-            correct_outliers = ask_user_outlier_correction(initial_df, {}, profiler_results['outliers'])
-        else:
-            print("✅ Aucune valeur aberrante détectée par le profilage.")
-                
-        # Missing Values
-        total_missing = initial_df.isnull().sum().sum()
-        if total_missing > 0:
-            fill_missing = ask_user_missing_values_correction(initial_df, {}, profiler_results['missing_values'])
-        else:
-            print("✅ Aucune valeur manquante détectée par le profilage.")
+    stats = stats or {}
+    profiler_results = profiler_results or {}
+
+    raw = profiler_results.get('outliers') or stats.get('outliers_corrected') or {}
+
+    # Le profileur renvoie {col: {'count': n, ...}} ; d'anciens formats
+    # renvoyaient directement {col: n}. On normalise les deux.
+    columns = {}
+    if isinstance(raw, dict):
+        for col, info in raw.items():
+            if col == 'ignored':
+                continue
+            if isinstance(info, dict):
+                columns[col] = info.get('count', 0)
+            elif isinstance(info, (int, float)):
+                columns[col] = int(info)
+
+    # Le profilage a lieu AVANT la correction des types : une colonne de montants
+    # encore stockée en texte (« 1 200,50 € ») n'y apparaît pas comme numérique et
+    # ne révèle donc aucun outlier. Sans ce complément, l'utilisateur ne se verrait
+    # jamais proposer d'écrêter la colonne qui en a le plus besoin.
+    latents = _outliers_apres_typage(df, deja_vues=set(columns))
+    columns.update(latents)
+
+    lines = []
+    if not columns:
+        lines.append("✅ Aucune valeur aberrante détectée dans les données.")
     else:
-        # Fallback si pas de profil
-        print("✅ Pas de résultat de profilage. Aucune valeur manquante ni de valeur aberrante détectée")
-        correct_outliers = ask_user_outlier_correction(initial_df, {}, {})
-        fill_missing = ask_user_missing_values_correction(initial_df, {}, {})
-    
-    print(f"\n➡️ Configuration finale : \nEcrêtage des Outliers = {'OUI' if correct_outliers else 'NON'}\nRemplacement des valeurs manquantes = {'OUI' if fill_missing else 'NON'}")
-    
-    return correct_outliers, fill_missing
+        lines.append(f"🔍 {len(columns)} colonne(s) contient(ent) des valeurs aberrantes :")
+        for col, count in columns.items():
+            suffixe = " (après correction des types)" if col in latents else ""
+            lines.append(f"   • {col}: {count} outliers détectés{suffixe}")
+        lines.append("Les valeurs aberrantes sont corrigées par la méthode IQR (clipping).")
+        lines.append("Cela peut modifier les bornes statistiques et altérer les distributions.")
+
+    return {'has_outliers': bool(columns), 'columns': columns, 'lines': lines}
+
+
+def _outliers_apres_typage(df: pd.DataFrame, deja_vues: set = None) -> dict:
+    """Compte les outliers des colonnes textuelles convertibles en numérique.
+
+    Complète le diagnostic du profileur, qui ne voit que les colonnes déjà
+    typées. Le comptage est indicatif : c'est `clip_outliers` qui tranchera, sur
+    des types définitivement corrigés.
+
+    Args:
+        df: DataFrame analysé.
+        deja_vues: Colonnes déjà comptabilisées, à ne pas recompter.
+
+    Returns:
+        Un dictionnaire nom de colonne -> nombre d'outliers estimé.
+    """
+    deja_vues = deja_vues or set()
+    resultats = {}
+
+    if df is None or df.empty:
+        return resultats
+
+    for col in df.select_dtypes(include=['object', 'string']).columns:
+        if col in deja_vues or not _can_be_numeric(df[col]):
+            continue
+
+        # Même normalisation que clean_types, en version condensée : on veut une
+        # estimation, pas une conversion définitive.
+        serie = (
+            df[col].astype('string')
+            .str.replace('€', '', regex=False)
+            .str.replace('$', '', regex=False)
+            .str.replace(',', '.', regex=False)
+        )
+        numerique = pd.to_numeric(serie, errors='coerce').dropna()
+        if len(numerique) < 4:
+            continue
+
+        q1, q3 = numerique.quantile(0.25), numerique.quantile(0.75)
+        iqr = q3 - q1
+        if iqr == 0:
+            continue
+
+        n = int(((numerique < q1 - 1.5 * iqr) | (numerique > q3 + 1.5 * iqr)).sum())
+        if n > 0:
+            resultats[col] = n
+
+    return resultats
+
+
+def summarize_missing_values(df: pd.DataFrame) -> dict:
+    """Résume les valeurs manquantes du DataFrame, sans aucune entrée/sortie.
+
+    Args:
+        df: DataFrame analysé.
+
+    Returns:
+        Un dictionnaire à trois clés : `total` (nombre total de valeurs
+        manquantes), `by_column` (nom de colonne -> (nombre, pourcentage)) et
+        `lines` (lignes de texte prêtes à afficher).
+    """
+    total = int(df.isnull().sum().sum())
+
+    by_column = {}
+    if len(df) > 0:
+        counts = df.isnull().sum()
+        for col, count in counts[counts > 0].items():
+            by_column[col] = (int(count), round(count / len(df) * 100, 1))
+
+    lines = []
+    if total == 0:
+        lines.append("✅ Aucune valeur manquante détectée dans les données.")
+    else:
+        lines.append(f"🔍 {total} valeurs manquantes détectées dans l'ensemble du dataset")
+        if by_column:
+            lines.append("Répartition par colonne :")
+            for col, (count, pct) in by_column.items():
+                lines.append(f"   • {col}: {count} ({pct}%)")
+        lines.append("Les valeurs manquantes sont comblées automatiquement :")
+        lines.append("- Pour les colonnes numériques : médiane")
+        lines.append("- Pour les colonnes catégorielles : mode")
+
+    return {'total': total, 'by_column': by_column, 'lines': lines}
+
+
+def _colonnes_numerisables(df: pd.DataFrame) -> list:
+    """Liste les colonnes textuelles convertibles en numérique.
+
+    Sert à avertir l'utilisateur que le décompte d'outliers issu du profilage
+    est incomplet : le profilage précède la correction des types, donc une
+    colonne de montants encore stockée en texte (« 1 200,50 € ») n'y figure pas
+    comme numérique.
+
+    Args:
+        df: DataFrame analysé.
+
+    Returns:
+        Les noms des colonnes textuelles susceptibles de devenir numériques.
+    """
+    candidates = []
+    for col in df.select_dtypes(include=['object', 'string']).columns:
+        if _can_be_numeric(df[col]):
+            candidates.append(col)
+    return candidates
+
+
+def _prompt_yes_no(question: str, default: bool) -> bool:
+    """Pose une question fermée en ligne de commande, avec garde de fin de flux.
+
+    La garde sur `EOFError` est ce qui rend ce module importable depuis un
+    contexte sans terminal (serveur web, intégration continue, sortie
+    redirigée) : au lieu de lever ou de boucler indéfiniment, la valeur par
+    défaut est retenue.
+
+    Args:
+        question: Libellé de la question.
+        default: Valeur retenue sur réponse vide, fin de flux ou interruption.
+
+    Returns:
+        La décision de l'utilisateur.
+    """
+    defaut_txt = 'y' if default else 'n'
+    print(f"{question}")
+    print(f"(Répondez par 'y' (oui) ou 'n' (non). Par défaut : '{defaut_txt}')")
+
+    while True:
+        try:
+            reponse = input(f"⏳ Votre choix [y/n, entrée par défaut '{defaut_txt}'] : ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(f"\nℹ️ Aucune réponse lisible : choix par défaut ('{defaut_txt}').")
+            return default
+
+        if reponse == "":
+            print(f"ℹ️ Choix par défaut : '{defaut_txt}'.")
+            return default
+        if reponse in ['y', 'yes', 'o', 'oui']:
+            return True
+        if reponse in ['n', 'no', 'non']:
+            return False
+
+        print("⚠️ Veuillez répondre par 'y' (oui) ou 'n' (non).")
+        print(f"⏳  Appuyez sur Entrée pour choisir '{defaut_txt}' par défaut.")
+
+
+def ask_user_outlier_correction(df: pd.DataFrame, stats: dict, profiler_results: dict = None,
+                                *, answer: bool = None, default: bool = False) -> bool:
+    """Décide s'il faut écrêter les valeurs aberrantes.
+
+    Args:
+        df: DataFrame à nettoyer.
+        stats: Statistiques de nettoyage actuelles.
+        profiler_results: Résultats complets du profileur.
+        answer: Réponse imposée ; court-circuite l'invite si elle est fournie.
+            C'est par ce paramètre que l'interface web transmet le choix fait
+            dans un widget.
+        default: Valeur retenue sur réponse vide ou absence de terminal.
+
+    Returns:
+        True s'il faut écrêter, False sinon.
+    """
+    print("\n" + SEPARATEUR)
+    print("⚠️  Gestion des Valeurs Aberrantes (Outliers)")
+    print(SEPARATEUR)
+
+    summary = summarize_outliers(df, stats, profiler_results)
+    for line in summary['lines']:
+        print(line)
+
+    # Une consigne explicite prime sur le pré-diagnostic. C'est essentiel ici :
+    # le profilage a lieu AVANT la correction des types, donc une colonne encore
+    # stockée en texte (montants avec « € » ou virgule décimale) n'est pas vue
+    # comme numérique et ne révèle aucun outlier à ce stade. Sortir sur False
+    # annulerait silencieusement la demande de l'utilisateur, alors que
+    # clip_outliers, lui, travaille sur des types déjà corrigés.
+    if answer is not None:
+        print(f"➡️ Écrêtage des outliers : {'OUI' if answer else 'NON'} (choix transmis).")
+        return answer
+
+    # Rien à corriger et aucune consigne : la question n'a pas lieu d'être posée.
+    if not summary['has_outliers']:
+        if _colonnes_numerisables(df):
+            print("ℹ️ Certaines colonnes textuelles pourraient devenir numériques "
+                  "après correction des types : des valeurs aberrantes peuvent "
+                  "encore apparaître à ce moment-là.")
+        return False
+
+    decision = _prompt_yes_no("Souhaitez-vous corriger ces valeurs aberrantes ?", default)
+    print("✅ Vous avez choisi de corriger les valeurs aberrantes."
+          if decision else "❌ Vous avez choisi de ne pas corriger les outliers.")
+    return decision
+
+
+def ask_user_missing_values_correction(df: pd.DataFrame, stats: dict, profiler_results: dict = None,
+                                       *, answer: bool = None, default: bool = False) -> bool:
+    """Décide s'il faut combler les valeurs manquantes.
+
+    Args:
+        df: DataFrame à nettoyer.
+        stats: Statistiques de nettoyage actuelles.
+        profiler_results: Résultats complets du profileur (non utilisé, conservé
+            pour la symétrie de signature avec `ask_user_outlier_correction`).
+        answer: Réponse imposée ; court-circuite l'invite si elle est fournie.
+        default: Valeur retenue sur réponse vide ou absence de terminal.
+
+    Returns:
+        True s'il faut combler, False sinon.
+    """
+    print("\n" + SEPARATEUR)
+    print("⚠️  Gestion des Valeurs Manquantes")
+    print(SEPARATEUR)
+
+    summary = summarize_missing_values(df)
+    for line in summary['lines']:
+        print(line)
+
+    # Comme pour les outliers, une consigne explicite prime sur le pré-diagnostic.
+    if answer is not None:
+        print(f"➡️ Remplissage des valeurs manquantes : {'OUI' if answer else 'NON'} (choix transmis).")
+        return answer
+
+    # Rien à combler et aucune consigne : la question n'a pas lieu d'être posée.
+    if summary['total'] == 0:
+        return False
+
+    decision = _prompt_yes_no("Souhaitez-vous combler ces valeurs manquantes ?", default)
+    print("✅ Vous avez choisi de combler les valeurs manquantes."
+          if decision else "❌ Vous avez choisi de ne pas combler les valeurs manquantes.")
+    return decision
+
+
+def get_user_decisions(initial_df: pd.DataFrame, profiler_results: dict, *,
+                       correct_outliers: bool = None, fill_missing: bool = None,
+                       interactive: bool = True) -> Tuple[bool, bool]:
+    """Collecte les deux décisions de nettoyage avancé.
+
+    Ordre de priorité : une valeur booléenne explicite l'emporte ; à défaut, et
+    si `interactive` est vrai, la question est posée en terminal ; sinon la
+    réponse est négative. C'est ce qui permet au même code de servir la ligne
+    de commande (qui questionne) et l'interface web (qui transmet).
+
+    Args:
+        initial_df: DataFrame initial.
+        profiler_results: Résultats du profileur.
+        correct_outliers: Décision imposée pour l'écrêtage.
+        fill_missing: Décision imposée pour le remplissage.
+        interactive: Autorise l'interrogation du terminal.
+
+    Returns:
+        Le couple (correct_outliers, fill_missing).
+    """
+    print("\n" + SEPARATEUR)
+    print("🔧 Décisions de Nettoyage Avancé")
+    print(SEPARATEUR)
+
+    profiler_results = profiler_results or {}
+
+    # `answer=None` laisse la fonction appelée poser la question ; sinon elle
+    # se contente de confirmer la valeur transmise.
+    outliers_answer = correct_outliers if correct_outliers is not None else (None if interactive else False)
+    missing_answer = fill_missing if fill_missing is not None else (None if interactive else False)
+
+    # On transmet le profil COMPLET, pas son sous-dictionnaire 'outliers' :
+    # summarize_outliers y cherche la clé 'outliers', et lui passer un niveau
+    # trop bas faisait conclure « aucun outlier » et désactivait silencieusement
+    # l'écrêtage dès qu'un profilage existait.
+    decided_outliers = ask_user_outlier_correction(
+        initial_df, {}, profiler_results, answer=outliers_answer)
+    decided_missing = ask_user_missing_values_correction(
+        initial_df, {}, profiler_results, answer=missing_answer)
+
+    print(f"\n➡️ Configuration finale : "
+          f"\nEcrêtage des Outliers = {'OUI' if decided_outliers else 'NON'}"
+          f"\nRemplacement des valeurs manquantes = {'OUI' if decided_missing else 'NON'}")
+
+    return decided_outliers, decided_missing
+
 
 def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iterations: int = 5, correct_outliers: bool = True, fill_missing: bool = True) -> Tuple[pd.DataFrame, dict]:
     """

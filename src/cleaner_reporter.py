@@ -61,6 +61,15 @@ class CleanerReporter:
 
         # --- Helper sécurisé pour additionner ---
         def safe_add(num1, num2):
+            """Additionne deux valeurs en tolérant les types non numériques.
+
+            Args:
+                num1: Première valeur.
+                num2: Seconde valeur.
+
+            Returns:
+                La somme, ou la première valeur si l'addition est impossible.
+            """
             try:
                 return int(num1) + int(num2)
             except (ValueError, TypeError):
@@ -230,77 +239,149 @@ class CleanerReporter:
         
         return table_content
             
-    def demander_generation_rapport(self) -> bool:
-        """
-        Demande à l'utilisateur s'il veut générer le rapport de nettoyage.
-        
+    def demander_generation_rapport(self, *, answer: bool = None) -> bool:
+        """Décide s'il faut générer le rapport de nettoyage.
+
+        Args:
+            answer: Réponse imposée ; court-circuite l'invite si elle est
+                fournie. C'est par ce paramètre que l'interface web transmet le
+                choix fait dans une case à cocher.
+
         Returns:
-            bool: True si l'utilisateur veut générer, False sinon.
+            True s'il faut générer le rapport, False sinon.
         """
-        print("\n" + "="*60)
+        if answer is not None:
+            return answer
+
+        print("\n" + "=" * 60)
         print("📊 Génération du Rapport de Nettoyage")
-        print("="*60)
+        print("=" * 60)
         print("Souhaitez-vous générer le rapport détaillé de nettoyage ?")
         print("(Cela créera un fichier avec les statistiques et comparaisons)")
         print("Répondez par 'y' (oui) ou 'n' (non).")
         print("Par défaut : 'y' (générer le rapport)")
-        
+
         while True:
-            reponse = input("⏳ Votre choix [y/n, entrée par défaut 'y'] : ").strip().lower()
-            
-            # Réponse par défaut si l'utilisateur appuie juste sur Entrée
+            try:
+                reponse = input("⏳ Votre choix [y/n, entrée par défaut 'y'] : ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                # Sans terminal (serveur web, sortie redirigée, CI), on retient
+                # le défaut documenté plutôt que de lever ou de boucler sans fin.
+                print("\nℹ️ Aucune réponse lisible : génération du rapport par défaut.")
+                return True
+
             if reponse == "":
                 print("✅ Choix par défaut : Générer le rapport")
                 return True
-                
             if reponse in ['y', 'yes', 'o', 'oui']:
                 return True
-            elif reponse in ['n', 'no', 'non']:
+            if reponse in ['n', 'no', 'non']:
                 return False
-            else:
-                print("⚠️ Veuillez répondre par 'y' (oui) ou 'n' (non).")
-                print("⏳  Appuyez sur Entrée pour choisir 'y' par défaut.")
-    
+
+            print("⚠️ Veuillez répondre par 'y' (oui) ou 'n' (non).")
+            print("⏳  Appuyez sur Entrée pour choisir 'y' par défaut.")
+
+    def render(self, stats: dict = None) -> str:
+        """Produit le contenu du rapport en mémoire, sans accès au disque.
+
+        C'est ce que consomme l'interface web pour proposer le rapport au
+        téléchargement sans rien écrire sur le serveur.
+
+        Args:
+            stats: Statistiques de nettoyage à détailler.
+
+        Returns:
+            Le contenu Markdown du rapport.
+        """
+        return (self._get_header()
+                + self._get_summary_section()
+                + self._get_operations_table(stats))
+
     def generate_with_stats(self, output_path: str, stats: dict = None) -> str:
-        """Génère le fichier Markdown complet avec les statistiques."""
+        """Génère le fichier Markdown complet avec les statistiques.
+
+        Args:
+            output_path: Chemin du fichier à écrire.
+            stats: Statistiques de nettoyage à détailler.
+
+        Returns:
+            Le chemin absolu du fichier écrit.
+
+        Raises:
+            RuntimeError: Si l'écriture échoue.
+        """
         try:
-            content = (self._get_header() + 
-                      self._get_summary_section() + 
-                      self._get_operations_table(stats))
-            
+            content = self.render(stats)
+
             path_obj = Path(output_path)
             # Vérification du répertoire parent
             path_obj.parent.mkdir(parents=True, exist_ok=True)
             path_obj.write_text(content, encoding="utf-8")
             self.logger.info(f"Rapport généré avec succès : {path_obj.absolute()}")
             return str(path_obj.absolute())
-            
+
         except Exception as e:
             self.logger.error(f"Erreur lors de la génération du rapport : {str(e)}")
             raise RuntimeError(f"Erreur lors de la génération du rapport : {str(e)}")
-    
+
     def generate(self, output_path: str = "cleaning_report.md") -> str:
-        """Génère le fichier Markdown complet (ancienne version)."""
+        """Génère le fichier Markdown complet (ancienne version).
+
+        Args:
+            output_path: Chemin du fichier à écrire.
+
+        Returns:
+            Le chemin absolu du fichier écrit.
+        """
         return self.generate_with_stats(output_path, {})
 
-def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats):
-    """Fonction utilitaire pour générer le rapport amélioré."""
+
+def build_cleaning_report_path(reports_dir, input_file) -> Path:
+    """Compose le chemin horodaté d'un rapport de nettoyage.
+
+    Args:
+        reports_dir: Répertoire de destination.
+        input_file: Fichier source, dont le nom de base est réutilisé.
+
+    Returns:
+        Le chemin complet du rapport.
+    """
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+    return Path(reports_dir) / f"cleaning_report_{Path(input_file).stem}_{timestamp}.md"
+
+
+def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
+                             *, generate: bool = None):
+    """Génère le rapport de nettoyage détaillé.
+
+    Args:
+        profiler: Objet exposant un attribut `profile_results`. Un simple
+            `SimpleNamespace(profile_results=...)` suffit : c'est le seul
+            attribut lu.
+        logger: Journal exposant `.info()` et `.error()`.
+        reports_dir: Répertoire de destination.
+        input_file: Fichier source, dont le nom de base est réutilisé.
+        stats: Statistiques de nettoyage à détailler.
+        generate: Décision imposée — True génère sans demander, False saute
+            l'étape, None pose la question en terminal.
+
+    Returns:
+        Le chemin du rapport écrit, ou None si l'étape a été sautée ou a échoué.
+    """
     try:
         # Initialisation du reporter avec le chemin du fichier source
         reporter = CleanerReporter(profiler, logger, source_file_path=str(input_file))
-        
-        # --- Demander à l'utilisateur ---
-        if not reporter.demander_generation_rapport():
+
+        if not reporter.demander_generation_rapport(answer=generate):
             print("✅ Rapport de nettoyage ignoré. Suite du pipeline...")
-            return # On ne fait rien si l'utilisateur refuse
-        
-        # --- Si oui, on continue avec la génération ---
-        # Nom du rapport final avec timestamp
-        final_report_filename = reports_dir / f"cleaning_report_{input_file.stem}_{datetime.now().strftime('%Y%m%d_%H%M')}.md"
-        
-        # Génération du rapport final avec les stats
+            return None
+
+        final_report_filename = build_cleaning_report_path(reports_dir, input_file)
+
         report_path = reporter.generate_with_stats(str(final_report_filename), stats)
         print(f"📝 Rapport de nettoyage généré : {report_path}")
-        
+        return report_path
+
     except Exception as e:
         print(f"⚠️ Erreur lors de la génération du rapport final : {e}")
+        return None

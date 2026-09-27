@@ -10,6 +10,16 @@ reports/
 # Virtual environments
 .venv
 
-# dossiers data
-data/
+# Donnees : tout est ignore SAUF l'echantillon versionne, qui rend le depot
+# utilisable apres un simple clone (c'est le chemin par defaut de main.py).
+# On ecrit `data/*` et non `data/` : git ne descend pas dans un repertoire
+# ignore, donc une negation sous `data/` ne serait jamais evaluee.
+data/*
+!data/samples/
+data/samples/*
+!data/samples/*.csv
 *.csv
+!data/samples/*.csv
+
+# Secrets Streamlit (le config.toml, lui, DOIT etre versionne)
+.streamlit/secrets.toml
