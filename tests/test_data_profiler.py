@@ -205,21 +205,22 @@ class TestDataProfilerReportGeneration:
         except Exception as e:
             pytest.fail(f"Une erreur est survenue lors de la génération du rapport : {e}")
 
-    def test_generate_report_calls_analysis_if_needed(self, valid_df):
+    def test_generate_report_calls_analysis_if_needed(self, valid_df, tmp_path):
         """Cas limite : Si run_analysis n'a pas été appelé, generate_report doit le faire implicitement."""
         profiler = DataProfiler(valid_df)
         # On vide manuellement les résultats pour forcer l'appel interne
-        profiler.profile_results = {} 
-        
-        # Cela ne doit pas lever d'erreur
-        profiler.generate_report()
+        profiler.profile_results = {}
+
+        # Écriture dans tmp_path : un test ne doit rien laisser dans le dépôt.
+        profiler.generate_report(str(tmp_path / "rapport.md"))
+        assert profiler.profile_results != {}
 
 
 # --- Tests additionnels pour la robustesse ---
 
 class TestDataProfilerRobustness:
     
-    def test_large_dataframe_performance(self):
+    def test_large_dataframe_performance(self, tmp_path):
         """Cas limite : Performance sur un dataset raisonnablement grand."""
         n_rows = 10000
         df_large = pd.DataFrame({
@@ -236,6 +237,6 @@ class TestDataProfilerRobustness:
         # Vérifie que la génération de stats ne prend pas un temps déraisonnable (< 1s normalement)
         import time
         start = time.time()
-        profiler.generate_report()
+        profiler.generate_report(str(tmp_path / "rapport.md"))
         elapsed = time.time() - start
         assert elapsed < 5.0, f"La génération du rapport a pris trop de temps : {elapsed}s"
