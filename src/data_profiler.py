@@ -1,12 +1,30 @@
 # src/data_profiler.py
 import os
 import pandas as pd
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any
-import matplotlib.pyplot as plt
-import seaborn as sns
-from io import BytesIO
-import base64
+from typing import Any, Callable, Dict, Iterator
+
+from matplotlib.figure import Figure
+
+from src import plot_factory as pf
+
+
+@dataclass(frozen=True)
+class PlotSpec:
+    """Description d'un graphique disponible, sans le construire.
+
+    Attributes:
+        key: Identifiant stable, utilisable comme clé de widget.
+        section: Regroupement d'affichage (ex. « Distributions »).
+        title: Libellé lisible.
+        build: Closure qui construit et retourne la figure, à la demande.
+    """
+
+    key: str
+    section: str
+    title: str
+    build: Callable[[], Figure]
 
 class DataProfiler:
     """Analyse descriptive d'un DataFrame avec génération de rapport."""
@@ -420,8 +438,24 @@ class DataProfiler:
 
 
     def _generate_html_report(self) -> str:
-        """Convertit les résultats en HTML avec graphiques intégrés."""
-        html = """
+        """Assemble le rapport HTML complet.
+
+        Le document est découpé en trois pour que les sous-classes puissent
+        enrichir le corps *avant* la fermeture des balises. Une sous-classe
+        redéfinit `_html_body`, jamais cette méthode.
+
+        Returns:
+            Le document HTML complet.
+        """
+        return self._html_head() + self._html_body() + self._html_footer()
+
+    def _html_head(self) -> str:
+        """Retourne l'en-tête du document HTML, jusqu'à l'ouverture du corps.
+
+        Returns:
+            Le fragment HTML d'en-tête.
+        """
+        return """
         <!DOCTYPE html>
         <html lang="fr">
         <head>
@@ -437,6 +471,23 @@ class DataProfiler:
             </style>
         </head>
         <body>
+        """
+
+    def _html_footer(self) -> str:
+        """Retourne la fermeture du document HTML.
+
+        Returns:
+            Le fragment HTML de fermeture.
+        """
+        return "</body></html>"
+
+    def _html_body(self) -> str:
+        """Construit le corps du rapport HTML, hors en-tête et fermeture.
+
+        Returns:
+            Le fragment HTML du corps.
+        """
+        html = """
             <h1>📊 Rapport d'Inspection des Données</h1>
             <hr>
 
@@ -553,35 +604,23 @@ class DataProfiler:
                 
                 # 1. Histogramme (45% de largeur)
                 try:
-                    plt.figure(figsize=(7, 3.89)) 
-                    sns.histplot(self.df[col].dropna(), kde=True)
-                    plt.title(f"Distribution de {col}")
-                    plt.tight_layout()
-                    
-                    img_buffer = BytesIO()
-                    plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
-                    img_buffer.seek(0)
-                    img_base64_hist = base64.b64encode(img_buffer.getvalue()).decode()
-                    plt.close()
-                    
-                    html += f'<div style="width: 45%;"><img src="data:image/png;base64,{img_base64_hist}" alt="{col} histogram" style="width: 100%; height: auto; display: block;"></div>'
+                    img = pf.figure_to_img_tag(
+                        self.plot_numeric_distribution(col),
+                        alt=f"{col} histogram",
+                        style="width: 100%; height: auto; display: block;",
+                    )
+                    html += f'<div style="width: 45%;">{img}</div>'
                 except Exception as e:
                     html += f'<div style="width: 45%;"><p>Erreur histogramme : {e}</p></div>'
-                
+
                 # 2. Boxplot (25% de largeur)
                 try:
-                    plt.figure(figsize=(3.5, 3.5)) 
-                    sns.boxplot(y=self.df[col].dropna())
-                    plt.title(f"Boxplot de {col}")
-                    plt.tight_layout()
-                    
-                    img_buffer = BytesIO()
-                    plt.savefig(img_buffer, format='png', dpi=100, bbox_inches='tight')
-                    img_buffer.seek(0)
-                    img_base64_box = base64.b64encode(img_buffer.getvalue()).decode()
-                    plt.close()
-                    
-                    html += f'<div style="width: 25%;"><img src="data:image/png;base64,{img_base64_box}" alt="{col} boxplot" style="width: 100%; height: auto; display: block;"></div>'
+                    img = pf.figure_to_img_tag(
+                        self.plot_numeric_boxplot(col),
+                        alt=f"{col} boxplot",
+                        style="width: 100%; height: auto; display: block;",
+                    )
+                    html += f'<div style="width: 25%;">{img}</div>'
                 except Exception as e:
                     html += f'<div style="width: 25%;"><p>Erreur boxplot : {e}</p></div>'
 
@@ -610,26 +649,84 @@ class DataProfiler:
             for col in categorical_cols:
                 html += f"<h3>{col}</h3>"
                 try:
-                    plt.figure(figsize=(10, 4)) 
-                    value_counts = self.df[col].value_counts().head(10) 
-                    sns.barplot(x=value_counts.values, y=value_counts.index)
-                    plt.title(f"Répartition de {col}")
-                    plt.xlabel("Nombre d'occurrences")
-                    plt.tight_layout()
-                    
-                    img_buffer = BytesIO()
-                    plt.savefig(img_buffer, format='png', dpi=120, bbox_inches='tight')
-                    img_buffer.seek(0)
-                    img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
-                    plt.close()
-                    
-                    html += f'<img src="data:image/png;base64,{img_base64}" alt="{col} barplot" style="width: 50%; height: auto;">'
+                    html += pf.figure_to_img_tag(
+                        self.plot_categorical_top(col),
+                        alt=f"{col} barplot",
+                        style="width: 50%; height: auto;",
+                    )
                 except Exception as e:
                     html += f"<p>Erreur lors de la génération du barplot pour {col}: {e}</p>"
 
-        html += "</body></html>"
         return html
-    
+
+    # ----------------------------------------------------------------------
+    # Figures — points d'accroche partagés entre le rapport HTML et l'UI web
+    # ----------------------------------------------------------------------
+
+    def plot_numeric_distribution(self, col: str) -> Figure:
+        """Construit l'histogramme de distribution d'une colonne numérique.
+
+        Args:
+            col: Nom de la colonne.
+
+        Returns:
+            La figure, à consommer par `st.pyplot` ou `figure_to_img_tag`.
+        """
+        return pf.figure_histogram(self.df, col)
+
+    def plot_numeric_boxplot(self, col: str) -> Figure:
+        """Construit la boîte à moustaches d'une colonne numérique.
+
+        Args:
+            col: Nom de la colonne.
+
+        Returns:
+            La figure correspondante.
+        """
+        return pf.figure_boxplot(self.df, col)
+
+    def plot_categorical_top(self, col: str, top_n: int = 10) -> Figure:
+        """Construit le diagramme des modalités les plus fréquentes.
+
+        Args:
+            col: Nom de la colonne.
+            top_n: Nombre de modalités affichées.
+
+        Returns:
+            La figure correspondante.
+        """
+        return pf.figure_barplot_top(self.df, col, top_n=top_n)
+
+    def iter_plot_specs(self) -> Iterator['PlotSpec']:
+        """Énumère les graphiques disponibles pour ce DataFrame.
+
+        Les figures ne sont pas construites ici : chaque `PlotSpec` porte une
+        closure `build` que le consommateur appelle s'il a besoin du graphique.
+        C'est ce qui permet à l'interface web de n'afficher que les colonnes
+        choisies par l'utilisateur, sans payer le rendu des autres.
+
+        Yields:
+            Un `PlotSpec` par graphique disponible.
+        """
+        numeric_cols = self.df.select_dtypes(include=['number']).columns
+        for col in numeric_cols:
+            yield PlotSpec(
+                key=f"hist::{col}", section="Distributions", title=f"Distribution de {col}",
+                build=lambda c=col: self.plot_numeric_distribution(c),
+            )
+            yield PlotSpec(
+                key=f"box::{col}", section="Distributions", title=f"Boxplot de {col}",
+                build=lambda c=col: self.plot_numeric_boxplot(c),
+            )
+
+        categorical_cols = self.df.select_dtypes(include=['str', 'object', 'category']).columns
+        for col in categorical_cols:
+            yield PlotSpec(
+                key=f"bar::{col}", section="Catégories", title=f"Répartition de {col}",
+                build=lambda c=col: self.plot_categorical_top(c),
+            )
+
+
     def generate_html_report(self, output_filename: str = "data/processed/data_profiling_report.html") -> str:
         """Génère un rapport HTML avec graphiques intégrés."""
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
@@ -694,168 +791,100 @@ class DataProfiler:
 
 
 class PreCleaningProfiler(DataProfiler):
-    """Analyse descriptive des données avant le nettoyage."""
-    
-    def __init__(self, df: pd.DataFrame, source_file_path: str = None):
-        super().__init__(df, source_file_path)
-        
-    def run_analysis(self) -> Dict[str, Any]:
-        """Exécute l'analyse pré-nettoyage avec tous les éléments de la classe mère."""
-        # Appeler l'analyse de la classe parente
-        results = super().run_analysis()
-        
-        return results
-        
-    def _detect_outliers(self, numeric_df: pd.DataFrame) -> Dict[str, Any]:
-        """Détecte les outliers pour chaque colonne numérique en utilisant la méthode IQR."""
-        return super()._detect_outliers(numeric_df)
-        
-    def _analyze_categorical_columns(self, categorical_df: pd.DataFrame) -> Dict[str, Any]:
-        """Analyse approfondie des colonnes catégorielles avec synthèse des anomalies."""
-        return super()._analyze_categorical_columns(categorical_df)
-        
-    def _analyze_row_quality(self) -> Dict[str, Any]:
-        """Analyse la qualité des lignes en fonction du pourcentage de valeurs manquantes."""
-        return super()._analyze_row_quality()
-        
-    def _generate_markdown_report(self) -> str:
-        """Génère un rapport Markdown avec des éléments spécifiques à l'analyse pré-nettoyage."""
-        # Appeler le rapport de la classe parente
-        md = super()._generate_markdown_report()
-        
-        return md
-        
-    def _generate_html_report(self) -> str:
-        """Génère un rapport HTML avec des éléments spécifiques à l'analyse pré-nettoyage."""
-        # Appeler le rapport de la classe parente
-        html = super()._generate_html_report()
-        
-        return html
-    
-    def generate_md_report(self, output_filename: str = "data/processed/data_profiling_report.md") -> str:
-        """Sauvegarde le rapport Markdown."""
-        return super().generate_md_report(output_filename)
-    
-    def generate_html_report(self, output_filename: str = "data/processed/data_profiling_report.html") -> str:
-        """Génère un rapport HTML avec graphiques intégrés."""
-        return super().generate_html_report(output_filename)
-    
-    def interactive_report_choice(self, reports_dir, input_file):
-        """Permet de choisir le format de rapport de manière interactive"""
-        return super().interactive_report_choice(reports_dir, input_file)
-    
-    def run_profiling_workflow(self, source_path: Path, reports_dir: Path) -> Dict[str, Any]:
-        """
-        Exécute le profilage complet et génère le rapport choisi.
-        Retourne uniquement les résultats d'analyse.
-        """
-        return super().run_profiling_workflow(source_path, reports_dir)
-    
+    """Profileur d'audit, appliqué aux données brutes avant nettoyage.
+
+    Le diagnostic complet (anomalies de casse, outliers, valeurs manquantes)
+    vient de `DataProfiler`. Cette sous-classe existe pour nommer l'intention
+    dans le pipeline et pour offrir un point d'extension : c'est ici que se
+    brancheront les seuils de criticité spécifiques au pré-nettoyage.
+    """
+
 
 class ExploratoryProfiler(DataProfiler):
-    """Analyse descriptive des données avant le nettoyage."""
-    
-    def __init__(self, df: pd.DataFrame, source_file_path: str = None):
-        super().__init__(df, source_file_path)
-        
-    def run_analysis(self) -> Dict[str, Any]:
-        """Exécute l'analyse pré-nettoyage avec tous les éléments de la classe mère."""
-        # Appeler l'analyse de la classe parente
-        results = super().run_analysis()
-        
-        return results
-        
-    def _detect_outliers(self, numeric_df: pd.DataFrame) -> Dict[str, Any]:
-        """Détecte les outliers pour chaque colonne numérique en utilisant la méthode IQR."""
-        return super()._detect_outliers(numeric_df)
-        
-    def _analyze_categorical_columns(self, categorical_df: pd.DataFrame) -> Dict[str, Any]:
-        """Analyse approfondie des colonnes catégorielles avec synthèse des anomalies."""
-        return super()._analyze_categorical_columns(categorical_df)
-        
-    def _analyze_row_quality(self) -> Dict[str, Any]:
-        """Analyse la qualité des lignes en fonction du pourcentage de valeurs manquantes."""
-        return super()._analyze_row_quality()
-        
-    def _generate_markdown_report(self) -> str:
-        """Génère un rapport Markdown avec des éléments spécifiques à l'analyse pré-nettoyage."""
-        # Appeler le rapport de la classe parente
-        md = super()._generate_markdown_report()
-        
-        return md
-        
-    def _generate_html_report(self) -> str:
-        """Génère un rapport HTML avec des éléments spécifiques à l'analyse pré-nettoyage."""
-        # Appeler le rapport de la classe parente
-        html = super()._generate_html_report()
-        
-        # Ajouter les nouvelles visualisations à la fin du rapport HTML
+    """Profileur de validation, appliqué aux données après nettoyage.
+
+    Enrichit le rapport de deux visualisations multivariées — matrice de
+    dispersion et heatmap de corrélation — qui n'ont de sens que sur un
+    dataset assaini : elles servent à repérer les redondances entre colonnes
+    et les dépendances entre indicateurs.
+    """
+
+    def _html_body(self) -> str:
+        """Ajoute les visualisations exploratoires au corps du rapport.
+
+        On étend `_html_body` et non `_generate_html_report` : le contenu doit
+        s'insérer avant la fermeture `</body></html>`, sans quoi le document
+        produit est malformé.
+
+        Returns:
+            Le corps du rapport, enrichi des visualisations multivariées.
+        """
+        html = super()._html_body()
         html += "<h2>📊 Visualisations Exploratoires</h2>"
-        
-        # Matrice de dispersion (scatter matrix)
+
         numeric_cols = self.df.select_dtypes(include=['number']).columns
         if len(numeric_cols) > 1:
             try:
-                plt.figure(figsize=(25, 25))
-                pd.plotting.scatter_matrix(self.df[numeric_cols].dropna(), alpha=0.7, figsize=(25, 25), diagonal='hist')
-                plt.tight_layout()
-                
-                # Convertir le graphique en base64
-                img_buffer = BytesIO()
-                plt.savefig(img_buffer, format='png')
-                img_buffer.seek(0)
-                img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
-                plt.close()
-                
                 html += '<h3>Matrice de dispersion</h3>'
-                html += f'<img src="data:image/png;base64,{img_base64}" alt="Scatter matrix" width="95%">'
+                html += pf.figure_to_img_tag(
+                    self.plot_scatter_matrix(),
+                    alt="Scatter matrix",
+                    style="width: 95%; height: auto;",
+                )
             except Exception as e:
                 html += f"<p>⚠️ Erreur lors de la génération de la matrice de dispersion: {e}</p>"
-        else:
-            html += "<p>Aucune matrice de dispersion générée (moins de 2 colonnes numériques).</p>"
 
-        # Heatmap de corrélation
-        if len(numeric_cols) > 1:
             try:
-                plt.figure(figsize=(25, 20))
-                correlation_matrix = self.df[numeric_cols].corr()
-                sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, 
-                        square=True, linewidths=0.5, vmin=-1, vmax=1)
-                plt.tight_layout()
-                
-                # Convertir le graphique en base64
-                img_buffer = BytesIO()
-                plt.savefig(img_buffer, format='png')
-                img_buffer.seek(0)
-                img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
-                plt.close()
-                
                 html += '<h3>Heatmap de corrélation</h3>'
-                html += f'<img src="data:image/png;base64,{img_base64}" alt="Correlation heatmap" width="95%">'
+                html += pf.figure_to_img_tag(
+                    self.plot_correlation_heatmap(),
+                    alt="Correlation heatmap",
+                    style="width: 95%; height: auto;",
+                )
             except Exception as e:
                 html += f"<p>⚠️ Erreur lors de la génération de la heatmap de corrélation: {e}</p>"
         else:
+            html += "<p>Aucune matrice de dispersion générée (moins de 2 colonnes numériques).</p>"
             html += "<p>Aucune heatmap de corrélation générée (moins de 2 colonnes numériques).</p>"
-        
-        # Fin du document HTML
-        html += "</body></html>"
+
         return html
-    
-    def generate_md_report(self, output_filename: str = "data/processed/data_profiling_report.md") -> str:
-        """Sauvegarde le rapport Markdown."""
-        return super().generate_md_report(output_filename)
-    
-    def generate_html_report(self, output_filename: str = "data/processed/data_profiling_report.html") -> str:
-        """Génère un rapport HTML avec graphiques intégrés."""
-        return super().generate_html_report(output_filename)
-    
-    def interactive_report_choice(self, reports_dir, input_file):
-        """Permet de choisir le format de rapport de manière interactive"""
-        return super().interactive_report_choice(reports_dir, input_file)
-    
-    def run_profiling_workflow(self, source_path: Path, reports_dir: Path) -> Dict[str, Any]:
+
+    def plot_scatter_matrix(self) -> Figure:
+        """Construit la matrice de dispersion des colonnes numériques.
+
+        Returns:
+            La figure correspondante.
+
+        Raises:
+            ValueError: S'il y a moins de deux colonnes numériques exploitables.
         """
-        Exécute le profilage complet et génère le rapport choisi.
-        Retourne uniquement les résultats d'analyse.
+        return pf.figure_scatter_matrix(self.df)
+
+    def plot_correlation_heatmap(self) -> Figure:
+        """Construit la carte thermique des corrélations.
+
+        Returns:
+            La figure correspondante.
+
+        Raises:
+            ValueError: S'il y a moins de deux colonnes numériques exploitables.
         """
-        return super().run_profiling_workflow(source_path, reports_dir)
+        return pf.figure_correlation_heatmap(self.df)
+
+    def iter_plot_specs(self) -> Iterator[PlotSpec]:
+        """Énumère les graphiques, visualisations multivariées incluses.
+
+        Yields:
+            Un `PlotSpec` par graphique disponible.
+        """
+        yield from super().iter_plot_specs()
+
+        if len(self.df.select_dtypes(include=['number']).columns) > 1:
+            yield PlotSpec(
+                key="scatter_matrix", section="Exploratoire", title="Matrice de dispersion",
+                build=self.plot_scatter_matrix,
+            )
+            yield PlotSpec(
+                key="corr_heatmap", section="Exploratoire", title="Heatmap de corrélation",
+                build=self.plot_correlation_heatmap,
+            )

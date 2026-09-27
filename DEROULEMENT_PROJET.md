@@ -1010,4 +1010,84 @@ L'ajout de nouveaux graphiques risquait de créer un rapport trop long et illisi
 
 ---
 
+## Étape 30 : Assainissement du Socle : Remise au Vert de la Suite de Tests et Correction de Bugs Silencieux 🧪🩺
+
+Avant d'engager le chantier de l'interface web, une vérification de routine a révélé que la suite de tests comptait **17 échecs préexistants**. Ce constat, inconfortable, était en réalité une chance : un harnais de tests rouge ne peut détecter aucune régression. Impossible de refondre les modules en confiance sans d'abord rétablir ce filet de sécurité.
+
+### 1. Le diagnostic : deux populations d'échecs très différentes
+L'analyse des 17 échecs a fait apparaître une distinction essentielle, qu'il aurait été dangereux de traiter uniformément :
+
+* **15 échecs de « dérive de tests »** : le code avait évolué, les assertions non. Un test attendait `"Lignes:"` quand le code produisait `"Lignes : "` (typographie française) ; un autre vérifiait que `describe_categorical` renvoyait au plus 3 éléments, alors qu'il expose désormais 7 indicateurs ; la méthode `generate_report` avait été renommée `generate_md_report` sans mise à jour des appelants.
+* **2 échecs révélant de vrais bugs de production** : ceux-là étaient masqués par le bruit des 15 autres, et c'est précisément le danger d'une suite de tests durablement rouge.
+
+### 2. Les bugs silencieux mis au jour
+Deux défauts sérieux se cachaient derrière ces échecs, dont un bloquant :
+
+* **`clip_outliers` cassait le pipeline de bout en bout** : écrêter une colonne entière (type `Int64` nullable) avec une borne IQR flottante lève une exception dans pandas, qui refuse d'insérer une valeur non entière dans un `IntegerArray`. Le paradoxe est cruel : c'est `fix_numeric_types` qui produit ces `Int64`, si bien que le moteur se sabotait lui-même dès qu'une colonne entière contenait une valeur aberrante. La correction resserre les bornes vers l'intérieur de la clôture IQR (`ceil` pour la borne basse, `floor` pour la haute), ce qui préserve l'intégrité du type entier.
+* **La détection de dates était du code mort** : le garde-fou de performance `_can_be_numeric`, introduit pour éviter d'analyser inutilement les colonnes textuelles, exécutait un `continue` sur toute colonne non numérique. Or une date (`"01/01/2023"`) n'est pas numérique. Le bloc de conversion en `datetime`, situé 90 lignes plus bas, n'était donc **jamais atteint** — une fonctionnalité documentée dans le README mais inopérante depuis l'optimisation de l'Étape 26.
+
+### 3. La refonte de `clean_types` et l'enrichissement de la détection de dates
+La correction a été l'occasion de restructurer la fonction selon le principe de responsabilité unique. La boucle monolithique a été scindée en deux fonctions dédiées :
+
+* **`_try_numeric_conversion`** : gère le nettoyage monétaire et les séparateurs décimaux.
+* **`_try_datetime_conversion`** : tente désormais **six formats de date explicites** (`%d/%m/%Y`, `%Y-%m-%d`, `%d-%m-%Y`, `%Y/%m/%d`, et leurs variantes horodatées) avant de retomber sur l'inférence automatique de pandas, en retenant le format au meilleur taux de réussite.
+
+Cette approche répond à un point inscrit à la roadmap (« être plus explicite sur le format ») et supprime au passage l'avertissement `Could not infer format` qui polluait la console — un détail qui prend de l'importance dès lors que cette console sera affichée dans l'interface web.
+
+### 4. Trois correctifs de robustesse complémentaires
+* **`CleanLogger.get_summary`** levait un `TypeError` si le dictionnaire de statistiques contenait `None` — une comparaison `None > 0` non gardée.
+* **`clip_outliers` mutait le DataFrame de l'appelant** faute de copie défensive. Inoffensif dans le pipeline actuel, mais qui aurait corrompu silencieusement l'état d'une session web.
+* **`generate_md_report`** levait sur un nom de fichier nu, `os.path.dirname` renvoyant une chaîne vide à `os.makedirs`. Remplacé par `Path().parent.mkdir()`.
+
+### 5. Résultat
+**103 tests passent, contre 86 initialement.** Le harnais est redevenu un instrument de mesure fiable, et le pipeline fonctionne réellement de bout en bout sur le jeu de données de référence (73 810 lignes). Cette étape n'ajoute aucune fonctionnalité : elle rachète une dette technique dont l'ampleur était invisible, et sans laquelle la suite du chantier aurait avancé à l'aveugle.
+
+---
+
+## Étape 31 : Industrialisation de la Couche Graphique : Sortie de PyPlot et Figures Réutilisables 🎨🔧
+
+Cette étape prépare l'interface web en réglant un obstacle structurel : dans l'architecture précédente, **les graphiques n'existaient nulle part en tant qu'objets**. Ils étaient créés, encodés en base64 et détruits à l'intérieur même de la fonction de génération HTML. Impossible d'en afficher un ailleurs que dans un rapport téléchargeable.
+
+### 1. Le problème de fond : le registre global de PyPlot
+Le code utilisait `plt.figure()`, l'interface « confort » de matplotlib. Or cette interface inscrit chaque figure créée dans un **registre global** (`Gcf`), d'où elle ne sort que par un appel explicite à `plt.close()`. Dans un script en ligne de commande qui s'achève après quelques secondes, l'oubli est sans conséquence. Dans un serveur web qui vit des heures et réexécute son script à chaque interaction de l'utilisateur, c'est une **fuite mémoire garantie**.
+
+Le code présentait d'ailleurs deux occurrences du défaut :
+* La matrice de dispersion créait **deux figures et n'en fermait qu'une** (`plt.figure()` suivi de `pd.plotting.scatter_matrix`, qui construit sa propre figure) : une figure vide de 25×25 pouces était abandonnée à chaque génération de rapport.
+* Chaque bloc graphique plaçait son `plt.close()` **à l'intérieur** du `try`, si bien qu'une erreur de tracé sautait la fermeture et laissait la figure derrière elle.
+
+### 2. La solution : l'API d'embarquement plutôt que l'interface confort
+Plutôt que de multiplier les `plt.close()` — une correction par la discipline, donc fragile — nous avons abandonné pyplot pour la **création** de figures, au profit de l'API d'embarquement documentée de matplotlib : `Figure` + `FigureCanvasAgg`.
+
+Une figure construite ainsi **n'entre jamais dans le registre global**. Elle est libérée par le ramasse-miettes dès que plus personne ne la référence, exactement comme n'importe quel objet Python. La fuite devient *structurellement impossible* au lieu d'être évitée par vigilance. Le backend `Agg` est en outre imposé dès l'import, ce qui garantit l'absence de toute dépendance à un serveur graphique.
+
+### 3. Le nouveau module `plot_factory.py` : un code, deux consommateurs
+Un module dédié centralise désormais la construction des cinq graphiques du projet (histogramme, boxplot, barplot, matrice de dispersion, heatmap de corrélation), chacun exposé par une fonction qui **retourne une figure** au lieu de l'afficher ou de l'encoder.
+
+En aval, un unique convertisseur `figure_to_img_tag()` produit la balise HTML autonome en base64. La même figure peut donc alimenter :
+* le **rapport HTML** (via l'encodage base64, comme avant) ;
+* l'**interface web** (via `st.pyplot`, qui consomme directement l'objet).
+
+Zéro duplication : le rendu d'un graphique est identique dans les deux canaux, par construction.
+
+La matrice de dispersion, que pandas refusait de construire sur une figure fournie, a été réimplémentée à la main (`fig.subplots(n, n)`, histogrammes sur la diagonale, nuages de points ailleurs), sans recours à une API privée.
+
+### 4. Correction d'un rapport HTML malformé et allègement
+La classe `ExploratoryProfiler` ajoutait ses visualisations **après** le `</body></html>` écrit par la classe mère, puis refermait une seconde fois les balises. Tous les rapports exploratoires produits jusqu'ici étaient donc structurellement invalides.
+
+Le document a été découpé en trois méthodes — `_html_head()`, `_html_body()`, `_html_footer()` — et la sous-classe n'étend plus que le **corps**. Le bug disparaît par construction : il n'est plus possible d'ajouter du contenu après la fermeture.
+
+Les dimensions ont par ailleurs été ramenées à des valeurs raisonnables (matrice de dispersion plafonnée à 6 colonnes en 2,2 pouces par cellule, heatmap en 10×8 au lieu de 25×20). Un rapport exploratoire complet pèse désormais **186 Ko**, contre plusieurs mégaoctets auparavant — les anciennes figures de 25×25 pouces produisant à elles seules près de 6 Mo de base64 chacune.
+
+### 5. Allègement de l'héritage et verrouillage par les tests
+Les deux classes filles redéclaraient à elles deux **18 méthodes** en pur `return super().X(...)`, sans la moindre différence de comportement. Ces passe-plats ont été supprimés : chaque ligne retirée est un endroit de moins à maintenir en cohérence. Les classes subsistent — elles nomment l'intention dans le pipeline et restent le point d'extension prévu pour des seuils de criticité différenciés.
+
+Un nouveau fichier `tests/test_plot_factory.py` (18 tests) verrouille les garanties acquises, dont deux particulièrement structurantes :
+* après la construction de **90 figures**, le registre de pyplot doit être **vide** ;
+* **aucun module de `src/` ne doit importer `matplotlib.pyplot`** — le test parcourt les sources et échoue si la règle est enfreinte, empêchant toute régression future vers l'ancienne pratique.
+
+### 6. Résultat
+La couche graphique est devenue un **service réutilisable** plutôt qu'un effet de bord de la génération HTML. Cinq rendus exploratoires consécutifs ne laissent aucune figure résiduelle, le HTML produit est valide, et **121 tests** passent. L'interface web peut désormais afficher les mêmes graphiques que les rapports, sans dupliquer une ligne de code de tracé.
+
+---
+
 *Projet en cours de développement - Capacité d'analyse visuelle et reporting autonome validée.*
