@@ -121,16 +121,25 @@ class TestDataProfilerRunAnalysis:
         assert 'salaire' in results['describe_numeric']
 
     def test_categorical_stats_presence(self, valid_df):
-        """Cas nominal : Les stats catégorielles (top 3) doivent être présentes pour les strings."""
+        """Cas nominal : Les stats catégorielles doivent être présentes pour les strings."""
         profiler = DataProfiler(valid_df)
         results = profiler.run_analysis()
-        
+
         assert 'describe_categorical' in results
         assert 'nom' in results['describe_categorical']
-        # Chaque valeur doit avoir un count
+
+        # Chaque colonne expose le jeu complet d'indicateurs attendus
+        expected_keys = {
+            'cardinality_absolute', 'cardinality_relative', 'sparsity_ratio',
+            'skewness_frequency', 'is_high_skewness', 'top_categories',
+            'format_anomalies',
+        }
         for col, values in results['describe_categorical'].items():
             assert isinstance(values, dict)
-            assert len(values) <= 3
+            assert expected_keys <= set(values), f"Indicateurs manquants pour {col}"
+            # top_categories est plafonné aux 10 valeurs les plus fréquentes
+            assert len(values['top_categories']) <= 10
+            assert isinstance(values['format_anomalies'], list)
 
     def test_run_analysis_empty_df(self, empty_df):
         """Cas critique : Analyser un DataFrame vide doit lever une exception."""

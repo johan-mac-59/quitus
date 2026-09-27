@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock
 from src.cleaner_logger import CleanLogger, generate_and_print_report
+from src.cleaner_reporter import CleanerReporter
 
 class TestCleanLogger:
     """Tests unitaires pour la classe CleanLogger."""
@@ -69,14 +70,14 @@ class TestCleanLogger:
         
         # Vérifications basiques
         assert "RAPPORT DE NETTOYAGE DE DONNÉES" in summary
-        assert "📊 Lignes:" in summary
-        assert "📑 Colonnes:" in summary
-        assert "🗑️ Colonnes supprimées (vides): 1" in summary
-        assert "🔄 Doublons supprimés: 2" in summary
-        assert "🎨 Types convertis:" in summary
-        assert "💧 Valeurs manquantes comblées dans:" in summary
-        assert "📈 Outliers corrigés (IQR):" in summary
-        assert "🧼 Colonnes avec espaces nettoyés: 1" in summary
+        assert "📊 Lignes :" in summary
+        assert "📑 Colonnes :" in summary
+        assert "🗑️ Colonnes supprimées (vides) : 1" in summary
+        assert "🔄 Doublons supprimés : 2" in summary
+        assert "🎨 Types convertis :" in summary
+        assert "💧 Valeurs manquantes comblées :" in summary
+        assert "📈 Outliers corrigés (IQR) :" in summary
+        assert "🧼 Espaces nettoyés : 1" in summary
     
     def test_get_summary_with_no_operations(self):
         """Test du résumé sans opérations."""
@@ -97,8 +98,8 @@ class TestCleanLogger:
         
         # Vérifications
         assert "RAPPORT DE NETTOYAGE DE DONNÉES" in summary
-        assert "📊 Lignes: 3 → 3" in summary
-        assert "📑 Colonnes: 2 → 2" in summary
+        assert "📊 Lignes : 3 → 3" in summary
+        assert "📑 Colonnes : 2 → 2" in summary
     
     def test_get_summary_with_type_conversions(self):
         """Test du résumé avec conversions de types."""
@@ -118,7 +119,7 @@ class TestCleanLogger:
         summary = logger.get_summary()
         
         # Vérifications
-        assert "🎨 Types convertis:" in summary
+        assert "🎨 Types convertis :" in summary
     
     def test_get_detailed_table(self):
         """Test de la méthode get_detailed_table."""
@@ -198,8 +199,8 @@ class TestCleanLoggerEdgeCases:
         logger.update_final_state(final_df)
         summary = logger.get_summary()
         
-        assert "📊 Lignes: 0 → 0" in summary
-        assert "📑 Colonnes: 0 → 0" in summary
+        assert "📊 Lignes : 0 → 0" in summary
+        assert "📑 Colonnes : 0 → 0" in summary
     
     def test_single_column_dataframe(self):
         """Test avec un DataFrame à une seule colonne."""
@@ -212,8 +213,8 @@ class TestCleanLoggerEdgeCases:
         logger.update_final_state(final_df)
         summary = logger.get_summary()
         
-        assert "📊 Lignes: 3 → 2" in summary
-        assert "📑 Colonnes: 1 → 1" in summary
+        assert "📊 Lignes : 3 → 2" in summary
+        assert "📑 Colonnes : 1 → 1" in summary
     
     def test_with_nan_values_in_stats(self):
         """Test avec des valeurs NaN dans les statistiques."""
@@ -293,8 +294,8 @@ def test_get_operations_table_with_special_characters():
     ]
     
     reporter = CleanerReporter(mock_profiler, mock_logger)
-    operations = reporter._get_operations_table()
-    assert "Rapport de Nettoyage des Données" in operations    
+    operations = reporter._get_operations_table({})
+    assert "Détail des Opérations" in operations    
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

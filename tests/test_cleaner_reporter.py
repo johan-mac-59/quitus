@@ -171,10 +171,18 @@ class TestGenerateReport:
     def test_generate_with_exception(self, mock_profiler, mock_logger):
         """Test de la méthode generate_with_stats avec une exception."""
         reporter = CleanerReporter(mock_profiler, mock_logger)
-        
-        # Test avec un chemin invalide pour forcer une erreur
-        with pytest.raises(RuntimeError):
-            reporter.generate_with_stats("/chemin/inexistant/fichier.md")
+
+        # generate_with_stats crée désormais l'arborescence manquante, donc un simple
+        # chemin inexistant ne suffit plus à provoquer une erreur. On écrit dans un
+        # chemin dont un composant intermédiaire est un fichier : impossible à créer
+        # comme répertoire, sur tous les OS.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            blocker = os.path.join(tmp_dir, "fichier_bloquant")
+            with open(blocker, "w", encoding="utf-8") as f:
+                f.write("je ne suis pas un dossier")
+
+            with pytest.raises(RuntimeError):
+                reporter.generate_with_stats(os.path.join(blocker, "rapport.md"))
 
 
 class TestGenerateMethod:

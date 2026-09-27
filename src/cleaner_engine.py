@@ -1,3 +1,6 @@
+import math
+import warnings
+
 import pandas as pd
 import numpy as np
 from typing import Tuple
@@ -149,97 +152,15 @@ def clean_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
             df_cleaned[col] = df_cleaned[col].astype('string')
 
         # 2. Filtrage rapide : est-ce que cette colonne a CHANCE d'être numérique ?
-        # Si non (ex: notes "4/5", IDs "A12-B"), on passe à la suite sans rien faire.
-        if not _can_be_numeric(df_cleaned[col]):
-            continue
-
-        # 3. Nettoyage spécifique NUMÉRIQUE AVANT conversion
-        # On prépare les données pour que pd.to_numeric fonctionne à 100%
-        cleaned_series = df_cleaned[col].copy()
-        
-        # A. Suppression des symboles monétaires et espaces inutiles (séparateurs de milliers)
-        cleaned_series = cleaned_series.str.replace('€', '', regex=False)
-        cleaned_series = cleaned_series.str.replace('$', '', regex=False)
-        # Les espaces ne sont supprimés que si la colonne est susceptible d'être numérique
-        # On vérifie d'abord si la colonne peut être numérique avant de supprimer les espaces
-        
-        # B. Gestion intelligente des séparateurs : Virgule vs Point
-        
-        # Cas A : La colonne contient des virgules ET des points.
-        # Règle : On suppose le format Européen/Américain mixte où la virgule est le décimal et le point est le millier.
-        # Ex: "1.234,50" -> "1234.50"
-        if cleaned_series.str.contains(',', regex=False).any() and cleaned_series.str.contains(r'\.', regex=False).any():
-            cleaned_series = cleaned_series.str.replace('.', '', regex=False) # Supprime les milliers
-            cleaned_series = cleaned_series.str.replace(',', '.', regex=False) # Transforme le décimal en point standard
-            
-        # Cas B : La colonne contient UNE virgule mais PAS de point.
-        # Règle : La virgule est le séparateur décimal.
-        # Ex: "1234,50" -> "1234.50"
-        elif cleaned_series.str.contains(',', regex=False).any():
-            cleaned_series = cleaned_series.str.replace(',', '.', regex=False)
-        
-        # Cas C : La colonne contient UN point mais PAS de virgule.
-        # Règle : On ne touche à rien par défaut. pd.to_numeric gère nativement les décimales US (point).
-        # Ex: "715.90" reste "715.90" et sera converti en 715.9.
-        # C'est crucial : si tu supprimes le point ici, "715.90" devient "71590".
-        else:
-            pass 
-
-        # C. Remplacement des NaN textuels éventuels par np.nan
-        cleaned_series = cleaned_series.replace(['', 'nan', 'None', 'NULL'], np.nan)
-
-        # 4. Tentative de conversion numérique
-        numeric_data = pd.to_numeric(cleaned_series, errors='coerce')
-        
-        # Seuil à 90% de validité sur les données ORIGINALES (pas nettoyées) pour valider que la colonne est "numérique"
-        # Mais on utilise les données NETTOYÉES pour le calcul final
-        original_valid_rate = df_cleaned[col].notna().sum() / len(df_cleaned[col])
-        
-        # Si après nettoyage, on a encore trop de NaN, c'est que la colonne n'était pas si numérique que ça (peut-être des erreurs de format)
-        cleaned_valid_rate = numeric_data.notna().sum() / len(numeric_data)
-        
-        if cleaned_valid_rate > 0.9: 
-            non_na_values = numeric_data.dropna()
-            
-            # Vérification robuste pour les entiers : sont-ce vraiment des entiers ?
-            is_likely_int = (
-                len(non_na_values) > 0 and 
-                # Les valeurs sont égales à leur version entière
-                (non_na_values == non_na_values.astype(int)).all() and
-                # Pas de NaN restants après conversion int (rare mais possible si overflow ou erreur)
-                not numeric_data.isna().any() 
-            )
-            
-            if is_likely_int:
-                # ON GARDE DES INTS SI POSSIBLE
-                df_cleaned[col] = numeric_data.astype(np.int64) 
-                conversions[col] = 'object -> int'
-            else:
-                # SINON FLOAT
-                df_cleaned[col] = numeric_data.astype(np.float64)
-                conversions[col] = 'object -> float'
+        # Si non (ex: notes "4/5", IDs "A12-B", dates "01/01/2023"), on saute
+        # uniquement la branche numérique — la détection de date reste à tenter
+        # plus bas. (Un `continue` ici rendrait le bloc date inatteignable.)
+        if _can_be_numeric(df_cleaned[col]):
+            df_cleaned, conversions = _try_numeric_conversion(df_cleaned, col, conversions)
 
         # --- Tentative Date (seulement si la colonne n'a PAS été convertie en nombre) ---
         if col not in conversions:
-            try:
-                # Spécifier explicitement le format pour éviter les avertissements
-                date_data = pd.to_datetime(df_cleaned[col], format='%d/%m/%Y', errors='coerce')
-                valid_date_rate = date_data.notna().sum() / len(date_data)
-                 
-                if valid_date_rate > 0.8:
-                    df_cleaned[col] = date_data
-                    conversions[col] = 'object -> datetime'
-            except (ValueError, TypeError):
-                # Si le format échoue, on passe à l'approche par défaut
-                try:
-                    date_data = pd.to_datetime(df_cleaned[col], errors='coerce')
-                    valid_date_rate = date_data.notna().sum() / len(date_data)
-                     
-                    if valid_date_rate > 0.8:
-                        df_cleaned[col] = date_data
-                        conversions[col] = 'object -> datetime'
-                except Exception:
-                    continue
+            df_cleaned, conversions = _try_datetime_conversion(df_cleaned, col, conversions)
 
     # Pour garder trace des colonnes concernées dans les conversions
     conversions_with_cols = {}
@@ -249,6 +170,152 @@ def clean_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         conversions_with_cols[col].append(conv_type)
 
     return df_cleaned, conversions_with_cols
+
+
+def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dict) -> Tuple[pd.DataFrame, dict]:
+    """Tente de convertir une colonne texte en numérique (monnaies, séparateurs).
+
+    Args:
+        df_cleaned: DataFrame en cours de nettoyage.
+        col: Nom de la colonne à convertir.
+        conversions: Dictionnaire des conversions déjà effectuées.
+
+    Returns:
+        Le DataFrame et le dictionnaire de conversions, mis à jour.
+    """
+    # 3. Nettoyage spécifique NUMÉRIQUE AVANT conversion
+    # On prépare les données pour que pd.to_numeric fonctionne à 100%
+    cleaned_series = df_cleaned[col].copy()
+
+    # A. Suppression des symboles monétaires et espaces inutiles (séparateurs de milliers)
+    cleaned_series = cleaned_series.str.replace('€', '', regex=False)
+    cleaned_series = cleaned_series.str.replace('$', '', regex=False)
+    # Les espaces ne sont supprimés que si la colonne est susceptible d'être numérique
+    # On vérifie d'abord si la colonne peut être numérique avant de supprimer les espaces
+
+    # B. Gestion intelligente des séparateurs : Virgule vs Point
+
+    # Cas A : La colonne contient des virgules ET des points.
+    # Règle : On suppose le format Européen/Américain mixte où la virgule est le décimal et le point est le millier.
+    # Ex: "1.234,50" -> "1234.50"
+    if cleaned_series.str.contains(',', regex=False).any() and cleaned_series.str.contains(r'\.', regex=False).any():
+        cleaned_series = cleaned_series.str.replace('.', '', regex=False) # Supprime les milliers
+        cleaned_series = cleaned_series.str.replace(',', '.', regex=False) # Transforme le décimal en point standard
+
+    # Cas B : La colonne contient UNE virgule mais PAS de point.
+    # Règle : La virgule est le séparateur décimal.
+    # Ex: "1234,50" -> "1234.50"
+    elif cleaned_series.str.contains(',', regex=False).any():
+        cleaned_series = cleaned_series.str.replace(',', '.', regex=False)
+
+    # Cas C : La colonne contient UN point mais PAS de virgule.
+    # Règle : On ne touche à rien par défaut. pd.to_numeric gère nativement les décimales US (point).
+    # Ex: "715.90" reste "715.90" et sera converti en 715.9.
+    # C'est crucial : si tu supprimes le point ici, "715.90" devient "71590".
+
+    # C. Remplacement des NaN textuels éventuels par np.nan
+    cleaned_series = cleaned_series.replace(['', 'nan', 'None', 'NULL'], np.nan)
+
+    # 4. Tentative de conversion numérique
+    numeric_data = pd.to_numeric(cleaned_series, errors='coerce')
+
+    # Si après nettoyage, on a encore trop de NaN, c'est que la colonne n'était pas si
+    # numérique que ça (peut-être des erreurs de format). Seuil de validité : 90%.
+    cleaned_valid_rate = numeric_data.notna().sum() / len(numeric_data)
+
+    if cleaned_valid_rate > 0.9:
+        non_na_values = numeric_data.dropna()
+
+        # Vérification robuste pour les entiers : sont-ce vraiment des entiers ?
+        is_likely_int = (
+            len(non_na_values) > 0 and
+            # Les valeurs sont égales à leur version entière
+            (non_na_values == non_na_values.astype(int)).all() and
+            # Pas de NaN restants après conversion int (rare mais possible si overflow ou erreur)
+            not numeric_data.isna().any()
+        )
+
+        if is_likely_int:
+            # ON GARDE DES INTS SI POSSIBLE
+            df_cleaned[col] = numeric_data.astype(np.int64)
+            conversions[col] = 'object -> int'
+        else:
+            # SINON FLOAT
+            df_cleaned[col] = numeric_data.astype(np.float64)
+            conversions[col] = 'object -> float'
+
+    return df_cleaned, conversions
+
+
+# Formats de date testés explicitement, dans l'ordre de priorité.
+# Les essayer nommément évite les avertissements de pandas et les mauvaises
+# interprétations jour/mois que l'inférence automatique peut produire.
+_DATE_FORMATS = (
+    '%d/%m/%Y',
+    '%Y-%m-%d',
+    '%d-%m-%Y',
+    '%Y/%m/%d',
+    '%d/%m/%Y %H:%M:%S',
+    '%Y-%m-%d %H:%M:%S',
+)
+
+
+def _try_datetime_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dict,
+                             min_valid_rate: float = 0.8) -> Tuple[pd.DataFrame, dict]:
+    """Tente de convertir une colonne texte en datetime.
+
+    Essaie d'abord chaque format explicite de `_DATE_FORMATS`, puis retombe sur
+    l'inférence de pandas. Le meilleur taux de réussite l'emporte, à condition de
+    dépasser `min_valid_rate`.
+
+    Args:
+        df_cleaned: DataFrame en cours de nettoyage.
+        col: Nom de la colonne à convertir.
+        conversions: Dictionnaire des conversions déjà effectuées.
+        min_valid_rate: Proportion minimale de valeurs correctement interprétées.
+
+    Returns:
+        Le DataFrame et le dictionnaire de conversions, mis à jour.
+    """
+    series = df_cleaned[col]
+    if series.notna().sum() == 0:
+        return df_cleaned, conversions
+
+    best_data = None
+    best_rate = 0.0
+
+    for fmt in _DATE_FORMATS:
+        try:
+            date_data = pd.to_datetime(series, format=fmt, errors='coerce')
+        except (ValueError, TypeError):
+            continue
+        rate = date_data.notna().sum() / len(date_data)
+        if rate > best_rate:
+            best_data, best_rate = date_data, rate
+        # Format parfait : inutile de tester les suivants
+        if best_rate == 1.0:
+            break
+
+    # Repli sur l'inférence de pandas si aucun format explicite ne convainc.
+    # On accepte ici sciemment l'inférence, donc on tait l'avertissement
+    # « Could not infer format » qui n'apporte rien à l'utilisateur.
+    if best_rate < min_valid_rate:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', UserWarning)
+                date_data = pd.to_datetime(series, errors='coerce')
+            rate = date_data.notna().sum() / len(date_data)
+            if rate > best_rate:
+                best_data, best_rate = date_data, rate
+        except (ValueError, TypeError):
+            pass
+
+    if best_data is not None and best_rate > min_valid_rate:
+        df_cleaned[col] = best_data
+        conversions[col] = 'object -> datetime'
+
+    return df_cleaned, conversions
+
 
 def clean_duplicates(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     """Supprime les doublons exacts."""
@@ -396,7 +463,11 @@ def clip_outliers(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     """Corrige les valeurs aberrantes avec la méthode IQR (Cliping)."""
     if df.empty:
         return df.copy(), {}
-    
+
+    # Copie défensive : sans elle, les affectations df[col] = ... plus bas
+    # modifieraient le DataFrame de l'appelant.
+    df = df.copy()
+
     corrections = {}
     # On s'assure de prendre uniquement les colonnes numériques actives
     numeric_cols = df.select_dtypes(include=[np.number]).columns
@@ -422,15 +493,24 @@ def clip_outliers(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         n_outliers = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
 
         if n_outliers > 0:
-            # Utilisation de clip()
-            df_cleaned_col = df[col].clip(lower=lower_bound, upper=upper_bound)
-            
+            # Sur une colonne entière (dont Int64 nullable), écrêter avec une borne
+            # flottante lève une erreur : pandas refuse d'insérer
+            # une valeur non entière dans un IntegerArray.
+            # On resserre donc les bornes vers l'intérieur de la clôture IQR.
+            if pd.api.types.is_integer_dtype(df[col].dtype):
+                clip_low = int(math.ceil(lower_bound))
+                clip_high = int(math.floor(upper_bound))
+            else:
+                clip_low, clip_high = lower_bound, upper_bound
+
+            df_cleaned_col = df[col].clip(lower=clip_low, upper=clip_high)
+
             # Mise à jour en préservant le type numérique standard si possible
             if df_cleaned_col.dtype != df[col].dtype:
                 df[col] = df_cleaned_col.astype(np.float64)
             else:
                 df[col] = df_cleaned_col
-            
+
             corrections[col] = int(n_outliers)
 
     return df, corrections

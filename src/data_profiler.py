@@ -381,20 +381,44 @@ class DataProfiler:
         return "\n".join(md)
 
     def generate_md_report(self, output_filename: str = "data/processed/data_profiling_report.md") -> str:
-        """Sauvegarde le rapport Markdown."""
-        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-        
+        """Sauvegarde le rapport Markdown.
+
+        Args:
+            output_filename: Chemin du fichier à écrire.
+
+        Returns:
+            Le chemin du fichier écrit.
+        """
+        # Path().parent.mkdir gère le cas d'un nom de fichier nu, là où
+        # os.makedirs(os.path.dirname(...)) lèverait sur une chaîne vide.
+        Path(output_filename).parent.mkdir(parents=True, exist_ok=True)
+
         if not self.profile_results:
             self.run_analysis()
-            
+
         report_content = self._generate_markdown_report()
-        
+
         with open(output_filename, "w", encoding="utf-8") as f:
             f.write(report_content)
-            
+
         print(f"📄 Rapport sauvegardé : {output_filename}")
         return output_filename
-    
+
+    def generate_report(self, output_filename: str = "data/processed/data_profiling_report.md") -> str:
+        """Alias historique de `generate_md_report`, conservé pour compatibilité.
+
+        Ne pas réutiliser ce nom pour une méthode basée sur `reports_dir` : c'est
+        la collision de noms qui avait fait dériver l'API.
+
+        Args:
+            output_filename: Chemin du fichier à écrire.
+
+        Returns:
+            Le chemin du fichier écrit.
+        """
+        return self.generate_md_report(output_filename)
+
+
     def _generate_html_report(self) -> str:
         """Convertit les résultats en HTML avec graphiques intégrés."""
         html = """

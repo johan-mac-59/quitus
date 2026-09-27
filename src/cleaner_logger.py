@@ -26,13 +26,13 @@ class CleanLogger:
         summary += f"📑 Colonnes : {self.initial_df.shape[1]} → {self.final_shape[1]}\n\n"
         
         # Ajout des opérations
-        if self.stats.get('empty_cols_dropped', 0) > 0:
+        if (self.stats.get('empty_cols_dropped') or 0) > 0:
             summary += f"🗑️ Colonnes supprimées (vides) : {self.stats['empty_cols_dropped']}\n"
-        if self.stats.get('whitespace_cleaned', 0) > 0:
+        if (self.stats.get('whitespace_cleaned') or 0) > 0:
             summary += f"🧼 Espaces nettoyés : {self.stats['whitespace_cleaned']}\n"
         if self.stats.get('case_normalized', {}):
             summary += f"🔤 Casse uniformisée : {len(self.stats['case_normalized'])} colonnes\n"
-        if self.stats.get('duplicates_removed', 0) > 0:
+        if (self.stats.get('duplicates_removed') or 0) > 0:
             summary += f"🔄 Doublons supprimés : {self.stats['duplicates_removed']}\n"
         if self.stats.get('types_fixed_pandas', {}):
             summary += f"🔧 Corrections Pandas Trap : {len(self.stats['types_fixed_pandas'])} colonnes\n"
