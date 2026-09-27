@@ -1261,4 +1261,74 @@ Le serveur a par ailleurs été lancé pour de vrai et répond correctement sur 
 
 ---
 
-*Projet en cours de développement - Capacité d'analyse visuelle et reporting autonome validée.*
+## Étape 34 : Conformité, Documentation et Passage en Version 1.0 📋🏁
+
+Dernière étape du chantier. Elle ne touche presque pas au code : elle rend le projet **utilisable par quelqu'un d'autre**, et assume les obligations qui naissent dès lors qu'une application accepte des fichiers.
+
+### 1. La question réglementaire : cartographier avant de rassurer
+Une application qui reçoit des fichiers traite des données. Avant d'écrire la moindre phrase rassurante, il fallait établir précisément **où ces données vivent et combien de temps**.
+
+| Étape | Emplacement | Persistance |
+|---|---|---|
+| Dépôt du fichier | mémoire du serveur (en local : la machine de l'utilisateur) | la session |
+| Analyse et nettoyage | mémoire du serveur | la session |
+| Cache de calcul | mémoire du serveur, **partagé entre sessions** | 1 heure, 8 entrées |
+| Téléchargements | navigateur du visiteur | à sa discrétion |
+| Enregistrement local | disque du serveur | **persistant — décoché par défaut** |
+
+Le point non évident est le **cache**. Celui de Streamlit est global au processus : une entrée créée par un visiteur survit à sa session et resterait accessible à un autre calcul identique. Le borner en durée et en nombre d'entrées n'est donc pas un réglage de performance mais une **mesure de rétention**.
+
+### 2. Cookies : une position tenable parce qu'elle est méritée
+L'application ne dépose aucun cookie applicatif. Deux sources étaient toutefois possibles :
+
+* un **cookie technique de protection CSRF**, strictement nécessaire au fonctionnement, donc exempt de consentement au titre de la doctrine sur les cookies essentiels ;
+* la **télémétrie de Streamlit**, qui est un traceur tiers de mesure d'audience.
+
+En désactivant cette télémétrie dans `.streamlit/config.toml`, il ne subsiste que le cookie technique — et **aucune bannière de consentement n'est requise**. La conclusion n'est valable que grâce au réglage : ce fichier doit donc impérativement rester versionné, et un commentaire l'y rappelle explicitement. C'est une mesure de conformité déguisée en fichier de configuration.
+
+### 3. Minimisation : la garantie la plus simple est de ne rien garder
+Le principe retenu pour l'interface web est radical : **aucune écriture sur le serveur par défaut**. Tous les livrables sont produits en mémoire et transmis au navigateur.
+
+Ce n'est pas seulement prudent, c'est plus simple à tenir *et* à expliquer. Une case à cocher, décochée, offre l'enregistrement local à ceux qui utilisent l'outil sur leur propre machine. Et un bouton d'effacement vide session et cache en un clic — le droit à l'effacement rendu opérationnel.
+
+Dernière précaution : l'échantillon de démonstration versionné est **entièrement synthétique**. Le jeu de données réel du projet ressemblait à des réservations et aurait pu contenir des informations identifiantes ; plutôt que de l'anonymiser, il a été régénéré de toutes pièces, en conservant toutes ses anomalies (formats de date mélangés, variations de casse, symboles monétaires, séparateurs décimaux français, doublons, valeurs extrêmes) et aucune de ses données.
+
+### 4. Rendre le dépôt clonable : un détail de `.gitignore` qui n'en est pas un
+Le fichier `.gitignore` ignorait `data/` en bloc. Conséquence : un clone frais ne contenait **aucune donnée**, et le point d'entrée en ligne de commande — qui pointait vers un chemin codé en dur — échouait au démarrage. Le projet était, littéralement, inutilisable par quiconque d'autre.
+
+La correction a révélé une subtilité de git : il faut écrire `data/*` et non `data/`. Git **ne descend pas dans un répertoire ignoré**, et n'y évalue donc jamais une exception. Avec `data/`, la négation `!data/samples/*.csv` n'est tout simplement jamais lue.
+
+### 5. Un README écrit pour un lecteur extérieur
+Le README a été refondu pour répondre aux questions dans l'ordre où elles se posent : comment installer, comment lancer chacun des deux modes, ce que fait l'outil, comment il est architecturé, ce qu'il advient des données, comment lancer les tests.
+
+Deux sections sortent de l'ordinaire :
+
+* **Le principe architectural est énoncé explicitement** — `src/` ne connaît aucune interface, les décisions arrivent par paramètres — avec la précision que cette frontière est **vérifiée automatiquement** par un test, et non seulement recommandée.
+* **La section confidentialité est factuelle**, tableau de flux compris, plutôt que rassurante en termes vagues.
+
+Un `CHANGELOG.md` a été créé. Sa section « Corrigé » est longue, et c'est assumé : elle recense treize défauts dont plusieurs rendaient inopérantes des fonctionnalités annoncées et documentées. Les taire aurait été plus flatteur ; les inscrire noir sur blanc dit ce que vaut désormais le harnais de tests.
+
+### 6. La roadmap, mise à jour honnêtement
+Trois points inscrits à la feuille de route sont livrés :
+* *rendre flexible le loader* — l'utilisateur choisit son fichier, par `--input` ou par dépôt ;
+* *séparer profilage et nettoyage* — l'interface web en fait trois gestes distincts ;
+* *améliorer la détection des dates* — six formats explicites, la détection ayant par ailleurs été trouvée inopérante.
+
+Deux points y entrent, issus des constats de ce chantier :
+* **profilage conscient des types** — le profilage précède la correction des types, si bien qu'une colonne de montants en texte n'y révèle aucune valeur aberrante. Un complément d'estimation a été ajouté à l'Étape 32, mais l'ordre du pipeline mériterait d'être repensé. Il vaut mieux consigner une limite connue que la laisser se redécouvrir.
+* **traitement colonne par colonne** dans l'interface web, au lieu de deux décisions globales.
+
+### 7. Version 1.0.0
+Le projet quitte son statut « en cours ». Ce que cela signifie concrètement :
+
+* les deux interfaces sont fonctionnelles et éprouvées ;
+* **264 tests** passent, contre 86 utilisables au début de ce chantier ;
+* le pipeline est validé sur le jeu de référence de 73 810 lignes et sur l'échantillon de démonstration ;
+* un clone frais suffit pour utiliser les deux modes, sans manipulation de fichiers ;
+* les obligations liées au traitement de données sont identifiées et les mesures correspondantes en place.
+
+Ce qui n'est pas prétendu : l'outil n'est pas déployé publiquement, et la feuille de route reste fournie. La version 1.0 marque un socle stable et documenté, pas une fin.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 264 tests.*
