@@ -1,11 +1,8 @@
 # 🧹 Nettoyage automatique de données
 
-**Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable
-en ligne de commande ou par une interface web. Il inspecte un fichier dont vous
-ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses
-défauts, puis les corrige sous votre contrôle — et vous rend un rapport d'audit.
+**Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
-**Version 1.0.0**
+**Version 1.0.1**
 
 ---
 
@@ -36,8 +33,7 @@ streamlit run app.py             # interface web -> http://localhost:8501
 python main.py                   # ligne de commande
 ```
 
-Un échantillon de démonstration est versionné dans `data/samples/` : les deux
-modes fonctionnent immédiatement après le clone, sans placer un seul fichier.
+Un échantillon de démonstration est versionné dans `data/samples/` : les deux modes fonctionnent immédiatement après le clone, sans placer un seul fichier.
 
 **Prérequis** : Python ≥ 3.14.
 
@@ -56,8 +52,7 @@ streamlit run app.py
 
 Déposez un fichier, lancez l'analyse, réglez les options, nettoyez, téléchargez.
 Cinq onglets : **Aperçu**, **Profilage**, **Nettoyage**, **Graphiques**,
-**Téléchargements**. Les graphiques sont interactifs et construits à la demande ;
-les rapports sont produits en mémoire et proposés au téléchargement.
+**Téléchargements**. Les graphiques sont interactifs et construits à la demande ; les rapports sont produits en mémoire et proposés au téléchargement.
 
 ### Ligne de commande
 
@@ -100,9 +95,7 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 
 1. **Chargement** — détection du format, de l'encodage et du séparateur.
 2. **Audit initial** — inspection des données brutes.
-3. **Décisions** — l'utilisateur choisit d'écrêter les valeurs aberrantes et de
-   combler les valeurs manquantes. Ces deux traitements modifient les
-   distributions : ils ne sont jamais appliqués sans accord explicite.
+3. **Décisions** — l'utilisateur choisit d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Ces deux traitements modifient les distributions : ils ne sont jamais appliqués sans accord explicite.
 4. **Nettoyage** — corrections automatiques, puis traitements choisis.
 5. **Validation** — second profilage, sur les données nettoyées.
 6. **Livraison** — CSV propre et rapports.
@@ -123,7 +116,7 @@ PROJET_NETTOYAGE_AUTO/
 │   ├── cleaner_logger.py
 │   ├── cleaner_reporter.py
 │   └── console_capture.py
-├── tests/                      # 264 tests
+├── tests/                      # 279 tests
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -137,8 +130,7 @@ PROJET_NETTOYAGE_AUTO/
 
 ### Le principe : `src/` ne connaît aucune interface
 
-Aucun module de `src/` ne pose de question et aucun n'importe `streamlit`. Les
-décisions arrivent sous forme de **paramètres explicites** :
+Aucun module de `src/` ne pose de question et aucun n'importe `streamlit`. Les décisions arrivent sous forme de **paramètres explicites** :
 
 ```python
 # Le même code, deux façades
@@ -146,9 +138,7 @@ run_profiling_workflow(source, reports_dir, report_format="html")  # web : trans
 run_profiling_workflow(source, reports_dir)                        # terminal : demandé
 ```
 
-Cette frontière n'est pas qu'une convention : `tests/test_integrite_source.py` la
-vérifie automatiquement, et échoue si un module de `src/` importe `streamlit` ou
-si un appel à `input()` n'est pas protégé contre l'absence de terminal.
+Cette frontière n'est pas qu'une convention : `tests/test_integrite_source.py` la vérifie automatiquement, et échoue si un module de `src/` importe `streamlit` ou si un appel à `input()` n'est pas protégé contre l'absence de terminal.
 
 ---
 
@@ -164,76 +154,58 @@ si un appel à `input()` n'est pas protégé contre l'absence de terminal.
 | Téléchargements | votre navigateur | vous décidez |
 | Enregistrement local | disque du serveur | **persistant — décoché par défaut** |
 
-**Par défaut, rien n'est écrit sur le serveur.** Tous les livrables sont produits
-en mémoire et transmis au navigateur. Une case à cocher, décochée, offre
-l'enregistrement dans `data/` pour un usage local.
+**Par défaut, rien n'est écrit sur le serveur.** Tous les livrables sont produits en mémoire et transmis au navigateur. Une case à cocher, décochée par défaut, offre l'enregistrement dans `data/` pour un usage local.
 
-Le bouton **« Effacer mes données »** vide immédiatement la session et purge le
-cache partagé.
+Le bouton **« Effacer mes données »** vide immédiatement la session et purge le cache partagé.
 
 ### Cookies
 
-**Aucun traceur.** `.streamlit/config.toml` contient `gatherUsageStats = false`,
-ce qui désactive la télémétrie de Streamlit — le seul cookie non essentiel que
-l'application aurait posé. Il ne subsiste qu'un cookie technique de protection
-CSRF, strictement nécessaire au fonctionnement et donc exempt de consentement.
+**Aucun traceur.** `.streamlit/config.toml` contient `gatherUsageStats = false`, ce qui désactive la télémétrie de Streamlit — le seul cookie non essentiel que l'application aurait posé. Il ne subsiste qu'un cookie technique de protection CSRF, strictement nécessaire au fonctionnement et donc exempt de consentement.
 
-**Ce fichier doit rester versionné** : c'est une mesure de conformité, pas une
-préférence locale.
+**Ce fichier doit rester versionné** : c'est une mesure de conformité, pas une préférence locale.
 
 ### Si vous déployez l'application publiquement
 
-Vous devenez responsable du traitement des fichiers que vos visiteurs déposent.
-Les mesures de minimisation sont déjà en place — aucune rétention, aucune
-journalisation des contenus, cache borné. L'application invite par ailleurs
-explicitement à ne pas déposer de données sensibles.
+Vous devenez responsable du traitement des fichiers que vos visiteurs déposent. Les mesures de minimisation sont déjà en place — aucune rétention, aucune journalisation des contenus, cache borné. L'application invite par ailleurs explicitement à ne pas déposer de données sensibles.
 
-L'échantillon versionné dans `data/samples/` est **entièrement synthétique** et
-ne contient aucune donnée personnelle.
+L'échantillon versionné dans `data/samples/` est **entièrement synthétique** et ne contient aucune donnée personnelle.
 
 ---
 
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 264 tests
+python -m pytest              # 279 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
 La suite couvre les modules métier, mais aussi trois familles moins habituelles :
 
-* **`test_app_streamlit.py`** — 27 tests d'intégration qui pilotent réellement
-  l'application via le harnais `AppTest` de Streamlit, sans navigateur. Ils
-  vérifient des effets mesurables (les doublons disparaissent, la casse est
-  uniformisée, l'écrêtage demandé n'est pas ignoré) et les deux garanties de
-  confidentialité annoncées.
-* **`test_plot_factory.py`** — vérifie qu'après la construction de 90 figures, le
-  registre global de matplotlib est **vide**. Sans quoi un serveur de longue
-  durée fuirait à chaque interaction.
-* **`test_integrite_source.py`** — contrôles structurels : aucune fonction
-  définie deux fois, aucun import de `streamlit` dans `src/`, aucun `input()`
-  sans garde, aucune fonction publique sans docstring.
+* **`test_app_streamlit.py`** — 27 tests d'intégration qui pilotent réellement l'application via le harnais `AppTest` de Streamlit, sans navigateur. Ils vérifient des effets mesurables (les doublons disparaissent, la casse est uniformisée, l'écrêtage demandé n'est pas ignoré) et les deux garanties de confidentialité annoncées.
+* **`test_plot_factory.py`** — vérifie qu'après la construction de 90 figures, le registre global de matplotlib est **vide**. Sans quoi un serveur de longue durée fuirait à chaque interaction.
+* **`test_integrite_source.py`** — contrôles structurels : aucune fonction définie deux fois, aucun import de `streamlit` dans `src/`, aucun `input()` sans garde, aucune fonction publique sans docstring.
 
 ---
 
 ## 🔧 Choix techniques notables
 
-* **Types entiers nullables (`Int64`)** — préserve l'intégrité des colonnes
-  numériques contenant des valeurs manquantes. L'écrêtage IQR resserre ses bornes
-  vers l'intérieur sur ces colonnes, pandas refusant d'insérer une valeur
-  fractionnaire dans un tableau d'entiers.
-* **Détection de dates explicite** — six formats sont essayés nommément avant de
-  recourir à l'inférence de pandas, en retenant celui au meilleur taux de
-  réussite. Évite les confusions jour/mois.
-* **Intelligence monétaire** — `"1 200,50 €"` devient `1200.50`, en distinguant
-  le séparateur décimal du séparateur de milliers.
-* **Graphiques hors de pyplot** — les figures sont créées via l'API
-  d'embarquement de matplotlib (`Figure` + `FigureCanvasAgg`) et non
-  `plt.figure()`, ce qui les soustrait au registre global et rend toute fuite
-  mémoire structurellement impossible.
-* **Nettoyage itératif** — certaines corrections en débloquent d'autres (corriger
-  un type révèle des valeurs aberrantes). Le moteur repasse jusqu'à stabilisation,
-  cinq fois au plus.
+* **Types entiers nullables (`Int64`)** — préserve l'intégrité des colonnes numériques contenant des valeurs manquantes. L'écrêtage IQR resserre ses bornes vers l'intérieur sur ces colonnes, pandas refusant d'insérer une valeur fractionnaire dans un tableau d'entiers.
+* **Détection de dates cumulative** — dix formats sont essayés nommément, et
+  appliqués **l'un après l'autre** sur ce que les précédents n'ont pas su lire.
+  C'est indispensable sur un export réel, où une même colonne mêle couramment
+  `13/09/2024`, `2023-09-15` et `18-07-2023` : aucun format ne dépasse 70 % à lui
+  seul, alors que leur cumul couvre la colonne entière. Un garde-fou écarte les
+  années implausibles, ce qui évite qu'une note `5/5` ne soit prise pour une date.
+* **Intelligence numérique** — `"1 200,50 €"` devient `1200.50`, `"17/20"` devient
+  `17` et `"78.9875%"` devient `78.9875`, en distinguant le séparateur décimal du
+  séparateur de milliers. Pour une note fractionnaire, c'est le **numérateur** qui
+  est retenu : c'est le seul choix cohérent quand une colonne mêle `5` et `5/5`.
+* **Seuils mesurés sur les valeurs présentes** — une colonne comportant 40 % de
+  valeurs manquantes est convertie si les valeurs présentes, elles, sont
+  lisibles. Mesurer le taux sur la hauteur de la colonne rendait toute conversion
+  impossible au-delà de 10 % de trous.
+* **Graphiques hors de pyplot** — les figures sont créées via l'API d'embarquement de matplotlib (`Figure` + `FigureCanvasAgg`) et non `plt.figure()`, ce qui les soustrait au registre global et rend toute fuite mémoire structurellement impossible.
+* **Nettoyage itératif** — certaines corrections en débloquent d'autres (corriger un type révèle des valeurs aberrantes). Le moteur repasse jusqu'à stabilisation, cinq fois au plus.
 
 ---
 
@@ -247,19 +219,16 @@ La suite couvre les modules métier, mais aussi trois familles moins habituelles
 | Ligne JSON corrompue | Signalée et ignorée : un enregistrement invalide ne fait pas perdre le fichier |
 | Absence de terminal | Les invites retiennent leur valeur par défaut documentée, sans lever ni bloquer |
 
-Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans une
-chaîne d'intégration continue, ou depuis un serveur web.
+Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans une chaîne d'intégration continue, ou depuis un serveur web.
 
 ---
 
 ## 📈 Évolutions prévues
 
 Voir [`améliorations_futures.md`](améliorations_futures.md). Les principaux axes :
-module de validation de contraintes, détection des notes (`17/20`) et des
-pourcentages, et sélection du traitement colonne par colonne dans l'interface web.
+module de validation de contraintes, détection des notes (`17/20`) et des pourcentages, et sélection du traitement colonne par colonne dans l'interface web.
 
-Le journal technique détaillé du projet, étape par étape, se trouve dans
-[`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
+Le journal technique détaillé du projet, étape par étape, se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 
 ---
 

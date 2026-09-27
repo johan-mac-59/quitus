@@ -3,6 +3,55 @@
 Le détail technique de chaque étape de développement se trouve dans
 [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 
+## [1.0.1] — 2026-09-27
+
+Tient l'invariant du double profilage : le rapport avant nettoyage constate le
+désordre, celui d'après atteste sa disparition. Quatre colonnes du jeu de
+référence restaient mal typées après nettoyage.
+
+### Corrigé
+
+- **Les conventions de date mélangées dans une même colonne n'étaient pas
+  traitées.** Une colonne réelle mêle couramment `13/09/2024` (69 %),
+  `2023-09-15` (17 %) et `18-07-2023` (9 %). Les formats étaient mis en
+  concurrence et le meilleur retenu : aucun n'atteignait le seuil de 80 %, alors
+  que leur cumul couvre 95 % de la colonne. Ils sont désormais appliqués
+  cumulativement, chacun ne comblant que ce que les précédents ont laissé vide.
+  Le catalogue passe de six à dix formats.
+- **Aucune colonne comportant plus de 10 % de valeurs manquantes ne pouvait être
+  convertie**, quel que soit son contenu : le taux de validité était mesuré sur
+  la hauteur de la colonne plutôt que sur ses valeurs présentes. C'est ce qui
+  empêchait `note_satisfaction` (16 % de trous) de devenir numérique.
+- **Un plantage sur les colonnes saugrenues.** Une colonne de notes rejetée à
+  tort par le filtre numérique poursuivait jusqu'à la branche de conversion en
+  date, où un format permissif interprétait `5/5` en une année absurde,
+  provoquant une exception `OutOfBoundsDatetime`. Un contrôle de plausibilité des
+  années (1900-2100) l'écarte, et l'accumulation passe par `combine_first`, qui
+  laisse pandas harmoniser les résolutions temporelles.
+
+### Ajouté
+
+- **Notes fractionnaires et pourcentages** : `17/20` devient `17`, `78.9875%`
+  devient `78.9875`. Pour une note, c'est le **numérateur** qui est retenu et non
+  le quotient — seul choix cohérent quand une colonne mêle `5` et `5/5`, ce qui
+  est le cas dans les exports réels. Limite connue et documentée : une colonne
+  mêlant `17/20` et `4/5` resterait incohérente.
+- **`tests/test_invariant_post_nettoyage.py`** : 15 tests qui verrouillent
+  l'invariant, écrits comme une propriété générale (« aucune colonne textuelle
+  restante ne doit être convertible ») et non comme une liste de colonnes
+  attendues, afin de résister à l'évolution des jeux de données.
+
+### Effet mesuré
+
+Sur le jeu de référence de 73 810 lignes, le nombre de colonnes correctement
+typées passe de 1 à 5, et le nombre de valeurs aberrantes écrêtées de 2 795 à
+**5 848**. Cette progression est la conséquence directe du correctif : une
+colonne restée en texte est invisible pour la détection IQR.
+
+279 tests passent.
+
+---
+
 ## [1.0.0] — 2026-09-27
 
 Première version stable. Le projet passe d'un script de terminal à une

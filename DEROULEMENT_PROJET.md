@@ -1331,4 +1331,101 @@ Ce qui n'est pas prétendu : l'outil n'est pas déployé publiquement, et la feu
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 264 tests.*
+## Étape 35 : L'Invariant du Double Profilage : Tenir la Promesse du Pipeline 🎯🔬
+
+Cette étape naît d'une remarque déterminante : **le rapport pré-nettoyage doit contenir des éléments incorrects — c'est tout le but du pipeline — mais le profilage post-nettoyage ne doit plus, en théorie, comporter de colonne mal typée.**
+
+Cette distinction, énoncée simplement, invalidait une conclusion que nous avions inscrite à la feuille de route à l'étape précédente, et ouvrait une vérification qui n'avait jamais été faite.
+
+### 1. Une analyse erronée, corrigée
+Nous avions consigné comme limite à revoir le fait que « le profilage précède la correction des types, si bien qu'une colonne de montants en texte n'y révèle aucune valeur aberrante ». C'était mal poser le problème.
+
+Un profil pré-nettoyage qui montre `montant_total` typée en texte est **exact**. C'est le constat du désordre, la raison d'être du rapport. Un rapport qui masquerait le problème pour paraître propre n'aurait aucune utilité.
+
+La véritable distinction est ailleurs :
+* le profil pré-nettoyage est un **bon rapport** — il décrit fidèlement les données brutes ;
+* il était un **mauvais support de décision** pour la question « voulez-vous écrêter les valeurs aberrantes ? », puisqu'il ne pouvait structurellement pas les voir sur une colonne encore textuelle.
+
+Le complément d'estimation ajouté à l'Étape 32 était donc au bon endroit — dans la fonction de décision, non dans le profileur. Vérification faite, il ne contamine pas le rapport : le profil pré-nettoyage continue d'exposer les types bruts. L'entrée fautive de la feuille de route a été retirée.
+
+### 2. La vérification de l'invariant : quatre colonnes en défaut
+Restait à éprouver la seconde moitié de l'affirmation. Le profil post-nettoyage du jeu de référence a été inspecté colonne par colonne. **L'invariant était violé** :
+
+| Colonne | Type après nettoyage | Attendu |
+|---|---|---|
+| `date_reservation` | `str` | `datetime64` |
+| `date_arrivee` | `str` | `datetime64` |
+| `date_depart` | `str` | `datetime64` |
+| `note_satisfaction` | `str` | numérique |
+
+Fait troublant : sur l'échantillon synthétique, les dates étaient correctement converties. Le défaut ne se manifestait que sur les données réelles — celles dont le désordre n'a pas été inventé.
+
+### 3. Première cause : des conventions de date mélangées dans une même colonne
+L'inspection a révélé la nature exacte du désordre. Une seule colonne contenait :
+
+| Convention | Part de la colonne |
+|---|---|
+| `13/09/2024` | 68,6 % |
+| `2023-09-15` | 17,1 % |
+| `18-07-2023` | 9,2 % |
+| `06/11/23` | le reliquat |
+
+Notre algorithme retenait le **meilleur** format et exigeait 80 % de réussite. Aucun n'y parvenait seul. L'inférence automatique de pandas ne faisait pas mieux : elle se verrouille sur une convention et abandonne les autres, plafonnant à 68,6 %.
+
+Or le **cumul** de ces formats couvre 95 % de la colonne.
+
+La correction change la logique du tout au tout : les formats ne sont plus mis en **concurrence** mais appliqués **cumulativement**. Chaque format ne comble que les valeurs que les précédents ont laissées vides. L'ordre devient dès lors significatif — les formats à année sur quatre chiffres passent avant ceux à deux chiffres, sinon `%d/%m/%y` interpréterait `13/09/2024` de façon fantaisiste. Le catalogue est passé de six à dix formats, horodatages et séparateur point compris.
+
+Résultat : les quatre conventions sont interprétées, **sans perte**, y compris les années à deux chiffres.
+
+### 4. Deuxième cause : les notes fractionnaires
+`note_satisfaction` mêlait `5`, `2`, `3,0` et… `5/5`, `3/5`, `1/5`. Le caractère `/` faisait rejeter la colonne entière par le filtre de numérisation.
+
+C'était précisément l'élément « détecter plus de nombres : gérer les notes (5/10, 17/20) » inscrit à la feuille de route. Il a été traité, ainsi que les pourcentages.
+
+Un arbitrage méritait d'être posé explicitement : **que vaut `5/5` ?** Mathématiquement, 1,0. Mais dans une colonne où `5/5` coexiste avec des `5` nus — situation courante dans un export réel — convertir en 1,0 rendrait les deux écritures incomparables. C'est donc le **numérateur** qui est retenu, et la décision est documentée dans le code comme dans la feuille de route, avec sa limite : une colonne mêlant `17/20` et `4/5` resterait incohérente.
+
+Même raisonnement pour les pourcentages : `78.9875 %` devient `78.9875`, et non `0.789875`. Une colonne intitulée « taux » attend la valeur affichée.
+
+### 5. Troisième cause, la plus insidieuse : un seuil mal mesuré
+La correction des deux premiers points n'a pas suffi. `note_satisfaction` restait en texte.
+
+La raison est un défaut de raisonnement qui affectait **toutes** les colonnes : le taux de validité était calculé sur la hauteur de la colonne, valeurs manquantes comprises. Or `note_satisfaction` comporte 11 925 valeurs manquantes sur 73 810, soit 16 %. Même avec 100 % des valeurs présentes correctement interprétées, le taux plafonnait à 84 % — sous le seuil de 90 %.
+
+**Aucune colonne comportant plus de 10 % de valeurs manquantes ne pouvait donc jamais être convertie**, quel que soit son contenu. Le taux se mesure désormais sur les valeurs réellement présentes. Le même défaut affectait la conversion de dates et y a été corrigé aussi.
+
+### 6. Un garde-fou né d'un plantage
+Au cours de ces corrections, le pipeline s'est mis à lever une exception `OutOfBoundsDatetime` de pandas, sur une date en l'an 1.
+
+L'enchaînement méritait d'être compris : la colonne de notes, rejetée à tort par le filtre numérique, poursuivait son chemin jusqu'à la branche de conversion en date. Là, un format permissif interprétait `5/5` comme une date, produisant une année absurde — et l'affectation de cette valeur hors bornes faisait échouer pandas.
+
+Deux protections en découlent :
+* un **contrôle de plausibilité des années** (1900-2100) écarte les interprétations fantaisistes ;
+* l'accumulation des résultats passe par `combine_first` plutôt que par une affectation indexée, ce qui laisse pandas harmoniser les résolutions temporelles — deux appels successifs à `to_datetime` peuvent renvoyer des unités différentes.
+
+Le pipeline ne plante plus sur une colonne saugrenue : il la laisse simplement en texte.
+
+### 7. L'invariant, désormais verrouillé par les tests
+Un nouveau fichier, `tests/test_invariant_post_nettoyage.py`, transforme l'affirmation en **propriété vérifiée** — 15 tests.
+
+Le choix d'écriture compte : l'invariant n'est pas exprimé comme une liste de colonnes attendues, mais comme une **propriété générale** — « aucune colonne textuelle restante ne doit être convertible, ni en nombre, ni en date ». Le test résiste ainsi à l'évolution des jeux de données, là où une liste figée se périmerait au premier changement de source.
+
+Les deux exigences opposées du double profilage sont contrôlées séparément : le profil pré-nettoyage **doit** montrer les colonnes en texte, le profil post-nettoyage **ne doit plus** en comporter.
+
+### 8. Résultat : l'invariant tient, et l'effet est considérable
+Sur les deux jeux de données, la vérification est désormais positive : **zéro colonne mal typée après nettoyage**.
+
+L'effet en aval dépasse la simple cosmétique des types. Sur le jeu de référence de 73 810 lignes :
+
+| Indicateur | Avant l'Étape 35 | Après |
+|---|---|---|
+| Colonnes correctement typées | 1 | **5** |
+| Valeurs aberrantes écrêtées | 2 795 | **5 848** |
+
+La progression des valeurs aberrantes n'est pas un effet de bord mais la conséquence directe du correctif : une colonne restée en texte est invisible pour la détection IQR. Corriger les types, c'est rendre détectable tout ce qu'ils masquaient. Le nombre d'anomalies traitées a plus que doublé.
+
+**279 tests passent.** L'invariant énoncé — le rapport avant nettoyage constate le désordre, celui d'après atteste sa disparition — n'est plus une intention mais une propriété du code, vérifiée à chaque exécution de la suite.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 279 tests.*

@@ -1,4 +1,5 @@
 import math
+import re
 import warnings
 
 import pandas as pd
@@ -94,16 +95,67 @@ def fix_numeric_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
     return df_cleaned, conversions
 
-def _can_be_numeric(series: pd.Series) -> bool:
+# Note fractionnaire : « 17/20 », « 5/5 », « 4,5/5 ».
+_MOTIF_NOTE = re.compile(r'^([+-]?\d+(?:[.,]\d+)?)\s*/\s*(\d+(?:[.,]\d+)?)$')
+
+# Pourcentage : « 78.9875% », « 1,5 % ».
+_MOTIF_POURCENTAGE = re.compile(r'^([+-]?\d+(?:[.,]\d+)?)\s*%$')
+
+# Caractères admis dans un nombre « simple », symboles monétaires compris.
+_CARACTERES_NUMERIQUES = set("0123456789+-.,;€$£ ")
+
+
+def _normaliser_valeur_numerique(val_str: str):
+    """Ramène une écriture numérique tolérée à une forme convertible.
+
+    Prend en charge, outre les nombres simples et monétaires :
+
+    * les **notes fractionnaires** (« 17/20 », « 5/5 ») — le **numérateur** est
+      retenu, et non le quotient. C'est le seul choix cohérent quand une même
+      colonne mêle « 5 » et « 5/5 », ce qui est fréquent dans les exports réels :
+      convertir « 5/5 » en 1.0 le rendrait incomparable aux « 5 » nus.
+    * les **pourcentages** (« 78.9875 % ») — la valeur affichée est retenue, non
+      sa fraction : une colonne intitulée « taux » attend 78.9875, pas 0.789875.
+
+    Args:
+        val_str: Valeur textuelle, déjà débarrassée de ses espaces de bordure.
+
+    Returns:
+        Une chaîne convertible par `pd.to_numeric`, ou None si la valeur n'est
+        pas reconnue comme numérique.
     """
-    Détermine si une colonne de type string/objet peut être convertie en nombre.
-    
-    Règles de filtrage (Heuristiques) :
-    1. Ignorer les identifiants alphanumériques mixtes (ex: 'R43873', 'AB-12').
-       Si le contenu contient des lettres isolées (pas juste dans des mots comme 'euro'), on garde en string.
-    2. Ignorer les formats complexes non numériques purs (ex: '4/5', '10%').
-       On ne touche que ce qui ressemble strictement à un nombre (chiffres, signes, séparateurs décimaux).
-    3. Accepter les nombres avec symboles monétaires (€, $, £) ou espaces de milliers.
+    if not val_str:
+        return None
+
+    note = _MOTIF_NOTE.match(val_str)
+    if note:
+        return note.group(1).replace(',', '.')
+
+    pourcentage = _MOTIF_POURCENTAGE.match(val_str)
+    if pourcentage:
+        return pourcentage.group(1).replace(',', '.')
+
+    # Nombre simple ou monétaire : on refuse tout caractère étranger.
+    if any(c not in _CARACTERES_NUMERIQUES for c in val_str):
+        return None
+    return val_str
+
+
+def _can_be_numeric(series: pd.Series) -> bool:
+    """Détermine si une colonne textuelle peut être convertie en nombre.
+
+    Règles de filtrage (heuristiques) :
+
+    1. Rejeter les identifiants alphanumériques mixtes (« R43873 », « AB-12 »).
+    2. Accepter les nombres monétaires (« 1 200,50 € »), les notes
+       fractionnaires (« 17/20 ») et les pourcentages (« 1,5 % »).
+    3. Rejeter tout le reste.
+
+    Args:
+        series: Colonne à examiner.
+
+    Returns:
+        True si la colonne semble numérisable.
     """
     # On ignore les colonnes vides
     valid_data = series.dropna()
@@ -111,35 +163,28 @@ def _can_be_numeric(series: pd.Series) -> bool:
         return False
 
     # On prend un échantillon significatif pour la détection (plus rapide et robuste)
-    sample = valid_data.head(100) 
-    non_numeric_count = 0
-    
+    sample = valid_data.head(100)
+
     for val in sample:
         val_str = str(val).strip()
-        
+
         # Si la valeur est vide après strip, on continue
         if not val_str:
             continue
-            
-        # Règle 1 : Détection d'ID alphanumérique mixte
-        # Si on trouve des lettres qui ne sont pas dans un mot complet (ex 'euro' est OK si c'est rare, 
-        # mais 'R43873' non plus. Ici on veut éviter les IDs type 'A12B').
-        # On vérifie si la chaine contient à la fois des chiffres et des lettres alphabétiques pures.
+
+        # Règle 1 : identifiant alphanumérique mixte (« R43873 », « A12B »). On
+        # rejette dès qu'une valeur mêle lettres et chiffres sans former un mot
+        # entier — « euro » passerait, « R43873 » non.
         if any(c.isalpha() for c in val_str) and any(c.isdigit() for c in val_str):
-            # Est-ce que c'est un mot complet (comme 'euro') ou un mélange ID-like ?
-            # On considère qu'un ID mixte est valide si les lettres et chiffres sont collés ou séparés par des tirets simples
-            # Mais pour être sûr, on va utiliser une regex simple : si il y a des lettres ET des chiffres, 
-            # on vérifie si c'est du type "Lettres+Chiffres" pur.
-            if not val_str.replace('-', '').replace('_', '').isalpha() and \
-               not val_str.replace('-', '').replace('_', '').isdigit():
+            noyau = val_str.replace('-', '').replace('_', '')
+            if not noyau.isalpha() and not noyau.isdigit():
                 return False
 
-        # Règle 2 : Détection de formats complexes ('/', '%', etc.)
-        # On accepte uniquement les caractères autorisés pour un nombre : chiffres, signes, points, virgules, espaces, $, €
-        allowed_chars = set("0123456789+-.,;€$£ ")
-        if any(c not in allowed_chars for c in val_str):
+        # Règle 2 : la valeur doit se ramener à une forme numérique connue —
+        # nombre simple, monétaire, note fractionnaire ou pourcentage.
+        if _normaliser_valeur_numerique(val_str) is None:
             return False
-            
+
     # Si on est là, tous les échantillons valides sont "proches" d'un nombre.
     return True
 
@@ -196,6 +241,16 @@ def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dic
     # On prépare les données pour que pd.to_numeric fonctionne à 100%
     cleaned_series = df_cleaned[col].copy()
 
+    # A0. Notes fractionnaires et pourcentages, normalisés avant tout le reste :
+    # « 17/20 » devient « 17 », « 1,5 % » devient « 1.5 ». Les valeurs déjà
+    # numériques traversent cette étape inchangées, ce qui permet à une colonne
+    # mêlant « 5 » et « 5/5 » de devenir homogène.
+    if cleaned_series.str.contains(r'[/%]', regex=True, na=False).any():
+        cleaned_series = cleaned_series.map(
+            lambda v: _normaliser_valeur_numerique(str(v).strip()) if pd.notna(v) else v,
+            na_action='ignore',
+        ).astype('string')
+
     # A. Suppression des symboles monétaires et espaces inutiles (séparateurs de milliers)
     cleaned_series = cleaned_series.str.replace('€', '', regex=False)
     cleaned_series = cleaned_series.str.replace('$', '', regex=False)
@@ -228,9 +283,13 @@ def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dic
     # 4. Tentative de conversion numérique
     numeric_data = pd.to_numeric(cleaned_series, errors='coerce')
 
-    # Si après nettoyage, on a encore trop de NaN, c'est que la colonne n'était pas si
-    # numérique que ça (peut-être des erreurs de format). Seuil de validité : 90%.
-    cleaned_valid_rate = numeric_data.notna().sum() / len(numeric_data)
+    # Si après nettoyage on a encore trop de NaN, c'est que la colonne n'était pas
+    # si numérique que ça. Le taux se mesure sur les valeurs RÉELLEMENT PRÉSENTES,
+    # et non sur la hauteur de la colonne : sinon une colonne comportant plus de
+    # 10 % de valeurs manquantes ne pourrait jamais être convertie, quel que soit
+    # le contenu des valeurs présentes.
+    presentes = int(df_cleaned[col].notna().sum())
+    cleaned_valid_rate = (int(numeric_data.notna().sum()) / presentes) if presentes else 0.0
 
     if cleaned_valid_rate > 0.9:
         non_na_values = numeric_data.dropna()
@@ -259,14 +318,31 @@ def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dic
 # Formats de date testés explicitement, dans l'ordre de priorité.
 # Les essayer nommément évite les avertissements de pandas et les mauvaises
 # interprétations jour/mois que l'inférence automatique peut produire.
+#
+# L'ordre compte : les formats à année sur quatre chiffres passent d'abord, de
+# sorte que les formats à deux chiffres ne récupèrent que le reliquat. Sans
+# cela, « %d/%m/%y » interpréterait « 13/09/2024 » de façon fantaisiste.
 _DATE_FORMATS = (
+    # Horodatages complets d'abord : ils sont les plus spécifiques.
+    '%Y-%m-%d %H:%M:%S',
+    '%d/%m/%Y %H:%M:%S',
+    '%Y-%m-%dT%H:%M:%S',
+    # Dates seules, année sur quatre chiffres.
     '%d/%m/%Y',
     '%Y-%m-%d',
     '%d-%m-%Y',
     '%Y/%m/%d',
-    '%d/%m/%Y %H:%M:%S',
-    '%Y-%m-%d %H:%M:%S',
+    '%d.%m.%Y',
+    # Année sur deux chiffres, en dernier recours.
+    '%d/%m/%y',
+    '%d-%m-%y',
 )
+
+# Bornes de plausibilité d'une année. Un format permissif appliqué à des valeurs
+# qui ne sont pas des dates produit volontiers l'an 1 ou l'an 9999 ; ce garde-fou
+# évite qu'une colonne de notes (« 5/5 ») ne soit prise pour des dates.
+_ANNEE_MIN = 1900
+_ANNEE_MAX = 2100
 
 
 def _try_datetime_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dict,
@@ -290,37 +366,79 @@ def _try_datetime_conversion(df_cleaned: pd.DataFrame, col: str, conversions: di
     if series.notna().sum() == 0:
         return df_cleaned, conversions
 
-    best_data = None
-    best_rate = 0.0
+    # Les formats sont appliqués CUMULATIVEMENT, et non en concurrence : une
+    # colonne issue d'un export réel mélange couramment plusieurs conventions
+    # (« 13/09/2024 » à 69 %, « 2023-09-15 » à 17 %, « 18-07-2023 » à 9 %).
+    # Retenir le meilleur format isolément échouerait sur les trois, alors que
+    # leur cumul couvre 95 % de la colonne. Chaque format ne comble que les
+    # valeurs que les précédents ont laissées vides.
+    resultat = None
+    a_interpreter = series.notna()
 
-    for fmt in _DATE_FORMATS:
-        try:
-            date_data = pd.to_datetime(series, format=fmt, errors='coerce')
-        except (ValueError, TypeError):
-            continue
-        rate = date_data.notna().sum() / len(date_data)
-        if rate > best_rate:
-            best_data, best_rate = date_data, rate
-        # Format parfait : inutile de tester les suivants
-        if best_rate == 1.0:
-            break
+    def _tenter(valeurs, **kwargs):
+        """Interprète des valeurs en dates, en écartant les années implausibles.
 
-    # Repli sur l'inférence de pandas si aucun format explicite ne convainc.
-    # On accepte ici sciemment l'inférence, donc on tait l'avertissement
-    # « Could not infer format » qui n'apporte rien à l'utilisateur.
-    if best_rate < min_valid_rate:
+        Args:
+            valeurs: Série de valeurs textuelles à interpréter.
+            **kwargs: Transmis à `pd.to_datetime`.
+
+        Returns:
+            Une série de dates, `NaT` là où l'interprétation a échoué ou donné
+            une année invraisemblable, ou None en cas d'erreur irrécupérable.
+        """
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', UserWarning)
-                date_data = pd.to_datetime(series, errors='coerce')
-            rate = date_data.notna().sum() / len(date_data)
-            if rate > best_rate:
-                best_data, best_rate = date_data, rate
-        except (ValueError, TypeError):
-            pass
+                dates = pd.to_datetime(valeurs, errors='coerce', **kwargs)
+        except (ValueError, TypeError, OverflowError,
+                pd.errors.OutOfBoundsDatetime):
+            return None
 
-    if best_data is not None and best_rate > min_valid_rate:
-        df_cleaned[col] = best_data
+        # Un format trop permissif peut produire des dates absurdes (an 1) à
+        # partir de valeurs qui ne sont pas des dates. On les écarte : sans ce
+        # filtre, une colonne de notes comme « 5/5 » deviendrait une date.
+        valides = dates.notna()
+        if valides.any():
+            annees = dates.dt.year
+            dates = dates.where(valides & annees.between(_ANNEE_MIN, _ANNEE_MAX))
+        return dates
+
+    for fmt in _DATE_FORMATS:
+        if not a_interpreter.any():
+            break
+        partiel = _tenter(series[a_interpreter], format=fmt)
+        if partiel is None:
+            continue
+        obtenues = partiel.notna()
+        if not obtenues.any():
+            continue
+        # combine_first laisse pandas harmoniser l'unité temporelle ; une
+        # affectation par .loc échouerait dès que deux appels à to_datetime
+        # renvoient des résolutions différentes.
+        contribution = partiel[obtenues]
+        resultat = contribution if resultat is None else resultat.combine_first(contribution)
+        a_interpreter.loc[contribution.index] = False
+
+    # Repli sur l'inférence de pandas pour le reliquat, sciemment accepté ici.
+    if a_interpreter.any():
+        partiel = _tenter(series[a_interpreter], dayfirst=True)
+        if partiel is not None and partiel.notna().any():
+            contribution = partiel[partiel.notna()]
+            resultat = contribution if resultat is None else resultat.combine_first(contribution)
+
+    if resultat is None:
+        return df_cleaned, conversions
+
+    # On réaligne sur l'index complet : les valeurs jamais interprétées restent NaT.
+    resultat = resultat.reindex(series.index)
+
+    # Le taux se mesure sur les valeurs réellement présentes : une colonne à
+    # moitié vide mais dont toutes les dates sont lisibles doit être convertie.
+    presentes = int(series.notna().sum())
+    taux = int(resultat.notna().sum()) / presentes if presentes else 0.0
+
+    if taux > min_valid_rate:
+        df_cleaned[col] = resultat
         conversions[col] = 'object -> datetime'
 
     return df_cleaned, conversions
