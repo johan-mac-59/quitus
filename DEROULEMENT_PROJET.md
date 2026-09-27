@@ -1180,4 +1180,85 @@ Cette dernière ligne mérite d'être soulignée : sur le jeu de référence, l'
 
 ---
 
+## Étape 33 : Naissance de l'Interface Web : de l'Outil de Terminal à l'Application 🌐🖱️
+
+Les trois étapes précédentes avaient préparé le terrain. Celle-ci construit l'application elle-même — et le résultat mérite d'être souligné : `app.py` ne contient **pas une seule ligne de logique de nettoyage**. Il dépose des widgets, transmet leur valeur, affiche ce qui revient.
+
+### 1. Le principe de traduction : du dialogue au widget
+L'enjeu n'était pas de transposer les messages du terminal dans une page web. Un dialogue conçu pour une console — « Répondez par 'y' (oui) ou 'n' (non) », « Appuyez sur Entrée pour choisir 'n' par défaut » — n'a aucun sens dans un navigateur, où le geste naturel est de cocher une case.
+
+C'est précisément le rôle des fonctions `summarize_outliers()` et `summarize_missing_values()` extraites à l'étape précédente : elles renvoient **des données**, pas de l'affichage. Chaque façade compose ensuite sa propre présentation :
+
+| Décision | En terminal | Dans le navigateur |
+|---|---|---|
+| Écrêter les outliers | question fermée `y/n` | case à cocher, désactivée s'il n'y a rien à corriger, avec le décompte par colonne en infobulle |
+| Combler les manquants | question fermée `y/n` | case à cocher, avec le nombre total dans l'étiquette |
+| Format du rapport | menu numéroté `1` ou `2` | sélection multiple « Markdown / HTML » |
+| Générer le rapport | question fermée `y/n` | case à cocher |
+| Nombre de passes | non exposé | champ numérique borné de 1 à 10 |
+
+Les cases sont regroupées dans un **formulaire** : cocher une option ne relance aucun calcul avant la validation explicite. C'est une différence de fond avec le modèle par défaut de Streamlit, qui réexécute tout le script à chaque interaction.
+
+### 2. Architecture : cinq onglets, un état, aucune duplication
+L'application s'organise en une barre latérale (dépôt du fichier et actions) et cinq onglets : **Aperçu**, **Profilage**, **Nettoyage**, **Graphiques**, **Téléchargements**.
+
+Deux décisions structurent l'état de session, et toutes deux consistent à **refuser de stocker** :
+
+* **Aucun profileur n'est conservé.** Chaque instance détient une copie complète du DataFrame ; en garder deux par session doublerait l'empreinte mémoire. Seul le dictionnaire de résultats est rangé. Et puisque `CleanerReporter` ne lit qu'un seul attribut du profileur, un objet factice porteur de ce dictionnaire suffit pour produire le rapport.
+* **Aucune figure n'est conservée.** Une figure en session serait retenue pendant toute la session, pour chaque session. On stocke les données d'entrée et on reconstruit à l'affichage, via un utilitaire unique qui libère les artistes juste après le rendu.
+
+Un mécanisme de remise à zéro se déclenche dès qu'un fichier différent est déposé, identifié par l'empreinte SHA-256 de son contenu. Sans lui, on afficherait le dataset nettoyé du fichier précédent à côté du profilage du nouveau.
+
+### 3. Les graphiques : à la demande, jamais d'office
+L'onglet des graphiques illustre un arbitrage d'ergonomie autant que de performance. Un dataset de quarante colonnes produirait quatre-vingts figures au premier affichage — l'application semblerait figée. Deux garde-fous :
+
+* la sélection de colonnes est plafonnée à trois par défaut, l'utilisateur en ajoutant à sa convenance ;
+* la matrice de dispersion et la heatmap de corrélation, les deux graphiques coûteux, sont derrière des **boutons explicites**.
+
+Les figures affichées sont rigoureusement celles des rapports HTML : même code de tracé, deux consommateurs.
+
+### 4. La console du pipeline, rapatriée dans le navigateur
+Le pipeline reste bavard : il annonce le séparateur détecté, l'encodage, chaque itération de nettoyage, chaque conversion de type. Cette traçabilité disparaissait dans un navigateur.
+
+Le module `console_capture` détourne cette sortie vers un tampon mémoire, affiché dans un volet dépliable sous chaque onglet concerné. L'utilisateur curieux peut ainsi vérifier ce qui s'est réellement passé — la transparence du terminal, sans le terminal.
+
+### 5. Aucune écriture sur le serveur
+Tous les livrables — CSV nettoyé, rapport de profilage Markdown, rapport HTML avec graphiques, rapport de nettoyage — sont produits **en mémoire** et proposés au téléchargement. C'est la raison d'être des méthodes `render_report()` et `render()` ajoutées à l'étape précédente.
+
+Trois motifs à ce choix :
+* le schéma de nommage horodaté est à la minute, donc deux utilisateurs simultanés s'écraseraient mutuellement ;
+* sur un hébergeur, le disque est éphémère et partagé entre sessions ;
+* ne rien écrire est la garantie de confidentialité la plus simple à tenir — et à expliquer.
+
+Une case à cocher unique, décochée par défaut, offre l'enregistrement local pour ceux qui utilisent l'outil sur leur propre machine. Le CSV téléchargeable est encodé en `utf-8-sig`, marque d'ordre comprise, pour qu'Excel affiche correctement les accents — divergence assumée avec la ligne de commande, qui reste en UTF-8 nu.
+
+### 6. Confidentialité : ce qui est annoncé doit être vérifiable
+Un encart de transparence détaille où vivent les données et combien de temps. Deux mesures techniques le rendent vrai :
+
+* le cache de Streamlit est **borné** (une heure, huit entrées). Ce n'est pas un réglage de performance : le cache est global au processus, donc une entrée survit à la session qui l'a créée. Le borner limite la durée de conservation des données d'un visiteur.
+* un bouton **« Effacer mes données »** vide la session et purge le cache.
+
+Ce second point a révélé un bug que seul un test pouvait attraper : **le bouton ne vidait rien**. Le composant d'envoi de fichier conservait le fichier déposé, qui était donc rechargé au rafraîchissement suivant. La fonction annoncée était inopérante. La correction consiste à faire entrer un compteur de génération dans la clé du composant : l'incrémenter force Streamlit à en recréer un neuf, donc vide.
+
+### 7. Tester une application web sans navigateur
+Streamlit fournit un harnais, `AppTest`, qui exécute réellement le script et permet d'agir sur ses widgets. **27 tests d'intégration** pilotent ainsi le parcours complet — dépôt, analyse, réglage des options, nettoyage, téléchargement — dans les mêmes conditions qu'un utilisateur, sans navigateur ni capture d'écran.
+
+Ces tests ne vérifient pas seulement que l'application ne plante pas. Ils contrôlent des **effets mesurables** : les doublons disparaissent, la casse est uniformisée, une colonne monétaire textuelle devient numérique, l'écrêtage demandé n'est pas silencieusement ignoré, le second fichier déposé n'hérite d'aucune donnée du premier, et — les deux plus importants — **rien n'est écrit sur le disque sans demande explicite** et **le bouton d'effacement vide réellement l'état**.
+
+Les quatre formats annoncés (CSV, Excel, JSON, JSON Lines) sont éprouvés via l'interface, ainsi que trois cas limites : fichier vide, fichier à une seule colonne non numérique, colonnes entièrement vides.
+
+### 8. Validation de la tenue en charge
+L'application a été soumise à **30 cycles complets** consécutifs, mesure mémoire à l'appui. Résultats :
+
+* **aucune figure résiduelle** dans le registre de matplotlib — la garantie de l'Étape 31 tient en conditions réelles ;
+* **118 Ko de croissance imputables au projet** sur 15 cycles, soit environ 8 Ko par cycle : négligeable ;
+* les 15,5 Mo restants proviennent du cache de polices de matplotlib, cache global et borné par le nombre de polices distinctes, non d'une fuite par requête.
+
+Le serveur a par ailleurs été lancé pour de vrai et répond correctement sur son point de contrôle de santé.
+
+### 9. Résultat
+**264 tests passent.** Le projet dispose de deux façades pleinement fonctionnelles au-dessus d'un socle métier unique. La ligne de commande n'a rien perdu — elle a même gagné `argparse` et deux modes non interactifs. L'interface web n'a rien dupliqué : le test structurel qui interdit à `src/` d'importer `streamlit` garantit automatiquement que cette frontière ne se brouillera pas.
+
+---
+
 *Projet en cours de développement - Capacité d'analyse visuelle et reporting autonome validée.*
