@@ -22,7 +22,7 @@ L'application suit un flux de travail (workflow) structuré pour intégrer le co
 1.  **Chargement intelligent** : Détection auto du format et de l'encodage.
 2.  **Audit Initial (Pre-Cleaning)** : Inspection des données brutes pour identifier les zones de bruit et d'erreurs.
 3.  **Nettoyage adaptatif** :
-    *   Corrections automatiques (types, doublons, espaces).
+    *   Corrections automatiques (types, doublons, espaces, casse).
     *   Interrogation de l'utilisateur (outliers/manquants) pour un nettoyage piloté par l'expert.
 4.  **Validation (Post-Cleaning)** : Nouveau passage du profiler pour confirmer la propreté du dataset et l'absence de régression structurelle.
 5.  **Reporting Final** : Génération du rapport d'audit complet (Comparaison "Avant vs Après" avec KPIs de transformation).

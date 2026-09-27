@@ -1,0 +1,17 @@
+# Configuration Streamlit — CE FICHIER DOIT ÊTRE VERSIONNÉ.
+# Le réglage gatherUsageStats ci-dessous est une mesure de conformité, pas une
+# préférence locale : c'est lui qui supprime le seul traceur non essentiel de
+# l'application. Voir la section « Confidentialité » du README.
+
+[browser]
+# Désactive la télémétrie Streamlit (Segment). Sans ce réglage, l'application
+# déposerait un cookie de mesure d'audience, qui exigerait alors une bannière
+# de consentement. Avec, il ne reste que le cookie technique XSRF, exempt.
+gatherUsageStats = false
+
+[server]
+# Taille maximale d'un fichier déposé, en Mo.
+maxUploadSize = 200
+
+[theme]
+base = "light"

@@ -1,0 +1,10 @@
+# Dépendances d'exécution, en miroir de [project.dependencies] dans pyproject.toml.
+# Ce fichier existe pour les installations pip et pour les plateformes d'hébergement
+# qui ne lisent pas pyproject.toml. Avec uv, préférer `uv sync`.
+pandas
+numpy
+tabulate>=0.10.0
+seaborn>=0.13.2
+matplotlib>=3.11.1
+openpyxl>=3.1.5
+streamlit>=1.64.0

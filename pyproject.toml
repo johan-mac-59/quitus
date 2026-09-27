@@ -1,17 +1,17 @@
 [project]
 name = "projet-nettoyage-auto"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pipeline interactif de profilage et de nettoyage automatique de fichiers CSV, Excel et JSON, en ligne de commande et via une interface web Streamlit."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "pandas",
     "numpy",
-    "typing>=3.10.0.0",
-    "pathlib>=1.0.1",
     "tabulate>=0.10.0",
     "seaborn>=0.13.2",
     "openpyxl>=3.1.5",
+    "streamlit>=1.64.0",
+    "matplotlib>=3.11.1",
 ]
 
 [build-system]
