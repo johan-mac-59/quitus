@@ -1618,4 +1618,34 @@ Trois tests verrouillent le branchement : le bouton apparaît avec l'adresse exa
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 338 tests.*
+## Étape 40 : Ouvrir le Dialogue : Retours, Soutien, et des Onglets Toujours Visibles 💬🧭
+
+Cette étape tourne l'application vers ses utilisateurs : leur donner les moyens de signaler un problème, de remercier s'ils le souhaitent, et de ne jamais se perdre dans l'interface.
+
+### 1. Inviter aux retours, sans exposer les données
+Un bloc « Une remarque, une anomalie ? » figure désormais sur la page de présentation et au bas de l'onglet Téléchargements. Il précise que toute remarque constructive ou anomalie détectée est la bienvenue — et ce n'est pas une formule : plusieurs corrections majeures du projet, à l'Étape 36, sont nées d'un seul test sur un fichier réel.
+
+Il donne trois liens : **signaler une anomalie** (la page Issues du dépôt GitHub), le **profil GitHub** et le **profil LinkedIn** du porteur du projet.
+
+Avant de publier le lien de signalement, il a été vérifié que la page Issues du dépôt était bien activée : un lien mort aurait découragé exactement les retours qu'on sollicitait. Le dépôt est public, la fonctionnalité active.
+
+Une précaution s'imposait : **les signalements GitHub sont publics**. Un utilisateur de bonne volonté pourrait joindre son fichier pour illustrer un problème, et publier ainsi ses données. Le bloc le met en garde explicitement : décrire le problème ou fournir un extrait anonymisé, jamais le fichier lui-même.
+
+### 2. Le soutien, au bon moment et sans insistance
+Le bouton « Soutenir le projet » apparaît désormais à trois endroits, chacun avec un message adapté : dans la barre latérale, après l'histoire du projet sur la page de présentation — là où le lecteur mesure le travail accompli —, et au bas des téléchargements, au moment où l'outil vient de rendre service. Tous les messages disent que le soutien est facultatif ; aucun ne culpabilise.
+
+Le bouton a été agrandi de 20 %. Streamlit ne propose aucun réglage de taille pour ce type de bouton, mais attribue à chaque widget muni d'une clé une classe CSS de la forme `st-key-<clé>` — mécanisme vérifié dans le code source de Streamlit avant de s'y fier. Les trois boutons ayant des clés commençant par `soutien_`, une seule règle les cible, sans toucher aux autres. La propriété `zoom` a été préférée à une mise à l'échelle (`transform`) : elle agrandit le bouton **et** décale ce qui suit, là où une mise à l'échelle l'aurait fait déborder sur le texte voisin.
+
+### 3. « Les onglets ont disparu »
+Le signalement était sérieux, et il a d'abord fallu établir les faits plutôt que de corriger à l'aveugle. L'application, exécutée dans le harnais de test, générait bien ses sept onglets dès qu'un fichier était chargé, sans la moindre erreur.
+
+La cause était ailleurs : **après un relancement du serveur, la session repart de zéro, sans fichier**. L'application affichait alors sa page d'accueil, qui n'avait pas d'onglets. Rien n'était cassé — mais l'interface changeait de structure selon qu'un fichier était chargé ou non, et cette métamorphose ressemblait à s'y méprendre à une panne.
+
+La correction supprime la cause de la confusion plutôt que de l'expliquer : **les sept onglets sont désormais visibles dès l'arrivée**. « Présentation » s'ouvre en premier ; les autres onglets, tant qu'aucun fichier n'est chargé, indiquent simplement comment en charger un. L'encart de confidentialité, qui apparaissait deux fois sur la page d'accueil, n'y figure plus qu'une fois.
+
+### 4. Résultat
+**349 tests passent.** Onze nouveaux tests couvrent les liens de contact et de signalement, l'avertissement sur la publication de données, la présence et l'adresse des trois boutons de soutien, la règle d'agrandissement, la visibilité des onglets dès l'arrivée et l'unicité de l'encart de confidentialité.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 349 tests.*

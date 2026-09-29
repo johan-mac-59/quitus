@@ -105,18 +105,92 @@ class TestDemarrage:
 class TestBoutonDeSoutien:
     """Le bouton de soutien renvoie vers la page Buy Me a Coffee du projet."""
 
-    def test_bouton_present_avec_la_bonne_adresse(self, app):
-        """Le bouton apparaît dès l'arrivée et pointe vers la page de soutien."""
-        app.run()
-        liens = app.get("link_button")
-        assert len(liens) == 1
-        assert "Soutenir" in liens[0].proto.label
-        assert liens[0].proto.url == "https://buymeacoffee.com/johan_mac"
+    URL = "https://buymeacoffee.com/johan_mac"
 
-    def test_lien_en_https(self, app):
-        """Le lien de paiement est chiffré : jamais de http en clair."""
+    def test_tous_les_boutons_pointent_vers_la_bonne_page(self, app, csv_sale):
+        """Où qu'il apparaisse, le bouton renvoie vers la même page, en https."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        liens = app.get("link_button")
+        assert liens, "Au moins un bouton de soutien devrait être affiché"
+        for lien in liens:
+            assert "Soutenir" in lien.proto.label
+            assert lien.proto.url == self.URL
+
+    def test_present_dans_la_barre_et_sur_l_accueil(self, app):
+        """Dès l'arrivée : un bouton dans la barre latérale, un dans la présentation."""
         app.run()
-        assert app.get("link_button")[0].proto.url.startswith("https://")
+        assert len(app.sidebar.get("link_button")) == 1
+        assert len(app.main.get("link_button")) == 1
+        textes = " ".join(m.value for m in app.markdown)
+        assert "Un coup de pouce" in textes
+
+    def test_present_dans_l_onglet_presentation(self, app, csv_sale):
+        """Une fois un fichier chargé, la présentation garde son bouton."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        assert len(app.tabs[0].get("link_button")) == 1
+
+    def test_present_sous_les_telechargements(self, app, csv_sale):
+        """L'onglet Téléchargements se termine par un merci et le bouton."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
+        assert len(onglet.get("link_button")) == 1
+        textes = " ".join(m.value for m in onglet.markdown)
+        assert "Merci d'avoir utilisé cet outil" in textes
+
+    def test_bloc_contact_sur_l_accueil(self, app):
+        """La présentation invite aux retours, avec les liens de contact."""
+        app.run()
+        textes = " ".join(m.value for m in app.markdown)
+        assert "remarque constructive ou anomalie" in textes
+        assert "PROJET_NETTOYAGE_AUTO/issues" in textes
+        assert "github.com/johan-mac-59" in textes
+        assert "linkedin.com/in/johan-machu" in textes
+
+    def test_bloc_contact_sous_les_telechargements(self, app, csv_sale):
+        """L'onglet Téléchargements invite aussi aux retours."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
+        textes = " ".join(m.value for m in onglet.markdown)
+        assert "remarque constructive ou anomalie" in textes
+        assert "PROJET_NETTOYAGE_AUTO/issues" in textes
+
+    def test_avertissement_confidentialite_des_signalements(self, app):
+        """Les signalements étant publics, on déconseille d'y joindre ses données."""
+        app.run()
+        legendes = " ".join(c.value for c in app.caption)
+        assert "ne publiez jamais votre fichier de données" in legendes
+
+    def test_boutons_agrandis_de_20_pourcent(self, app):
+        """Le style qui agrandit les boutons de soutien est bien injecté.
+
+        Le rendu visuel ne se teste pas sans navigateur ; on vérifie que la
+        règle est émise, et qu'elle cible le préfixe des clés de ces boutons.
+        """
+        app.run()
+        styles = " ".join(e.proto.body for e in app.get("html"))
+        assert 'st-key-soutien_' in styles
+        assert "zoom: 1.2" in styles
+
+    def test_cles_des_boutons_commencent_par_soutien(self, app, csv_sale):
+        """Le style repose sur ce préfixe : tout bouton de soutien doit le porter."""
+        import streamlit_app
+
+        assert "soutien_" in streamlit_app.STYLE_BOUTONS_SOUTIEN
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        liens = app.get("link_button")
+        assert liens
+        for lien in liens:
+            # L'identifiant d'un widget à clé embarque cette clé.
+            assert "soutien_" in lien.proto.id, (
+                f"bouton sans clé « soutien_… » : il ne serait pas agrandi ({lien.proto.id})"
+            )
+
+    def test_message_facultatif(self, app):
+        """Le message ne culpabilise pas : le soutien est dit facultatif."""
+        app.run()
+        textes = " ".join(m.value for m in app.markdown)
+        assert "facultatif" in textes
 
     def test_confidentialite_mentionne_le_prestataire(self, app):
         """L'encart de confidentialité explique où se fait le paiement."""
@@ -141,6 +215,32 @@ class TestPageAccueil:
         """Un tableau avant / après illustre ce que l'outil corrige."""
         app.run()
         assert len(app.dataframe) >= 1
+
+    def test_onglets_visibles_des_l_arrivee(self, app):
+        """Les sept onglets sont là avant tout dépôt, Présentation en premier.
+
+        Sans fichier, la page d'accueil n'avait pas d'onglets : après un
+        relancement du serveur, on croyait qu'ils avaient disparu.
+        """
+        app.run()
+        assert not app.exception
+        assert len(app.tabs) == 7
+        assert app.tabs[0].label == "🏠 Présentation"
+        textes = " ".join(m.value for m in app.tabs[0].markdown)
+        assert "Trois principes" in textes
+
+    def test_onglets_sans_fichier_invitent_a_deposer(self, app):
+        """Avant tout dépôt, les autres onglets expliquent quoi faire."""
+        app.run()
+        for onglet in app.tabs[1:]:
+            messages = " ".join(i.value for i in onglet.info)
+            assert "une fois un fichier chargé" in messages, onglet.label
+
+    def test_encart_confidentialite_une_seule_fois(self, app):
+        """L'encart de confidentialité n'apparaît qu'une fois, en bas de page."""
+        app.run()
+        encarts = [e for e in app.expander if "Confidentialité" in e.label]
+        assert len(encarts) == 1
 
     def test_presentation_reste_visible_apres_depot(self, app, csv_sale):
         """Une fois un fichier chargé, la présentation occupe le premier onglet."""

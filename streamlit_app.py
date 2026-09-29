@@ -54,6 +54,12 @@ CHEMIN_EXEMPLE = Path(__file__).parent / "data" / "samples" / "reservations_exem
 
 LIEN_DEPOT = "https://github.com/johan-mac-59/PROJET_NETTOYAGE_AUTO"
 
+# Contact et retours. Les anomalies se signalent sur la page Issues du dépôt ;
+# le lien LinkedIn n'est affiché que s'il est renseigné.
+LIEN_GITHUB = "https://github.com/johan-mac-59"
+LIEN_ANOMALIES = f"{LIEN_DEPOT}/issues"
+LIEN_LINKEDIN = "https://www.linkedin.com/in/johan-machu/"
+
 # Étiquettes lisibles des statistiques de nettoyage, et leur unité.
 LIBELLES_STATS = {
     "empty_cols_dropped": ("Colonnes vides supprimées", "colonnes"),
@@ -460,6 +466,64 @@ ne voit passer aucune donnée de paiement, et ne sait pas qui a donné.
         )
 
 
+# Agrandit de 20 % les boutons de soutien, et eux seuls. Streamlit n'offre pas de
+# réglage de taille pour st.link_button, mais donne à chaque widget muni d'une
+# clé la classe CSS « st-key-<clé> » : les boutons de soutien, dont les clés
+# commencent toutes par « soutien_ », sont ainsi ciblés sans toucher aux autres.
+# `zoom` plutôt que `transform: scale` : il agrandit ET décale ce qui suit, là où
+# une mise à l'échelle ferait déborder le bouton sur le texte voisin.
+STYLE_BOUTONS_SOUTIEN = """
+<style>
+[class*="st-key-soutien_"] { zoom: 1.2; }
+</style>
+"""
+
+
+def bloc_contact() -> None:
+    """Invite aux retours et donne les liens de contact.
+
+    Les signalements passent par la page Issues du dépôt GitHub, qui est
+    publique : d'où l'avertissement de ne jamais y joindre un fichier de
+    données, mais une description ou un extrait anonymisé.
+    """
+    st.markdown("#### 💬 Une remarque, une anomalie ?")
+    st.markdown(
+        "Toute remarque constructive ou anomalie détectée est la bienvenue : "
+        "c'est ainsi que cet outil progresse. Plusieurs de ses corrections "
+        "récentes sont d'ailleurs nées de retours d'utilisation."
+    )
+    liens = [f"[🐞 Signaler une anomalie]({LIEN_ANOMALIES})",
+             f"[GitHub]({LIEN_GITHUB})"]
+    if LIEN_LINKEDIN:
+        liens.append(f"[LinkedIn]({LIEN_LINKEDIN})")
+    st.markdown(" · ".join(liens))
+    st.caption("🔒 Les signalements sont publics : décrivez le problème ou joignez "
+               "un extrait anonymisé, mais ne publiez jamais votre fichier de données.")
+
+
+def bouton_soutien(emplacement: str, message: str, message_avant: bool = True) -> None:
+    """Affiche le bouton de soutien, accompagné d'un message.
+
+    Le bouton figure à plusieurs endroits — barre latérale, présentation,
+    téléchargements —, chacun avec un message adapté au moment. Streamlit
+    refusant deux widgets de même clé, chaque emplacement a la sienne.
+
+    Ne fait rien si aucun lien de soutien n'est configuré.
+
+    Args:
+        emplacement: Discriminant de la clé du widget.
+        message: Texte accompagnant le bouton.
+        message_avant: Place le message au-dessus du bouton plutôt qu'en dessous.
+    """
+    if not LIEN_DON:
+        return
+    if message_avant:
+        st.markdown(message)
+    st.link_button("☕ Soutenir le projet", LIEN_DON, key=f"soutien_{emplacement}")
+    if not message_avant:
+        st.caption(message)
+
+
 def page_accueil(accueil: bool = True) -> None:
     """Présente le projet : sur la page d'accueil, puis dans le premier onglet.
 
@@ -468,14 +532,13 @@ def page_accueil(accueil: bool = True) -> None:
     énonce ses principes, raconte comment il est né — et propose de l'essayer
     immédiatement sur un exemple, sans fichier à fournir.
 
-    Une fois un fichier chargé, la même présentation reste consultable dans
-    l'onglet « Présentation » : elle ne disparaît pas au premier dépôt.
+    Elle occupe toujours le premier onglet, « Présentation », avant comme après
+    le dépôt d'un fichier : elle ne disparaît jamais.
 
     Args:
-        accueil: Vrai sur la page d'accueil, avant tout dépôt. Faux dans
-            l'onglet « Présentation » : le bouton d'essai y est remplacé par un
-            simple rappel (il remplacerait le fichier en cours), et l'encart de
-            confidentialité, déjà affiché en bas de page, n'est pas répété.
+        accueil: Vrai tant qu'aucun fichier n'est chargé : le bouton d'essai
+            est proposé. Faux ensuite : il est remplacé par un simple rappel,
+            puisqu'il remplacerait le fichier en cours.
     """
     st.markdown(
         "### Déposez un fichier dont vous ne savez rien.\n"
@@ -610,8 +673,22 @@ projet. Le code est ouvert : **[consulter le dépôt]({LIEN_DEPOT})**.
 """
         )
 
-    if accueil:
-        encart_confidentialite()
+    # --- Retours, puis soutien -------------------------------------------------
+    # Placés après l'histoire : c'est là que le lecteur mesure le travail
+    # accompli. Les retours d'abord, qui comptent plus qu'un don. La page
+    # d'accueil et l'onglet Présentation ne sont jamais affichés ensemble :
+    # une seule clé de bouton suffit.
+    bloc_contact()
+
+    if LIEN_DON:
+        st.markdown("#### ☕ Un coup de pouce ?")
+        bouton_soutien(
+            "presentation",
+            "Cet outil est gratuit, sans publicité, et ne conserve aucune de vos "
+            "données. S'il vous fait gagner du temps, vous pouvez encourager son "
+            "développement en offrant un café. C'est entièrement facultatif — et "
+            "déjà, merci de l'avoir essayé !",
+        )
 
 
 def barre_laterale() -> dict:
@@ -662,9 +739,11 @@ def barre_laterale() -> dict:
 
     if LIEN_DON:
         st.sidebar.divider()
-        st.sidebar.link_button("☕ Soutenir le projet", LIEN_DON, width="stretch")
-        st.sidebar.caption("Redirige vers un prestataire externe. "
-                           "Cette application ne voit aucune donnée de paiement.")
+        with st.sidebar:
+            bouton_soutien("barre",
+                           "Redirige vers un prestataire externe. "
+                           "Cette application ne voit aucune donnée de paiement.",
+                           message_avant=False)
 
     return options
 
@@ -1041,6 +1120,18 @@ def onglet_telechargements() -> None:
                "les précédents, et le fichier nettoyé partage la marque de ses "
                "rapports.")
 
+    # Le moment où l'utilisateur récupère ses fichiers est celui où l'outil
+    # lui a rendu service : un merci y a sa place, sans insistance, suivi des
+    # moyens de faire un retour et, pour qui le souhaite, de soutenir le projet.
+    st.divider()
+    st.markdown("**Merci d'avoir utilisé cet outil !**")
+    bloc_contact()
+    bouton_soutien(
+        "telechargements",
+        "S'il vous a rendu service, un café aide à le faire vivre et à "
+        "l'améliorer. C'est entièrement facultatif.",
+    )
+
 
 def onglet_controle() -> None:
     """Affiche le profil après nettoyage et vérifie qu'aucun type ne reste douteux.
@@ -1204,14 +1295,37 @@ def main() -> None:
         page_icon="🧹",
         layout="wide",
     )
+    # Une balise <style> seule ne prend aucune place dans la page : Streamlit
+    # l'envoie dans un conteneur invisible.
+    st.html(STYLE_BOUTONS_SOUTIEN)
 
     initialiser_etat()
     options = barre_laterale()
 
     st.title("🧹 Nettoyage automatique de données")
 
-    if st.session_state["df_brut"] is None:
-        page_accueil()
+    fichier_charge = st.session_state["df_brut"] is not None
+
+    # Les onglets sont affichés dès l'arrivée, fichier chargé ou non : la
+    # structure de l'application reste la même d'un bout à l'autre du parcours.
+    # Sans cela, un relancement du serveur ou un « Effacer mes données »
+    # ramenait sur une page sans onglets, qu'on prenait pour une panne.
+    noms_onglets = ["🏠 Présentation", "📋 Aperçu", "🔍 Avant nettoyage",
+                    "🧹 Nettoyage", "✅ Après nettoyage", "📊 Graphiques",
+                    "⬇️ Téléchargements"]
+
+    if not fichier_charge:
+        onglets = st.tabs(noms_onglets)
+        with onglets[0]:
+            page_accueil(accueil=True)
+        for onglet in onglets[1:]:
+            with onglet:
+                st.info("Cet onglet s'affichera une fois un fichier chargé : "
+                        "déposez-en un dans la barre latérale, ou essayez "
+                        "l'exemple fourni depuis l'onglet Présentation.",
+                        icon="📂")
+        st.divider()
+        encart_confidentialite()
         return
 
     if st.session_state["nom_source"] == CHEMIN_EXEMPLE.name:
@@ -1225,9 +1339,7 @@ def main() -> None:
 
     # La présentation reste le premier onglet : elle ne disparaît pas au
     # premier dépôt de fichier.
-    onglets = st.tabs(["🏠 Présentation", "📋 Aperçu", "🔍 Avant nettoyage",
-                       "🧹 Nettoyage", "✅ Après nettoyage", "📊 Graphiques",
-                       "⬇️ Téléchargements"])
+    onglets = st.tabs(noms_onglets)
     with onglets[0]:
         page_accueil(accueil=False)
     with onglets[1]:
