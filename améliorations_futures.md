@@ -23,3 +23,4 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - **Support du format Parquet** : CSV, Excel, JSON et JSON Lines sont pris en charge, Parquet non. *Issu de la liste de l'Étape 6, jamais reprise depuis.*
 - **normalisation des notes sur une échelle commune** : `17/20` est converti en `17`, le numérateur, seul choix cohérent quand une colonne mêle `5` et `5/5`. Une colonne mêlant `17/20` et `4/5` resterait toutefois incohérente : une détection de l'échelle dominante serait utile.
 - **détection boostée à l'IA** : introduction d'un LLM pour aider à la détection d'anomalie orthographique, détection des types de colonnes complexes...
+
