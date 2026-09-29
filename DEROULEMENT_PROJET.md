@@ -1573,6 +1573,8 @@ Au fil des étapes 35 à 38, le numéro de version avait été incrémenté quat
 
 Les numéros intermédiaires ont donc été retirés. Le projet revient en **version 1.0.0**, qui regroupe l'ensemble des étapes 30 à 38. Le numéro de version relève désormais explicitement de la seule décision du porteur du projet : il marque un jalon réel qu'il choisit, pas l'enchaînement des commits.
 
+L'étiquette git `v1.0.0` a elle aussi été retirée. Elle désignait l'état du code au 27 septembre, antérieur à la correction de la faille de sécurité du rapport HTML : quiconque aurait récupéré « la version 1.0.0 » aurait obtenu un code vulnérable. Elle sera posée le jour où l'application sera déployée et validée, et désignera alors le bon code.
+
 ### 5. Une feuille de route remise en accord avec la réalité
 La même exigence de cohérence a conduit à relire `améliorations_futures.md`, qui avait dérivé :
 
