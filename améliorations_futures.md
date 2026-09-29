@@ -19,5 +19,7 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 
 ## 📊 À faire — fonctionnel
 - **Traitement colonne par colonne** : dans l'interface web, choisir quelles colonnes écrêter ou combler, au lieu de deux décisions globales.
+- **Seuil des valeurs aberrantes paramétrable** : l'utilisateur décide aujourd'hui d'écrêter ou non, mais le seuil IQR reste fixé à 1,5 pour toutes les colonnes. Il devrait pouvoir s'adapter au contexte métier — plus tolérant pour des montants à forte dispersion, plus strict pour des mesures stables. *Issu de la liste de l'Étape 6, jamais reprise depuis.*
+- **Support du format Parquet** : CSV, Excel, JSON et JSON Lines sont pris en charge, Parquet non. *Issu de la liste de l'Étape 6, jamais reprise depuis.*
 - **normalisation des notes sur une échelle commune** : `17/20` est converti en `17`, le numérateur, seul choix cohérent quand une colonne mêle `5` et `5/5`. Une colonne mêlant `17/20` et `4/5` resterait toutefois incohérente : une détection de l'échelle dominante serait utile.
 - **détection boostée à l'IA** : introduction d'un LLM pour aider à la détection d'anomalie orthographique, détection des types de colonnes complexes...
