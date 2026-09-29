@@ -1693,9 +1693,15 @@ Les rapports gardent la variante claire : ce sont des documents sur fond blanc.
 ### 2. Signaler n'est pas contacter
 Le lien « Signaler une anomalie » partageait jusqu'ici sa ligne avec GitHub et LinkedIn, comme s'il s'agissait d'une même démarche. Ce n'en est pas une : on remonte un défaut dans le suivi public du projet, on contacte une personne pour échanger. Le bloc de retours ne garde donc que le signalement et sa mise en garde, et une section **« Me contacter »**, avec GitHub et LinkedIn, ferme désormais la page de présentation et l'onglet Téléchargements.
 
-### 3. Résultat
-**368 tests passent**, dont de nouveaux qui vérifient le choix du logo selon le thème, la validité de la variante sombre et l'absence de script dans son code, la séparation du signalement et du contact, et la place de ce dernier en fin de page.
+### 3. Un pied de page en deux colonnes
+Le bas de la présentation et de l'onglet Téléchargements se lit désormais en deux temps. D'abord les retours, sur toute la largeur. Puis, sous un trait de séparation, le coup de pouce et le contact côte à côte, qui se répondent sans se confondre.
+
+### 4. Le nom dans la barre latérale
+La barre latérale affichait « Quitus » dans le titre standard de Streamlit. Elle écrit désormais **quitus** comme le logo : en minuscules, dans la même police, en gras, avec la même approche serrée. La couleur suit le thème, comme pour le logo.
+
+### 5. Résultat
+**369 tests passent**, dont de nouveaux qui vérifient le choix du logo selon le thème, la validité de la variante sombre et l'absence de script dans son code, la séparation du signalement et du contact, la place de ce dernier en fin de page, et le rendu du nom dans la barre latérale.
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 368 tests.*
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 369 tests.*

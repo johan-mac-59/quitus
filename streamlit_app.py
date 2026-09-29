@@ -507,17 +507,38 @@ def bloc_retours() -> None:
 
 
 def bloc_contact() -> None:
-    """Pied de page : les liens pour contacter l'auteur.
+    """Les liens pour contacter l'auteur.
 
     Distinct du signalement d'anomalies : on ne contacte pas une personne
-    comme on remonte un défaut. Placé en toute fin de page.
+    comme on remonte un défaut.
     """
-    st.divider()
     st.markdown("#### 📇 Me contacter")
     liens = [f"[GitHub]({LIEN_GITHUB})"]
     if LIEN_LINKEDIN:
         liens.append(f"[LinkedIn]({LIEN_LINKEDIN})")
     st.markdown(" · ".join(liens))
+
+
+def soutien_et_contact(emplacement: str, message: str) -> None:
+    """Pied de page : coup de pouce et contact, côte à côte.
+
+    Séparé des retours par un trait. Sans lien de soutien configuré, le
+    contact reste seul, dans la première colonne.
+
+    Args:
+        emplacement: Discriminant de la clé du bouton de soutien.
+        message: Texte accompagnant le bouton de soutien.
+    """
+    st.divider()
+    colonne_soutien, colonne_contact = st.columns(2, gap="large")
+    if LIEN_DON:
+        with colonne_soutien:
+            st.markdown("#### ☕ Un coup de pouce ?")
+            bouton_soutien(emplacement, message)
+    else:
+        colonne_contact = colonne_soutien
+    with colonne_contact:
+        bloc_contact()
 
 
 def bouton_soutien(emplacement: str, message: str, message_avant: bool = True) -> None:
@@ -698,18 +719,27 @@ projet. Le code est ouvert : **[consulter le dépôt]({LIEN_DEPOT})**.
     # d'accueil et l'onglet Présentation ne sont jamais affichés ensemble :
     # une seule clé de bouton suffit.
     bloc_retours()
+    soutien_et_contact(
+        "presentation",
+        "Quitus est gratuit, sans publicité, et ne conserve aucune de vos "
+        "données. S'il vous fait gagner du temps, vous pouvez encourager son "
+        "développement en offrant un café. C'est entièrement facultatif — et "
+        "déjà, merci de l'avoir essayé !",
+    )
 
-    if LIEN_DON:
-        st.markdown("#### ☕ Un coup de pouce ?")
-        bouton_soutien(
-            "presentation",
-            "Quitus est gratuit, sans publicité, et ne conserve aucune de vos "
-            "données. S'il vous fait gagner du temps, vous pouvez encourager son "
-            "développement en offrant un café. C'est entièrement facultatif — et "
-            "déjà, merci de l'avoir essayé !",
-        )
 
-    bloc_contact()
+def mot_quitus_html() -> str:
+    """Le mot « quitus » tel qu'il est écrit dans le logo.
+
+    Même police, même graisse, même approche serrée ; la couleur suit le
+    thème, comme le logo : bleu marine sur fond clair, blanc sur fond sombre.
+    """
+    couleur = "#FFFFFF" if theme_sombre() else "#12304A"
+    return (
+        '<div style="font-family: \'Segoe UI\', Inter, \'Helvetica Neue\', Arial, '
+        f'sans-serif; font-size: 2.4rem; font-weight: 700; letter-spacing: -1px; '
+        f'line-height: 1; color: {couleur};">quitus</div>'
+    )
 
 
 def barre_laterale() -> dict:
@@ -718,7 +748,7 @@ def barre_laterale() -> dict:
     Returns:
         Les options de nettoyage sélectionnées.
     """
-    st.sidebar.title("Quitus")
+    st.sidebar.html(mot_quitus_html())
 
     fichier = st.sidebar.file_uploader(
         "Déposez un fichier",
@@ -1161,18 +1191,15 @@ def section_retours_et_soutien(fichiers_disponibles: bool) -> None:
     if fichiers_disponibles:
         st.markdown("**Merci d'avoir utilisé Quitus !**")
     bloc_retours()
-    if LIEN_DON:
-        st.markdown("#### ☕ Un coup de pouce ?")
-        bouton_soutien(
-            "telechargements",
-            "S'il vous a rendu service, un café aide à le faire vivre et à "
-            "l'améliorer. C'est entièrement facultatif."
-            if fichiers_disponibles else
-            "Quitus est gratuit, sans publicité, et ne conserve aucune de vos "
-            "données. Si vous voulez encourager son développement, un café "
-            "fait toujours plaisir. C'est entièrement facultatif.",
-        )
-    bloc_contact()
+    soutien_et_contact(
+        "telechargements",
+        "S'il vous a rendu service, un café aide à le faire vivre et à "
+        "l'améliorer. C'est entièrement facultatif."
+        if fichiers_disponibles else
+        "Quitus est gratuit, sans publicité, et ne conserve aucune de vos "
+        "données. Si vous voulez encourager son développement, un café "
+        "fait toujours plaisir. C'est entièrement facultatif.",
+    )
 
 
 def onglet_controle() -> None:
@@ -1330,18 +1357,22 @@ def lancer_nettoyage(options: dict) -> None:
         st.warning(f"Le profilage de contrôle a échoué : {e}")
 
 
-def choisir_logo() -> Path:
-    """Renvoie la variante du logo lisible sur le thème affiché.
+def theme_sombre() -> bool:
+    """Vrai si l'application s'affiche en thème sombre.
 
     Streamlit déduit le thème de la couleur de fond ; au tout premier affichage
-    il peut l'ignorer encore : on retombe alors sur la variante claire, le thème
-    par défaut de l'application.
+    il peut l'ignorer encore : on retombe alors sur le thème clair, celui par
+    défaut de l'application.
     """
     try:
-        sombre = st.context.theme.type == "dark"
+        return st.context.theme.type == "dark"
     except Exception:
-        sombre = False
-    if sombre and CHEMIN_LOGO_SOMBRE.exists():
+        return False
+
+
+def choisir_logo() -> Path:
+    """Renvoie la variante du logo lisible sur le thème affiché."""
+    if theme_sombre() and CHEMIN_LOGO_SOMBRE.exists():
         return CHEMIN_LOGO_SOMBRE
     return CHEMIN_LOGO
 

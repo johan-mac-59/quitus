@@ -107,6 +107,19 @@ class TestDemarrage:
                                 SimpleNamespace(theme=SimpleNamespace(type=theme)))
             assert streamlit_app.choisir_logo() == attendu, theme
 
+    def test_mot_quitus_comme_dans_le_logo(self, monkeypatch):
+        """La barre latérale écrit « quitus » en minuscules, couleur selon le thème."""
+        from types import SimpleNamespace
+
+        import streamlit_app
+
+        for theme, couleur in (("light", "#12304A"), ("dark", "#FFFFFF")):
+            monkeypatch.setattr(streamlit_app.st, "context",
+                                SimpleNamespace(theme=SimpleNamespace(type=theme)))
+            html = streamlit_app.mot_quitus_html()
+            assert ">quitus</div>" in html and "font-weight: 700" in html
+            assert f"color: {couleur}" in html
+
     def test_icone_carree(self):
         """L'icône d'onglet du navigateur doit être carrée."""
         import xml.etree.ElementTree as ET
