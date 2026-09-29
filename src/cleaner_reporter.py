@@ -2,6 +2,8 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
+from src.horodatage import horodater
+
 class CleanerReporter:
     """Génère un rapport détaillé du nettoyage des données."""
     
@@ -356,22 +358,24 @@ class CleanerReporter:
         return self.generate_with_stats(output_path, {})
 
 
-def build_cleaning_report_path(reports_dir, input_file) -> Path:
+def build_cleaning_report_path(reports_dir, input_file, horodatage: str = None) -> Path:
     """Compose le chemin horodaté d'un rapport de nettoyage.
 
     Args:
         reports_dir: Répertoire de destination.
         input_file: Fichier source, dont le nom de base est réutilisé.
+        horodatage: Suffixe imposé, pour que tous les fichiers d'une même
+            exécution partagent la même marque ; l'instant présent si omis.
 
     Returns:
         Le chemin complet du rapport.
     """
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-    return Path(reports_dir) / f"cleaning_report_{Path(input_file).stem}_{timestamp}.md"
+    suffixe = horodatage or horodater()
+    return Path(reports_dir) / f"cleaning_report_{Path(input_file).stem}_{suffixe}.md"
 
 
 def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
-                             *, generate: bool = None):
+                             *, generate: bool = None, horodatage: str = None):
     """Génère le rapport de nettoyage détaillé.
 
     Args:
@@ -384,6 +388,7 @@ def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
         stats: Statistiques de nettoyage à détailler.
         generate: Décision imposée — True génère sans demander, False saute
             l'étape, None pose la question en terminal.
+        horodatage: Suffixe commun aux fichiers de l'exécution en cours.
 
     Returns:
         Le chemin du rapport écrit, ou None si l'étape a été sautée ou a échoué.
@@ -396,7 +401,8 @@ def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
             print("✅ Rapport de nettoyage ignoré. Suite du pipeline...")
             return None
 
-        final_report_filename = build_cleaning_report_path(reports_dir, input_file)
+        final_report_filename = build_cleaning_report_path(reports_dir, input_file,
+                                                           horodatage=horodatage)
 
         report_path = reporter.generate_with_stats(str(final_report_filename), stats)
         print(f"📝 Rapport de nettoyage généré : {report_path}")

@@ -1,5 +1,4 @@
 # src/data_profiler.py
-import datetime
 import os
 import pandas as pd
 from dataclasses import dataclass
@@ -11,6 +10,7 @@ from html import escape as _html_escape
 from matplotlib.figure import Figure
 
 from src import plot_factory as pf
+from src.horodatage import horodater
 
 
 def _esc(valeur: Any) -> str:
@@ -46,19 +46,21 @@ class PlotSpec:
     title: str
     build: Callable[[], Figure]
 
-def build_report_path(reports_dir, source_path, fmt: str) -> Path:
+def build_report_path(reports_dir, source_path, fmt: str, horodatage: str = None) -> Path:
     """Compose le chemin horodaté d'un rapport de profilage.
 
     Args:
         reports_dir: Répertoire de destination.
         source_path: Fichier source, dont le nom de base est réutilisé.
         fmt: Extension du rapport (`"md"` ou `"html"`).
+        horodatage: Suffixe imposé, pour que tous les fichiers d'une même
+            exécution partagent la même marque ; l'instant présent si omis.
 
     Returns:
         Le chemin complet du rapport.
     """
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M')
-    return Path(reports_dir) / f"profiling_{Path(source_path).stem}_{timestamp}.{fmt}"
+    suffixe = horodatage or horodater()
+    return Path(reports_dir) / f"profiling_{Path(source_path).stem}_{suffixe}.{fmt}"
 
 
 class DataProfiler:
@@ -837,7 +839,8 @@ class DataProfiler:
         print(f"📄 {label} : {output_filename}")
         return str(output_filename)
 
-    def interactive_report_choice(self, reports_dir, input_file, *, choice: str = None):
+    def interactive_report_choice(self, reports_dir, input_file, *, choice: str = None,
+                                  horodatage: str = None):
         """Choisit le format du rapport de profilage et l'écrit.
 
         Args:
@@ -846,6 +849,7 @@ class DataProfiler:
             choice: Format imposé — `"1"`/`"md"` ou `"2"`/`"html"`. Si omis, la
                 question est posée en terminal. C'est par ce paramètre que
                 l'interface web transmet le choix fait dans un widget.
+            horodatage: Suffixe commun aux fichiers de l'exécution en cours.
 
         Returns:
             Le chemin du rapport écrit.
@@ -870,18 +874,20 @@ class DataProfiler:
             print("❌ Choix non valide. Génération par défaut en Markdown.")
             fmt = "md"
 
-        report_path = build_report_path(reports_dir, input_file, fmt)
+        report_path = build_report_path(reports_dir, input_file, fmt, horodatage=horodatage)
         return self.write_report(str(report_path), fmt=fmt)
 
     def run_profiling_workflow(self, source_path: Path, reports_dir: Path, *,
                                report_format: str = None, generate_report: bool = True,
-                               raise_on_error: bool = False) -> Dict[str, Any]:
+                               raise_on_error: bool = False,
+                               horodatage: str = None) -> Dict[str, Any]:
         """Exécute le profilage complet et, éventuellement, écrit un rapport.
 
         Args:
             source_path: Fichier analysé, dont le nom sert à composer celui du rapport.
             reports_dir: Répertoire de destination des rapports.
             report_format: Format imposé du rapport ; question posée en terminal si omis.
+            horodatage: Suffixe commun aux fichiers de l'exécution en cours.
             generate_report: À False, seule l'analyse est effectuée — c'est le mode
                 utilisé par l'interface web, qui n'écrit rien sur le serveur.
             raise_on_error: À True, les erreurs remontent à l'appelant au lieu
@@ -903,7 +909,8 @@ class DataProfiler:
             results = self.run_analysis()
 
             if generate_report:
-                self.interactive_report_choice(reports_dir, source_path, choice=report_format)
+                self.interactive_report_choice(reports_dir, source_path, choice=report_format,
+                                               horodatage=horodatage)
 
             print(f"✅ Profilage terminé ({len(results.keys())} critères analysés).")
             return results

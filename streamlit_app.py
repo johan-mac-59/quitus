@@ -39,6 +39,7 @@ from src.cleaner_reporter import CleanerReporter
 from src.console_capture import capture_output
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_dataframe
+from src.horodatage import horodater
 
 # Lien de soutien ; laisser à None pour masquer le bouton.
 LIEN_DON = None
@@ -72,6 +73,11 @@ ETAT_INITIAL = {
     "df_propre": None,
     "stats": None,
     "profil_post": None,   # profil APRÈS nettoyage, pour contrôler le résultat
+    # Suffixes des noms de fichiers téléchargés. Un par analyse, un par
+    # nettoyage : tester avec puis sans écrêtage produit deux jeux de fichiers
+    # distincts, et tous les fichiers d'un même essai portent la même marque.
+    "horodatage_analyse": None,
+    "horodatage_nettoyage": None,
     "journaux": {},        # nom d'étape -> sortie console capturée
     "etape": "vide",       # vide -> charge -> profile -> nettoye
     # Entre dans la clé du composant d'envoi. L'incrémenter force Streamlit à
@@ -99,7 +105,8 @@ def reinitialiser_aval() -> None:
     Appelé dès qu'un nouveau fichier est déposé : sans cela, on afficherait le
     dataset nettoyé du fichier précédent à côté du profilage du nouveau.
     """
-    for cle in ("profil", "df_propre", "stats", "profil_post"):
+    for cle in ("profil", "df_propre", "stats", "profil_post",
+                "horodatage_analyse", "horodatage_nettoyage"):
         st.session_state[cle] = None
     st.session_state["journaux"] = {}
     st.session_state["etape"] = "charge"
@@ -207,6 +214,25 @@ def racine_fichier() -> str:
         Le nom de base, utilisé pour nommer les fichiers téléchargés.
     """
     return (st.session_state["nom_source"] or "donnees").rsplit(".", 1)[0]
+
+
+def nom_fichier(base: str, horodatage: str | None, extension: str) -> str:
+    """Compose le nom d'un fichier téléchargé, suffixé de son horodatage.
+
+    Le suffixe `AAAAMMJJ_HHMMSS` classe les fichiers par ordre chronologique et
+    empêche un second essai d'écraser le premier dans le dossier de
+    téléchargement.
+
+    Args:
+        base: Début du nom, sans extension.
+        horodatage: Suffixe de l'étape qui a produit le fichier ; omis s'il n'y
+            en a pas encore.
+        extension: Extension, sans le point.
+
+    Returns:
+        Le nom de fichier complet.
+    """
+    return f"{base}_{horodatage}.{extension}" if horodatage else f"{base}.{extension}"
 
 
 def formater(n: int) -> str:
@@ -326,7 +352,8 @@ def fenetre_rapport(df: pd.DataFrame, exploratoire: bool) -> None:
 
 
 def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str,
-                              apercu: bool = True, emplacement: str = "") -> None:
+                              horodatage: str | None, apercu: bool = True,
+                              emplacement: str = "") -> None:
     """Propose un rapport de profilage : HTML à afficher ou télécharger, Markdown à télécharger.
 
     Le HTML est le rapport de consultation — tableau de bord autonome,
@@ -349,6 +376,8 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
         df: DataFrame documenté par le rapport.
         exploratoire: Utilise le profileur exploratoire.
         prefixe: Préfixe du nom de fichier, et discriminant des clés de widget.
+        horodatage: Suffixe du nom de fichier — celui de l'analyse pour le
+            rapport avant nettoyage, celui du nettoyage pour le rapport après.
         apercu: Propose l'aperçu du rapport HTML en plus des téléchargements.
         emplacement: Suffixe des clés de widget. Les mêmes boutons figurent dans
             l'onglet du rapport et dans l'onglet Téléchargements ; Streamlit
@@ -372,7 +401,7 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
         st.download_button(
             "⬇️ Rapport HTML (graphiques inclus)",
             data=lambda: rendre_rapport(df, exploratoire, "html").encode("utf-8"),
-            file_name=f"{prefixe}_{racine}.html",
+            file_name=nom_fichier(f"{prefixe}_{racine}", horodatage, "html"),
             mime="text/html",
             on_click="ignore",
             key=f"dl_{cle}_html",
@@ -383,7 +412,7 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
         st.download_button(
             "⬇️ Rapport Markdown",
             data=lambda: rendre_rapport(df, exploratoire, "md").encode("utf-8"),
-            file_name=f"{prefixe}_{racine}.md",
+            file_name=nom_fichier(f"{prefixe}_{racine}", horodatage, "md"),
             mime="text/markdown",
             on_click="ignore",
             key=f"dl_{cle}_md",
@@ -425,13 +454,22 @@ la session et le cache.
         )
 
 
-def page_accueil() -> None:
-    """Présente le projet tant qu'aucun fichier n'est chargé.
+def page_accueil(accueil: bool = True) -> None:
+    """Présente le projet : sur la page d'accueil, puis dans le premier onglet.
 
     Une page d'accueil vide laisse le visiteur sans prise. Celle-ci explique le
     problème traité, montre ce que l'outil corrige sur des exemples concrets,
-    énonce ses principes, raconte comment il est né — et, surtout, propose de
-    l'essayer immédiatement sur un exemple, sans fichier à fournir.
+    énonce ses principes, raconte comment il est né — et propose de l'essayer
+    immédiatement sur un exemple, sans fichier à fournir.
+
+    Une fois un fichier chargé, la même présentation reste consultable dans
+    l'onglet « Présentation » : elle ne disparaît pas au premier dépôt.
+
+    Args:
+        accueil: Vrai sur la page d'accueil, avant tout dépôt. Faux dans
+            l'onglet « Présentation » : le bouton d'essai y est remplacé par un
+            simple rappel (il remplacerait le fichier en cours), et l'encart de
+            confidentialité, déjà affiché en bas de page, n'est pas répété.
     """
     st.markdown(
         "### Déposez un fichier dont vous ne savez rien.\n"
@@ -444,18 +482,23 @@ def page_accueil() -> None:
         "puis **vérifie son propre travail**."
     )
 
-    gauche, droite = st.columns([1, 2], vertical_alignment="center")
-    with gauche:
-        if CHEMIN_EXEMPLE.exists():
-            if st.button("▶️ Essayer avec un exemple", type="primary", width="stretch",
-                         help="312 réservations d'hôtel fictives, truffées des défauts "
-                              "d'un vrai export : dates en trois formats, montants en "
-                              "« 1 200,50 € », casse incohérente, doublons…"):
-                installer_fichier(CHEMIN_EXEMPLE.read_bytes(), CHEMIN_EXEMPLE.name)
-                st.rerun()
-    with droite:
-        st.caption("… ou déposez votre propre fichier dans la barre latérale : "
-                   "CSV, Excel, JSON ou JSON Lines, 200 Mo au plus.")
+    if accueil:
+        gauche, droite = st.columns([1, 2], vertical_alignment="center")
+        with gauche:
+            if CHEMIN_EXEMPLE.exists():
+                if st.button("▶️ Essayer avec un exemple", type="primary", width="stretch",
+                             help="312 réservations d'hôtel fictives, truffées des défauts "
+                                  "d'un vrai export : dates en trois formats, montants en "
+                                  "« 1 200,50 € », casse incohérente, doublons…"):
+                    installer_fichier(CHEMIN_EXEMPLE.read_bytes(), CHEMIN_EXEMPLE.name)
+                    st.rerun()
+        with droite:
+            st.caption("… ou déposez votre propre fichier dans la barre latérale : "
+                       "CSV, Excel, JSON ou JSON Lines, 200 Mo au plus.")
+    else:
+        st.caption(f"Fichier en cours : « {st.session_state['nom_source']} ». "
+                   "Suivez les onglets de gauche à droite : aperçu, diagnostic, "
+                   "nettoyage, contrôle, graphiques, téléchargements.")
 
     st.divider()
 
@@ -561,7 +604,8 @@ projet. Le code est ouvert : **[consulter le dépôt]({LIEN_DEPOT})**.
 """
         )
 
-    encart_confidentialite()
+    if accueil:
+        encart_confidentialite()
 
 
 def barre_laterale() -> dict:
@@ -598,6 +642,7 @@ def barre_laterale() -> dict:
                 st.session_state["profil"] = profil
                 st.session_state["journaux"]["profilage"] = journal
                 st.session_state["etape"] = "profile"
+                st.session_state["horodatage_analyse"] = horodater()
             except Exception as e:
                 st.sidebar.error(f"Le profilage a échoué : {e}")
 
@@ -796,7 +841,8 @@ def onglet_profilage() -> None:
     st.divider()
     st.markdown("**📄 Rapport de profilage avant nettoyage**")
     boutons_rapport_profilage(st.session_state["df_brut"], exploratoire=False,
-                              prefixe="profilage_avant")
+                              prefixe="profilage_avant",
+                              horodatage=st.session_state["horodatage_analyse"])
 
     volet_console("profilage", "Détail du profilage")
 
@@ -911,6 +957,7 @@ def boutons_resultat(emplacement: str = "") -> None:
     """
     propre = st.session_state["df_propre"]
     racine = racine_fichier()
+    horodatage = st.session_state["horodatage_nettoyage"]
     gauche, droite = st.columns(2)
     with gauche:
         st.download_button(
@@ -918,7 +965,7 @@ def boutons_resultat(emplacement: str = "") -> None:
             # utf-8-sig : Excel a besoin de la marque d'ordre pour afficher les
             # accents correctement. La ligne de commande, elle, reste en utf-8 nu.
             data=lambda: propre.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"{racine}_nettoye.csv",
+            file_name=nom_fichier(f"{racine}_nettoye", horodatage, "csv"),
             mime="text/csv",
             on_click="ignore",
             key=f"dl_csv{emplacement}",
@@ -929,7 +976,7 @@ def boutons_resultat(emplacement: str = "") -> None:
         st.download_button(
             "⬇️ Rapport de nettoyage (Markdown)",
             data=lambda: rapport_nettoyage().encode("utf-8"),
-            file_name=f"rapport_nettoyage_{racine}.md",
+            file_name=nom_fichier(f"rapport_nettoyage_{racine}", horodatage, "md"),
             mime="text/markdown",
             on_click="ignore",
             key=f"dl_rapport_nettoyage{emplacement}",
@@ -962,20 +1009,31 @@ def onglet_telechargements() -> None:
     st.markdown("**🔍 Rapport avant nettoyage**")
     st.caption("Le diagnostic des données telles qu'elles ont été reçues.")
     boutons_rapport_profilage(st.session_state["df_brut"], exploratoire=False,
-                              prefixe="profilage_avant", apercu=False,
-                              emplacement=suffixe)
+                              prefixe="profilage_avant",
+                              horodatage=st.session_state["horodatage_analyse"],
+                              apercu=False, emplacement=suffixe)
 
     if nettoye and st.session_state["profil_post"] is not None:
         st.divider()
         st.markdown("**✅ Rapport après nettoyage**")
         st.caption("Le profil de contrôle, avec matrice de dispersion et corrélations.")
         boutons_rapport_profilage(st.session_state["df_propre"], exploratoire=True,
-                                  prefixe="profilage_apres", apercu=False,
-                                  emplacement=suffixe)
+                                  prefixe="profilage_apres",
+                                  horodatage=st.session_state["horodatage_nettoyage"],
+                                  apercu=False, emplacement=suffixe)
     elif not nettoye:
         st.divider()
         st.caption("Le fichier nettoyé et les rapports de nettoyage et de contrôle "
                    "apparaîtront ici une fois le nettoyage lancé.")
+
+    # Rappel de la convention de nommage : c'est elle qui permet de comparer
+    # plusieurs essais sans qu'aucun n'écrase l'autre.
+    st.divider()
+    st.caption("🕒 Chaque nom de fichier se termine par la date et l'heure de "
+               "l'étape qui l'a produit (`AAAAMMJJ_HHMMSS`). Relancez le nettoyage "
+               "avec d'autres options : les nouveaux fichiers ne remplaceront pas "
+               "les précédents, et le fichier nettoyé partage la marque de ses "
+               "rapports.")
 
 
 def onglet_controle() -> None:
@@ -1020,7 +1078,8 @@ def onglet_controle() -> None:
     st.markdown("**📄 Rapport de profilage après nettoyage**")
     st.caption("Version exploratoire : ajoute la matrice de dispersion et les "
                "corrélations entre colonnes numériques.")
-    boutons_rapport_profilage(propre, exploratoire=True, prefixe="profilage_apres")
+    boutons_rapport_profilage(propre, exploratoire=True, prefixe="profilage_apres",
+                              horodatage=st.session_state["horodatage_nettoyage"])
 
     volet_console("profilage_post", "Détail du profilage")
 
@@ -1113,6 +1172,7 @@ def lancer_nettoyage(options: dict) -> None:
     st.session_state["df_propre"] = propre
     st.session_state["stats"] = stats
     st.session_state["etape"] = "nettoye"
+    st.session_state["horodatage_nettoyage"] = horodater()
 
     # Rapport console comparatif, capté pour affichage.
     def _bilan():
@@ -1157,19 +1217,24 @@ def main() -> None:
     if options.get("lancer"):
         lancer_nettoyage(options)
 
-    onglets = st.tabs(["📋 Aperçu", "🔍 Avant nettoyage", "🧹 Nettoyage",
-                       "✅ Après nettoyage", "📊 Graphiques", "⬇️ Téléchargements"])
+    # La présentation reste le premier onglet : elle ne disparaît pas au
+    # premier dépôt de fichier.
+    onglets = st.tabs(["🏠 Présentation", "📋 Aperçu", "🔍 Avant nettoyage",
+                       "🧹 Nettoyage", "✅ Après nettoyage", "📊 Graphiques",
+                       "⬇️ Téléchargements"])
     with onglets[0]:
-        onglet_apercu()
+        page_accueil(accueil=False)
     with onglets[1]:
-        onglet_profilage()
+        onglet_apercu()
     with onglets[2]:
-        onglet_nettoyage()
+        onglet_profilage()
     with onglets[3]:
-        onglet_controle()
+        onglet_nettoyage()
     with onglets[4]:
-        onglet_graphiques()
+        onglet_controle()
     with onglets[5]:
+        onglet_graphiques()
+    with onglets[6]:
         onglet_telechargements()
 
     st.divider()

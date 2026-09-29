@@ -22,10 +22,13 @@ from src.cleaner_logger import generate_and_print_report
 from src.cleaner_reporter import generate_enhanced_report
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
+from src.horodatage import horodater
 
 # Chemins par défaut, relatifs à la racine du projet.
 DEFAUT_INPUT = "data/samples/reservations_exemple.csv"
-DEFAUT_OUTPUT = "data/processed/dataset_nettoye.csv"
+# Sans --output, le fichier nettoyé est nommé d'après la source et horodaté :
+# <source>_nettoye_<AAAAMMJJ_HHMMSS>.csv. Un nom fixe écrasait chaque essai.
+DEFAUT_REPERTOIRE_SORTIE = "data/processed"
 DEFAUT_REPORTS = "data/reports"
 
 
@@ -64,8 +67,10 @@ def construire_parseur() -> argparse.ArgumentParser:
         help=f"Fichier à nettoyer (défaut : {DEFAUT_INPUT})",
     )
     parseur.add_argument(
-        "--output", "-o", default=DEFAUT_OUTPUT,
-        help=f"Fichier CSV de sortie (défaut : {DEFAUT_OUTPUT})",
+        "--output", "-o", default=None,
+        help=f"Fichier CSV de sortie. Par défaut : {DEFAUT_REPERTOIRE_SORTIE}/"
+             "<source>_nettoye_<AAAAMMJJ_HHMMSS>.csv, pour qu'aucun essai "
+             "n'écrase le précédent.",
     )
     parseur.add_argument(
         "--reports", "-r", default=DEFAUT_REPORTS,
@@ -89,11 +94,13 @@ def construire_parseur() -> argparse.ArgumentParser:
     return parseur
 
 
-def resoudre_chemins(args: argparse.Namespace) -> tuple[Path, Path, Path]:
+def resoudre_chemins(args: argparse.Namespace, horodatage: str) -> tuple[Path, Path, Path]:
     """Résout et valide les chemins d'entrée et de sortie.
 
     Args:
         args: Arguments analysés de la ligne de commande.
+        horodatage: Suffixe de l'exécution, repris dans le nom du fichier
+            nettoyé quand `--output` n'est pas fourni.
 
     Returns:
         Le triplet (fichier d'entrée, fichier de sortie, répertoire des rapports).
@@ -108,8 +115,14 @@ def resoudre_chemins(args: argparse.Namespace) -> tuple[Path, Path, Path]:
         return chemin if chemin.is_absolute() else base_dir / chemin
 
     input_file = _resoudre(args.input)
-    output_file = _resoudre(args.output)
     reports_dir = _resoudre(args.reports)
+
+    # Un chemin explicite est respecté tel quel ; sinon, nom horodaté.
+    if args.output:
+        output_file = _resoudre(args.output)
+    else:
+        output_file = (_resoudre(DEFAUT_REPERTOIRE_SORTIE)
+                       / f"{input_file.stem}_nettoye_{horodatage}.csv")
 
     if not input_file.exists():
         raise FileNotFoundError(
@@ -152,9 +165,14 @@ def main(argv: list[str] = None) -> int:
         generer_rapport, interactive = None, True
         format_rapport = args.format_rapport
 
+    # Un seul horodatage pour toute l'exécution : le fichier nettoyé et tous ses
+    # rapports portent la même marque, ce qui permet de retrouver ce qui va
+    # ensemble et de comparer plusieurs essais sans qu'aucun n'écrase l'autre.
+    horodatage = horodater()
+
     # 1. Configuration des chemins
     try:
-        input_file, output_file, reports_dir = resoudre_chemins(args)
+        input_file, output_file, reports_dir = resoudre_chemins(args, horodatage)
     except FileNotFoundError as e:
         print(e)
         return 1
@@ -176,7 +194,7 @@ def main(argv: list[str] = None) -> int:
     # 3. Profilage pré-nettoyage
     profiler = PreCleaningProfiler(initial_df, input_file)
     profiler_results = profiler.run_profiling_workflow(
-        input_file, reports_dir, report_format=format_rapport
+        input_file, reports_dir, report_format=format_rapport, horodatage=horodatage
     )
 
     # 4. Décisions de nettoyage avancé
@@ -217,7 +235,8 @@ def main(argv: list[str] = None) -> int:
     try:
         logger = logging.getLogger(__name__)
         chemin_rapport = generate_enhanced_report(
-            profiler, logger, reports_dir, input_file, stats, generate=generer_rapport
+            profiler, logger, reports_dir, input_file, stats,
+            generate=generer_rapport, horodatage=horodatage,
         )
         if chemin_rapport:
             print(f"📁 Rapport de nettoyage disponible : {chemin_rapport}")
@@ -225,9 +244,13 @@ def main(argv: list[str] = None) -> int:
         print(f"⚠️ Erreur lors de la génération du rapport final : {e}")
 
     # 9. Profilage post-nettoyage (validation)
+    # Le rapport est nommé d'après la source suivie de « _nettoye », et non
+    # d'après le fichier de sortie : celui-ci porte déjà l'horodatage, qui
+    # apparaîtrait sinon deux fois dans le nom.
     post_profiler = ExploratoryProfiler(cleaned_df, output_file)
     post_profiler.run_profiling_workflow(
-        output_file, reports_dir, report_format=format_rapport
+        input_file.with_name(f"{input_file.stem}_nettoye{input_file.suffix}"),
+        reports_dir, report_format=format_rapport, horodatage=horodatage,
     )
 
     return 0

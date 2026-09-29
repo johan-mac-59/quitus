@@ -2,7 +2,7 @@
 
 **Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
-**Version 1.1.1**
+**Version 1.2.0**
 
 ---
 
@@ -51,10 +51,11 @@ streamlit run streamlit_app.py
 ```
 
 Déposez un fichier — ou essayez directement avec l'exemple fourni —, lancez
-l'analyse, choisissez les deux traitements optionnels, nettoyez. Six onglets :
+l'analyse, choisissez les deux traitements optionnels, nettoyez. Sept onglets :
 
 | Onglet | Contenu |
 |---|---|
+| **Présentation** | Le projet, ses principes et son histoire — toujours consultable |
 | **Aperçu** | Le fichier brut, ses indicateurs et les types détectés |
 | **Avant nettoyage** | Le diagnostic, défauts compris — c'est le constat de départ |
 | **Nettoyage** | Le bilan, le détail des conversions de types, le fichier nettoyé et son rapport |
@@ -87,7 +88,7 @@ python main.py --input brut.csv --format-rapport html
 | Option | Rôle |
 |---|---|
 | `--input`, `-i` | Fichier à nettoyer |
-| `--output`, `-o` | Fichier CSV de sortie |
+| `--output`, `-o` | Fichier CSV de sortie. Par défaut : `data/processed/<source>_nettoye_<AAAAMMJJ_HHMMSS>.csv` |
 | `--reports`, `-r` | Répertoire des rapports |
 | `--format-rapport` | `md` ou `html` ; sans cette option, la question est posée |
 | `--oui-a-tout` | Accepte écrêtage, remplissage et rapports sans rien demander |
@@ -135,7 +136,7 @@ PROJET_NETTOYAGE_AUTO/
 │   ├── cleaner_logger.py
 │   ├── cleaner_reporter.py
 │   └── console_capture.py
-├── tests/                      # 317 tests
+├── tests/                      # 335 tests
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -200,7 +201,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 317 tests
+python -m pytest              # 335 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 

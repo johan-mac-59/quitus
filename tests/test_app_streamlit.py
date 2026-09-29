@@ -118,6 +118,20 @@ class TestPageAccueil:
         app.run()
         assert len(app.dataframe) >= 1
 
+    def test_presentation_reste_visible_apres_depot(self, app, csv_sale):
+        """Une fois un fichier chargé, la présentation occupe le premier onglet."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        assert app.tabs[0].label == "🏠 Présentation"
+        textes = " ".join(m.value for m in app.tabs[0].markdown)
+        assert "Trois principes" in textes
+
+    def test_pas_de_bouton_d_essai_une_fois_un_fichier_charge(self, app, csv_sale):
+        """Le bouton d'essai disparaît : il remplacerait le fichier en cours."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        assert not any("exemple" in b.label.lower() for b in app.button)
+
     @pytest.mark.skipif(not ECHANTILLON.exists(), reason="échantillon versionné absent")
     def test_bouton_exemple_propose(self, app):
         """Le bouton d'essai est offert dès l'arrivée."""
@@ -311,6 +325,22 @@ class TestParcoursComplet:
             assert cle in cles, f"{cle} manquant dans le récapitulatif"
         # Les boutons contextuels subsistent.
         assert "dl_csv" in cles
+
+    def test_horodatages_poses_a_chaque_etape(self, app, csv_sale):
+        """L'analyse et le nettoyage posent chacun leur marque de nommage."""
+        import re
+
+        motif = re.compile(r"^\d{8}_\d{6}$")
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        assert motif.match(app.session_state["horodatage_analyse"])
+        assert motif.match(app.session_state["horodatage_nettoyage"])
+
+    def test_nouveau_fichier_efface_les_horodatages(self, app, csv_sale):
+        """Un nouveau dépôt repart sans marque : elles appartiennent à l'ancien fichier."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        app = _deposer(app, b"z\n1\n2\n", "autre.csv")
+        assert app.session_state["horodatage_analyse"] is None
+        assert app.session_state["horodatage_nettoyage"] is None
 
     def test_ouvrir_un_rapport_en_grand(self, app, csv_sale):
         """Le bouton « Ouvrir en grand » ouvre le rapport sans erreur."""

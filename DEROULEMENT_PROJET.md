@@ -1531,4 +1531,67 @@ L'équivalent sûr retenu est une **fenêtre modale large** (`st.dialog`, jusqu'
 
 ---
 
-*Version 1.1.1 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 317 tests.*
+## Étape 38 : Horodatage des Fichiers, Présentation Permanente et Source Unique 🕒📚
+
+Trois changements de nature différente, réunis par un même souci : que l'utilisateur ne perde rien — ni un essai écrasé par le suivant, ni la présentation du projet au premier fichier déposé, ni l'historique du projet dispersé entre deux documents.
+
+### 1. Le problème des essais qui s'écrasent
+Un usage naturel de l'outil consiste à **comparer plusieurs nettoyages** d'un même fichier : avec et sans écrêtage des valeurs aberrantes, avec et sans remplissage des valeurs manquantes. Or cet usage était impossible sans manipulation manuelle :
+
+| Fichier produit | Nommage avant cette étape | Conséquence |
+|---|---|---|
+| Fichier nettoyé (ligne de commande) | nom fixe, `dataset_nettoye.csv` | chaque essai écrasait le précédent |
+| Rapports (ligne de commande) | horodatés **à la minute** | deux essais dans la même minute s'écrasaient |
+| Téléchargements (interface web) | aucun horodatage | le navigateur ajoutait « (1) », « (2) »… sans ordre lisible |
+
+### 2. Un horodatage par exécution, partagé par tous ses fichiers
+Chaque nom de fichier se termine désormais par un suffixe `AAAAMMJJ_HHMMSS`. Deux propriétés ont guidé ce choix de format :
+
+* **l'ordre alphabétique est l'ordre chronologique** : un simple tri du dossier range les essais dans le temps ;
+* **la précision à la seconde** empêche qu'un second essai lancé dans la même minute écrase le premier.
+
+Surtout, l'horodatage n'est pas calculé fichier par fichier mais **une fois par exécution**, puis transmis à chaque étape qui écrit. Le fichier nettoyé et ses trois rapports portent ainsi exactement la même marque : on retrouve d'un coup d'œil ce qui va ensemble. Vérification faite sur deux essais successifs :
+
+```
+reservations_exemple_nettoye_20260929_194212.csv   ← essai sans traitements
+reservations_exemple_nettoye_20260929_194215.csv   ← essai avec traitements
+```
+
+Dans l'interface web, la logique est la même, à deux niveaux : une marque posée à l'**analyse** pour le rapport avant nettoyage, une marque posée à **chaque nettoyage** pour le fichier nettoyé, son rapport et le rapport de contrôle. Relancer le nettoyage avec d'autres options produit un nouveau jeu complet, sans toucher au précédent. Un chemin de sortie fourni explicitement en ligne de commande (`--output`) reste, lui, respecté tel quel.
+
+Le format vivant désormais à quatre endroits (deux modules de `src/`, la ligne de commande, l'interface web), il a été centralisé dans un petit module, `src/horodatage.py`. Il était jusqu'ici recopié à deux endroits : la garantie, à terme, qu'une des copies diverge.
+
+### 3. La présentation ne disparaît plus
+L'Étape 36 avait donné à l'application une page d'accueil racontant le projet. Elle avait un défaut : elle s'effaçait dès le premier fichier déposé. La présentation occupe désormais le **premier onglet**, « 🏠 Présentation », et reste consultable pendant tout le parcours. Seul le bouton « Essayer avec un exemple » en est retiré une fois un fichier chargé — il remplacerait le fichier en cours.
+
+### 4. Une seule source : ce journal
+Un `CHANGELOG.md` avait été créé à l'Étape 34, selon une convention répandue : une liste courte, par version, de ce qui a changé. Il faisait largement doublon avec ce journal, qui raconte déjà tout — en plus détaillé, raisonnements et erreurs compris. Le choix a été fait de **n'entretenir qu'une seule source commune**, celle-ci.
+
+La seule information que le CHANGELOG portait en propre était la correspondance entre versions et étapes. Elle est reprise ici :
+
+| Version | Date | Étapes | Contenu principal |
+|---|---|---|---|
+| 1.0.0 | 2026-09-27 | 30 à 34 | Assainissement, couche graphique, découplage, interface web, conformité |
+| 1.0.1 | 2026-09-27 | 35 | Invariant du double profilage : aucune colonne mal typée après nettoyage |
+| 1.1.0 | 2026-09-29 | 36 | Retours utilisateur : faille XSS, pertes silencieuses, interface repensée |
+| 1.1.1 | 2026-09-29 | 37 | Onglet Téléchargements rétabli, rapports ouvrables en grand |
+| 1.2.0 | 2026-09-29 | 38 | Horodatage des fichiers, onglet Présentation, source unique |
+
+Chaque version reste par ailleurs marquée dans le dépôt par une étiquette git (`v1.0.0` à `v1.2.0`).
+
+### 5. Une feuille de route remise en accord avec la réalité
+La même exigence de cohérence a conduit à relire `améliorations_futures.md`, qui avait dérivé :
+
+* le **bouton de soutien** y figurait comme un projet, alors qu'il est codé et n'attend plus que l'adresse d'un prestataire ;
+* une section **« En cours »** annonçait trois chantiers auxquels personne ne travaillait ;
+* la rubrique **« Livré en V1.0 »** mêlait des livraisons de la 1.0.0 et de la 1.0.1 ;
+* la **documentation API** était présentée comme entièrement à faire, alors que toutes les fonctions publiques sont documentées — un test l'impose — et qu'il ne reste qu'à assembler le document.
+
+La feuille de route est désormais rangée par **état réel** — livré, prêt à activer, à faire — et chaque livraison renvoie à sa version et à son étape dans ce journal. Une feuille de route qui annonce en projet ce qui est déjà fait trompe le lecteur autant qu'une qui annonce fait ce qui ne l'est pas.
+
+### 6. Résultat
+**335 tests passent**, dont 10 consacrés à l'horodatage : format, ordre chronologique, précision à la seconde, marque commune à tous les fichiers d'une exécution, respect d'un `--output` explicite. Et quatre de plus dans l'interface, pour les marques posées à chaque étape et la permanence de l'onglet Présentation.
+
+---
+
+*Version 1.2.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 335 tests.*
