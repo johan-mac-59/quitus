@@ -214,7 +214,7 @@ class TestBoutonDeSoutien:
         app.run()
         textes = " ".join(m.value for m in app.markdown)
         assert "remarque constructive ou anomalie" in textes
-        assert "PROJET_NETTOYAGE_AUTO/issues" in textes
+        assert "johan-mac-59/quitus/issues" in textes
         assert "github.com/johan-mac-59" in textes
         assert "linkedin.com/in/johan-machu" in textes
 
@@ -224,13 +224,13 @@ class TestBoutonDeSoutien:
         onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
         textes = " ".join(m.value for m in onglet.markdown)
         assert "remarque constructive ou anomalie" in textes
-        assert "PROJET_NETTOYAGE_AUTO/issues" in textes
+        assert "johan-mac-59/quitus/issues" in textes
 
     def test_contact_distinct_du_signalement(self, app):
         """GitHub et LinkedIn ne partagent pas la ligne du signalement d'anomalie."""
         app.run()
         for m in app.markdown:
-            if "PROJET_NETTOYAGE_AUTO/issues" in m.value:
+            if "johan-mac-59/quitus/issues" in m.value:
                 assert "linkedin" not in m.value and "(https://github.com/johan-mac-59)" not in m.value
 
     def test_contact_en_fin_de_presentation_et_de_telechargements(self, app, csv_sale):

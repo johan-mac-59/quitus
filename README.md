@@ -28,8 +28,8 @@
 ## 🚀 Démarrage rapide
 
 ```bash
-git clone https://github.com/johan-mac-59/PROJET_NETTOYAGE_AUTO.git
-cd PROJET_NETTOYAGE_AUTO
+git clone https://github.com/johan-mac-59/quitus.git
+cd quitus
 ```
 
 **Avec uv** (recommandé, le verrou de dépendances est versionné) :
@@ -144,7 +144,7 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 ## 🏗️ Architecture
 
 ```
-PROJET_NETTOYAGE_AUTO/
+quitus/
 ├── streamlit_app.py            # Façade web (Streamlit)
 ├── main.py                     # Façade ligne de commande
 ├── src/                        # Logique métier, agnostique de l'interface

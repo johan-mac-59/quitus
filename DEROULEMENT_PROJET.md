@@ -1740,4 +1740,22 @@ Un test le démontre en comptant les calculs : après l'effacement, les données
 
 ---
 
+## Étape 44 : Le Dépôt Prend le Nom du Projet 🔗🏷️
+
+### 1. Aligner l'adresse sur le nom
+Depuis l'Étape 41, le projet s'appelle Quitus, mais son dépôt GitHub portait encore son nom de travail, `PROJET_NETTOYAGE_AUTO`. Il devient **`johan-mac-59/quitus`**, en minuscules comme dans le logo.
+
+### 2. Les anciens liens continuent de fonctionner
+Des CV déjà envoyés portent l'ancienne adresse. Renommer un dépôt ne crée pas de copie : c'est le même dépôt, historique et tickets compris, qui change de nom. GitHub redirige ensuite l'ancienne adresse vers la nouvelle, sans date d'expiration, aussi bien pour les pages que pour les commandes `git`. La redirection a été vérifiée après le renommage.
+
+La seule précaution est de ne jamais recréer un dépôt portant l'ancien nom : GitHub le considérerait de nouveau pris, et la redirection cesserait.
+
+### 3. Le bon moment
+Le renommage a été fait avant la mise en ligne : Streamlit Community Cloud se branche sur le nom du dépôt, et renommer après coup aurait obligé à reconfigurer l'application.
+
+### 4. Ce qui a suivi
+Les liens de l'application (dépôt, signalement d'anomalies), les commandes d'installation du README et le dépôt local pointent désormais vers la nouvelle adresse. Le dossier local, lui, garde son nom : il n'est visible de personne.
+
+---
+
 *Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 374 tests.*

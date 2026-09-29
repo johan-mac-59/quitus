@@ -61,7 +61,7 @@ CHEMIN_LOGO = marque.CHEMIN_LOGO
 CHEMIN_LOGO_SOMBRE = Path(__file__).parent / "assets" / "quitus-logo-dark.svg"
 CHEMIN_ICONE = Path(__file__).parent / "assets" / "quitus-icon.svg"
 
-LIEN_DEPOT = "https://github.com/johan-mac-59/PROJET_NETTOYAGE_AUTO"
+LIEN_DEPOT = "https://github.com/johan-mac-59/quitus"
 
 # Contact et retours. Les anomalies se signalent sur la page Issues du dépôt ;
 # le lien LinkedIn n'est affiché que s'il est renseigné.
