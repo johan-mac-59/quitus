@@ -10,6 +10,12 @@ reports/
 # Virtual environments
 .venv
 
+# Caches et réglages d'outils locaux, propres à chaque poste.
+# .continue/ (extension VS Code) peut contenir des clés d'API une fois
+# configurée : il ne doit jamais être versionné, même s'il est vide aujourd'hui.
+.pytest_cache/
+.continue/
+
 # Donnees : tout est ignore SAUF l'echantillon versionne, qui rend le depot
 # utilisable apres un simple clone (c'est le chemin par defaut de main.py).
 # On ecrit `data/*` et non `data/` : git ne descend pas dans un repertoire
