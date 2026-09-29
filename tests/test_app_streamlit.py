@@ -102,6 +102,30 @@ class TestDemarrage:
         assert not any("Nettoyer" in lib for lib in libelles)
 
 
+class TestBoutonDeSoutien:
+    """Le bouton de soutien renvoie vers la page Buy Me a Coffee du projet."""
+
+    def test_bouton_present_avec_la_bonne_adresse(self, app):
+        """Le bouton apparaît dès l'arrivée et pointe vers la page de soutien."""
+        app.run()
+        liens = app.get("link_button")
+        assert len(liens) == 1
+        assert "Soutenir" in liens[0].proto.label
+        assert liens[0].proto.url == "https://buymeacoffee.com/johan_mac"
+
+    def test_lien_en_https(self, app):
+        """Le lien de paiement est chiffré : jamais de http en clair."""
+        app.run()
+        assert app.get("link_button")[0].proto.url.startswith("https://")
+
+    def test_confidentialite_mentionne_le_prestataire(self, app):
+        """L'encart de confidentialité explique où se fait le paiement."""
+        app.run()
+        textes = " ".join(m.value for m in app.markdown)
+        assert "Buy Me a Coffee" in textes
+        assert "aucune donnée de paiement" in textes
+
+
 class TestPageAccueil:
     """La page d'accueil présente le projet et permet de l'essayer sans fichier."""
 

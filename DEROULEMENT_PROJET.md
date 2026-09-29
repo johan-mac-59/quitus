@@ -1590,4 +1590,32 @@ La feuille de route est désormais rangée par **état réel** — livré, prêt
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 335 tests.*
+## Étape 39 : Le Bouton de Soutien : Choisir un Prestataire, Vérifier Avant de Brancher ☕🔎
+
+Le bouton de soutien était codé depuis l'Étape 33, mais restait invisible faute d'adresse. Cette étape l'active. Elle est courte, mais deux choix y méritent d'être expliqués.
+
+### 1. Choisir un prestataire selon le public, pas selon les frais
+Quatre candidats ont été comparés, dont deux français :
+
+| Prestataire | Origine | Frais | Dons ponctuels | Compte exigé du donateur |
+|---|---|---|---|---|
+| Buy Me a Coffee | États-Unis | 5 % + frais de paiement | oui | non |
+| GitHub Sponsors | États-Unis | 0 % entre particuliers | oui | **oui, un compte GitHub** |
+| Tipeee | France | 8 % minimum | oui | non |
+| Liberapay | France (association) | 0 %, frais de paiement seuls | **non, récurrents uniquement** | non |
+
+Sur le seul critère des frais, GitHub Sponsors et Liberapay l'emportaient. Mais le critère décisif était ailleurs : **le public de l'application**. Elle s'adresse à des personnes qui nettoient des fichiers, pas nécessairement à des développeurs. Leur imposer un compte GitHub, ou un engagement récurrent quand elles veulent simplement dire merci une fois, c'était perdre la plupart des dons avant qu'ils n'aient lieu. **Buy Me a Coffee** a été retenu : pas de compte à créer, un don ponctuel en deux clics. Les 5 % sont le prix de cette simplicité.
+
+### 2. Vérifier la page avant de la brancher
+L'adresse fournie était accompagnée d'un « je pense que c'est mon compte ». Or un lien de paiement erroné n'est pas un bug anodin : **les dons partiraient chez quelqu'un d'autre**. La page a donc été consultée avant d'être branchée : elle existe, elle est active, elle affiche le nom « Johan Mac » et la mention « data analyst student », avec un paiement fonctionnel en euros.
+
+Cette vérification a une limite, énoncée clairement : elle établit que la page existe et correspond au profil attendu, pas qu'elle appartient bien à son porteur. **Seule une connexion au compte le prouve.**
+
+### 3. Transparence et tests
+L'encart de confidentialité mentionne désormais le bouton : il ouvre la page Buy Me a Coffee dans un nouvel onglet, le paiement s'y déroule entièrement, et l'application ne voit passer aucune donnée de paiement — elle ne sait même pas qui a donné.
+
+Trois tests verrouillent le branchement : le bouton apparaît avec l'adresse exacte, le lien est chiffré (`https`), et l'encart de confidentialité nomme bien le prestataire. **338 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 338 tests.*

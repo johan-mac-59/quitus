@@ -8,9 +8,9 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - ~~**Séparer profiling et cleaning**~~ : l'interface web permet d'analyser, puis de décider, puis de nettoyer, en trois gestes distincts. *Étape 33.*
 - ~~**améliorer la détection des dates**~~ : dix formats explicites sont appliqués **cumulativement**, ce qui permet de traiter une colonne mêlant plusieurs conventions. La détection était par ailleurs du code mort, jamais atteint. *Réparée à l'étape 30, rendue cumulative à l'étape 35.*
 - ~~**détecter plus de nombres**~~ : les notes fractionnaires (`17/20`, `5/5`) et les pourcentages (`1,5 %`, `78.9875%`) sont désormais convertis. *Étape 35.*
+- ~~**bouton de soutien**~~ : un bouton « Soutenir le projet » renvoie vers la page [Buy Me a Coffee](https://buymeacoffee.com/johan_mac) — pas de compte à créer pour le donateur, dons ponctuels. Le paiement se fait entièrement chez le prestataire. *Étape 39.*
 
 ## 🔧 Prêt, reste à activer
-- **bouton de soutien** : le bouton et sa mention de confidentialité sont en place dans la barre latérale. Prestataire retenu : **Buy Me a Coffee** — pas de compte à créer pour le donateur, dons ponctuels, 5 % de frais. Reste à créer la page et à renseigner son adresse (variable `LIEN_DON` dans `streamlit_app.py`) pour que le bouton apparaisse.
 - **déploiement public** : le dépôt est prêt — `requirements.txt`, configuration `.streamlit/config.toml`, point d'entrée nommé `streamlit_app.py` comme l'attend Streamlit Community Cloud. Reste la mise en ligne elle-même, sur Streamlit Community Cloud ou Hugging Face Spaces.
 
 ## 🛠️ À faire — technique

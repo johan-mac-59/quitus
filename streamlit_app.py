@@ -41,8 +41,10 @@ from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_dataframe
 from src.horodatage import horodater
 
-# Lien de soutien ; laisser à None pour masquer le bouton.
-LIEN_DON = None
+# Lien de soutien (page Buy Me a Coffee) ; mettre None pour masquer le bouton.
+# Le paiement se fait entièrement chez le prestataire : l'application ne voit
+# passer aucune donnée de paiement.
+LIEN_DON = "https://buymeacoffee.com/johan_mac"
 
 EXTENSIONS = ["csv", "xlsx", "xls", "json", "jsonl"]
 
@@ -448,6 +450,10 @@ indispensable au fonctionnement.
 
 Le bouton **« Effacer mes données »** de la barre latérale vide immédiatement
 la session et le cache.
+
+**Soutien :** le bouton « Soutenir le projet » ouvre une page Buy Me a Coffee
+dans un nouvel onglet. Le paiement s'y déroule entièrement : cette application
+ne voit passer aucune donnée de paiement, et ne sait pas qui a donné.
 
 ⚠️ Par prudence, évitez de déposer des données personnelles sensibles.
 """
