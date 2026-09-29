@@ -38,6 +38,11 @@ class CleanLogger:
             summary += f"🔧 Corrections Pandas Trap : {len(self.stats['types_fixed_pandas'])} colonnes\n"
         if self.stats.get('types_converted', {}):
             summary += f"🎨 Types convertis : {len(self.stats['types_converted'])} colonnes\n"
+        if self.stats.get('values_unparsed', {}):
+            illisibles = self.stats['values_unparsed']
+            total = sum(int(v.get('count', 0)) for v in illisibles.values() if isinstance(v, dict))
+            summary += (f"⚠️ Valeurs illisibles vidées lors de la conversion : {total} "
+                        f"({', '.join(map(str, illisibles))})\n")
         if self.stats.get('missing_filled', {}):
             missing_stats = self.stats['missing_filled']
             

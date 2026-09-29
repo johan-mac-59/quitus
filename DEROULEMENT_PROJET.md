@@ -1428,4 +1428,78 @@ La progression des valeurs aberrantes n'est pas un effet de bord mais la conséq
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 279 tests.*
+## Étape 36 : L'Épreuve de l'Utilisateur : Six Retours, une Perte Silencieuse et une Faille de Sécurité 🧪🛡️
+
+Jusqu'ici, l'application avait été testée par ceux qui l'avaient construite. Cette étape commence au moment où elle a été confiée à un utilisateur réel, sur un fichier qu'aucun test n'avait anticipé : un export de prix de carburants, `prix.csv`, 57 073 lignes. Six retours en sont sortis. Chacun a mené plus loin que prévu.
+
+### 1. « J'ai une valeur manquante de plus qu'avant »
+Le retour le plus bref était le plus grave. Un nettoyage qui **crée** des valeurs manquantes détruit des données — l'exact contraire de sa mission.
+
+L'enquête a d'abord porté sur le jeu de référence, et y a révélé un défaut bien plus large que celui signalé : **1 849 montants présents étaient vidés** par la conversion de types. Tous avaient la même forme — `1 052,23 €` — avec une espace comme séparateur de milliers. Le code retirait `€` et `$`, jamais les espaces. Le commentaire du code l'annonçait pourtant, et le README citait précisément `"1 200,50 €"` comme exemple vitrine.
+
+Le mécanisme était pernicieux : 97 % de la colonne se convertissant correctement, le seuil de 90 % était franchi, et les 3 % restants étaient silencieusement remplacés par des valeurs manquantes. **`errors='coerce'` combiné à un seuil de tolérance est une destruction silencieuse par conception** : toute conversion réussie à 91 % peut effacer jusqu'à 9 % des valeurs sans le dire.
+
+Un second défaut latent de même nature a été trouvé en chemin : le symbole `£` était accepté par la détection mais jamais retiré par la conversion. Toute colonne en livres sterling aurait été intégralement vidée.
+
+### 2. Le fichier de l'utilisateur : l'an 216
+Sur `prix.csv`, la cause était autre. La colonne `prix_maj` contenait la date `0216-03-02T00:00:00` — l'an 216, coquille évidente pour 2016. Le garde-fou de plausibilité des années, ajouté à l'Étape 35, l'avait écartée.
+
+Le vidage était le bon comportement : l'outil ne peut pas deviner s'il fallait lire 2016 ou 2216, et inventer une date serait pire. **Le vrai défaut était son silence.**
+
+### 3. Le principe qui en découle : rien ne disparaît en silence
+Corriger les espaces ne suffisait donc pas : la prochaine cause serait différente. Il fallait traiter le principe.
+
+Désormais, chaque conversion de type compare la colonne avant et après, et recense toute valeur présente devenue manquante dans une nouvelle statistique, `values_unparsed` — colonne, nombre et exemples de valeurs d'origine. Les écritures textuelles d'une absence (« NULL », « N/A », « - ») sont exclues du décompte : leur passage à vide n'est pas une perte, elles n'étaient déjà pas des données.
+
+Cette information remonte partout : dans le bilan console, dans le rapport de nettoyage Markdown, et dans l'interface web, sous forme d'un avertissement explicite. Sur `prix.csv`, l'utilisateur lit désormais : *« prix_maj : 1 valeur vidée — exemple : 0216-03-02T00:00:00 »*.
+
+Un test de propriété générale verrouille la garantie : sur un jeu réunissant toutes les sources de perte connues, **les pertes mesurées et les pertes déclarées doivent coïncider exactement**.
+
+En chemin, une observation que le code ne tranche pas mais que l'utilisateur doit connaître : sur ce fichier, cocher « Combler les valeurs manquantes » remplirait les prix des carburants en `rupture_definitive`. On inventerait un prix médian pour un produit qui n'est plus vendu. Une absence peut avoir un sens — l'Étape 22 l'avait pressenti en écrivant qu'imputer une médiane peut être « sémantiquement faux ». L'aide de cette case le dit désormais explicitement.
+
+### 4. L'interface réorganisée autour de ses usages
+Quatre retours portaient sur l'ergonomie, et tous pointaient le même travers : l'interface exposait des réglages au lieu de répondre à des besoins.
+
+* **« Je n'ai pas le détail de la colonne convertie »** : il existait, replié au bas de l'onglet. Le détail des conversions est désormais affiché d'emblée — colonne, type avant, type après, valeurs illisibles.
+* **« La case Rapport de nettoyage ne fait rien »** : elle ajoutait un bouton dans un autre onglet, invisible depuis celui où l'on se trouvait. Supprimée : le rapport se lit et se télécharge là où s'affiche le nettoyage.
+* **« Enregistrer dans data/reports, ça sert à quoi en ligne ? »** : à rien, et c'était même contraire à la promesse de confidentialité. Supprimée. L'écriture de fichiers sur sa propre machine reste l'affaire de la ligne de commande.
+* **« Pas de nombre de passes, 5 au maximum c'est bien »** : supprimé. Le moteur s'arrête de lui-même dès que plus rien ne change.
+
+Le formulaire se réduit ainsi aux **deux seules décisions qui altèrent les valeurs**. Tout le reste est corrigé d'office.
+
+L'onglet « Téléchargements » a disparu au profit d'un principe proposé par l'utilisateur : **chaque rapport se consulte, puis se récupère, là où il s'affiche**. Le profilage avant nettoyage dans son onglet, le fichier nettoyé et son rapport dans le leur. Et un nouvel onglet, **« Après nettoyage »**, calcule d'office le profil de contrôle et vérifie l'invariant de l'Étape 35 — plus aucune colonne mal typée — avec un verdict colonne par colonne. La fonction de vérification, `find_mistyped_columns`, a été remontée dans le moteur : les tests et l'interface contrôlent ainsi exactement la même chose.
+
+Rien n'est calculé tant qu'on ne le demande pas : les boutons de téléchargement reçoivent une fonction, exécutée au clic seulement. Sans cela, Streamlit exécutant tous les onglets à chaque interaction, les rapports HTML et leurs graphiques auraient été recalculés en permanence.
+
+### 5. L'aperçu HTML, et la faille qu'il a révélée
+Dernier retour : les rapports Markdown se téléchargent, mais les rapports HTML, eux, devraient **s'afficher** avant de se télécharger. C'est un tableau de bord autonome ; le prévisualiser a du sens.
+
+Avant de l'afficher, une lecture de la documentation de `st.iframe` a imposé une vérification : du HTML y est exécuté **avec JavaScript et un accès à l'application**, et la documentation interdit d'y passer du contenu dérivé d'un fichier téléversé. Or le rapport HTML reproduit des noms de colonnes, des modalités, des valeurs d'aperçu.
+
+Vérification faite, **aucune de ces données n'était échappée**. Pire : l'aperçu des données appelait explicitement `to_html(escape=False)`, désactivant la protection que pandas offre par défaut. Une cellule contenant `<img src=x onerror=alert(1)>` produisait un rapport qui **exécutait ce code** — dès avant ce chantier, à la simple ouverture d'un rapport téléchargé. L'aperçu intégré aurait aggravé une faille qui existait déjà.
+
+Deux protections superposées ont été mises en place :
+
+* **l'échappement systématique** de toute donnée issue du fichier, y compris dans le texte alternatif des graphiques, où un guillemet dans un nom de colonne aurait permis d'injecter un attribut ;
+* **une politique de sécurité (CSP)** dans l'en-tête du rapport, qui interdit toute exécution de script. Le rapport n'en a aucun besoin — images en base64, styles en ligne — et cette seconde ligne de défense tient même si un échappement venait un jour à manquer.
+
+Les tests de sécurité méritent une remarque. Une première version cherchait des chaînes dans le rapport, et a échoué à tort : le texte `"prix" onmouseover="alert(3)` figurait dans une cellule de tableau, **en texte**, où un guillemet est inoffensif. La version définitive analyse le document avec un vrai analyseur HTML et vérifie ce qu'un navigateur interpréterait réellement : aucune balise `script`, aucun attribut `on…`.
+
+Et pour s'assurer que ces tests ne sont pas de complaisance, ils ont été rejoués contre l'ancien code : **11 échecs**. Ils détectent bien la faille qu'ils sont censés prévenir.
+
+### 6. Une page d'accueil qui raconte le projet
+L'application s'ouvrait sur une page presque vide tant qu'aucun fichier n'était déposé. Elle présente désormais le projet : le problème traité (« un fichier qui s'ouvre bien ment souvent »), un tableau avant / après sur des exemples concrets, le parcours en quatre temps, trois principes, et l'histoire du projet, étapes marquantes et erreurs comprises.
+
+Surtout, un bouton **« Essayer avec un exemple »** charge l'échantillon synthétique versionné. Un visiteur peut désormais éprouver l'outil de bout en bout sans avoir de fichier sous la main — ce qui manquait le plus à une page d'accueil vide.
+
+### 7. Un renommage qui aurait pu passer inaperçu
+L'utilisateur a renommé `app.py` en `streamlit_app.py`, nom par défaut de Streamlit Community Cloud. Ce renommage a cassé deux choses en silence : les 27 tests d'intégration pointaient vers un fichier disparu, et le test d'intégrité des sources **excluait discrètement** l'interface web, parce qu'il filtrait sa liste de fichiers sur leur existence. La liste est désormais explicite : un renommage de façade fait échouer les tests bruyamment.
+
+### 8. Résultat
+**313 tests passent**, contre 279. Sur le jeu de référence, zéro valeur n'est plus détruite en silence. Sur le fichier de l'utilisateur, la valeur vidée est nommée. Le rapport HTML est sûr à ouvrir comme à afficher. Et l'interface ne pose plus que les questions qui comptent.
+
+La leçon de l'étape tient en une phrase : **un utilisateur réel, sur un fichier réel, en une séance, a trouvé ce que 279 tests n'avaient pas vu.** Les tests vérifient ce qu'on a pensé à vérifier ; l'usage révèle le reste.
+
+---
+
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 313 tests.*

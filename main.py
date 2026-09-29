@@ -1,6 +1,6 @@
 """Point d'entrée en ligne de commande du pipeline de nettoyage.
 
-Ce script est l'une des deux façades du projet, l'autre étant `app.py`
+Ce script est l'une des deux façades du projet, l'autre étant `streamlit_app.py`
 (interface web Streamlit). Toute la logique métier vit dans `src/`, qui ne
 connaît ni l'une ni l'autre : les questions posées ici en terminal sont
 transmises aux modules sous forme de paramètres explicites.
@@ -57,7 +57,7 @@ def construire_parseur() -> argparse.ArgumentParser:
         prog="main.py",
         description="Profile et nettoie un fichier CSV, Excel ou JSON, "
                     "puis produit des rapports d'audit.",
-        epilog="Interface web équivalente : streamlit run app.py",
+        epilog="Interface web équivalente : streamlit run streamlit_app.py",
     )
     parseur.add_argument(
         "--input", "-i", default=DEFAUT_INPUT,

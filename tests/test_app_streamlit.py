@@ -19,7 +19,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 RACINE = Path(__file__).parent.parent
-APP = RACINE / "app.py"
+APP = RACINE / "streamlit_app.py"
 ECHANTILLON = RACINE / "data" / "samples" / "reservations_exemple.csv"
 
 # Le rendu des figures et le profilage sont lents : on laisse de la marge.
@@ -100,6 +100,54 @@ class TestDemarrage:
         app.run()
         libelles = [b.label for b in app.button]
         assert not any("Nettoyer" in lib for lib in libelles)
+
+
+class TestPageAccueil:
+    """La page d'accueil présente le projet et permet de l'essayer sans fichier."""
+
+    def test_presente_le_projet(self, app):
+        """Le parcours, les principes et l'histoire sont présentés."""
+        app.run()
+        textes = " ".join(m.value for m in app.markdown)
+        assert "Comment ça marche" in textes
+        assert "Trois principes" in textes
+        assert any("histoire du projet" in e.label for e in app.expander)
+
+    def test_montre_des_exemples_concrets(self, app):
+        """Un tableau avant / après illustre ce que l'outil corrige."""
+        app.run()
+        assert len(app.dataframe) >= 1
+
+    @pytest.mark.skipif(not ECHANTILLON.exists(), reason="échantillon versionné absent")
+    def test_bouton_exemple_propose(self, app):
+        """Le bouton d'essai est offert dès l'arrivée."""
+        app.run()
+        assert any("exemple" in b.label.lower() for b in app.button)
+
+    @pytest.mark.skipif(not ECHANTILLON.exists(), reason="échantillon versionné absent")
+    def test_l_exemple_se_charge_sans_fichier(self, app):
+        """Un clic suffit pour explorer l'outil, sans rien déposer."""
+        app.run()
+        bouton = [b for b in app.button if "exemple" in b.label.lower()][0]
+        app = bouton.click().run()
+        assert not app.exception
+        assert len(app.session_state["df_brut"]) == 312
+        assert app.session_state["nom_source"] == ECHANTILLON.name
+        # Un bandeau signale qu'on explore l'exemple, et comment en sortir.
+        assert any("exemple fourni" in i.value for i in app.info)
+
+    @pytest.mark.skipif(not ECHANTILLON.exists(), reason="échantillon versionné absent")
+    def test_parcours_complet_sur_l_exemple(self, app):
+        """L'exemple se profile et se nettoie comme un fichier déposé."""
+        app.run()
+        app = [b for b in app.button if "exemple" in b.label.lower()][0].click().run()
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        nettoyer = [b for b in app.sidebar.button if "Nettoyer" in b.label]
+        app = nettoyer[0].click().run()
+        assert not app.exception
+        assert app.session_state["df_propre"] is not None
+        # Sur l'exemple, l'invariant doit tenir : aucune colonne mal typée.
+        assert any("correctement typées" in s.value for s in app.success)
 
 
 class TestParcoursComplet:
@@ -194,12 +242,49 @@ class TestParcoursComplet:
         assert "ignored" in app.session_state["stats"]["outliers_corrected"]
 
     def test_boutons_de_telechargement_proposes(self, app, csv_sale):
-        """Le CSV nettoyé et les rapports sont offerts au téléchargement."""
+        """Le fichier nettoyé et tous les rapports sont offerts au téléchargement."""
         app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
-        libelles = [b.label for b in app.download_button]
-        assert any("CSV nettoyé" in lib for lib in libelles)
-        assert any("Profilage" in lib for lib in libelles)
-        assert any("Rapport de nettoyage" in lib for lib in libelles)
+        cles = {b.key for b in app.download_button}
+        assert "dl_csv" in cles
+        assert "dl_rapport_nettoyage" in cles
+        # Profilage avant ET après nettoyage, chacun en HTML et en Markdown.
+        for prefixe in ("profilage_avant", "profilage_apres"):
+            assert f"dl_{prefixe}_html" in cles
+            assert f"dl_{prefixe}_md" in cles
+
+    def test_le_rapport_de_profilage_est_telechargeable_des_l_analyse(self, app, csv_sale):
+        """Le rapport avant nettoyage est proposé là où on le consulte, dès l'analyse."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        cles = {b.key for b in app.download_button}
+        assert "dl_profilage_avant_html" in cles
+        assert "dl_profilage_avant_md" in cles
+        # Rien de ce qui dépend du nettoyage n'est encore proposé.
+        assert "dl_csv" not in cles
+
+    def test_formulaire_reduit_aux_deux_decisions(self, app, csv_sale):
+        """Seules les deux décisions qui altèrent les valeurs sont demandées.
+
+        Le nombre de passes, le choix des rapports et l'enregistrement sur le
+        serveur ont été retirés : le premier est géré par le moteur, le second
+        par les boutons de téléchargement, le troisième n'a pas de sens en ligne.
+        """
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        libelles = [c.label for c in app.sidebar.checkbox]
+        assert len(libelles) == 2
+        assert any("Écrêter" in lib for lib in libelles)
+        assert any("Combler" in lib for lib in libelles)
+        assert len(app.sidebar.number_input) == 0
+
+    def test_controle_apres_nettoyage(self, app, csv_sale):
+        """Le profil de contrôle est calculé d'office après le nettoyage."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        assert app.session_state["profil_post"] is not None
+        textes = [s.value for s in app.success]
+        assert any("correctement typées" in t for t in textes)
 
     def test_le_csv_telechargeable_est_relisible(self, app, csv_sale):
         """Le contenu proposé au téléchargement est un CSV valide."""

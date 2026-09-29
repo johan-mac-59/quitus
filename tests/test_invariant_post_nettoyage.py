@@ -21,7 +21,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.cleaner_engine import _can_be_numeric, clean_types, run_all_cleaning_steps
+from src.cleaner_engine import (
+    _can_be_numeric,
+    clean_types,
+    find_mistyped_columns,
+    run_all_cleaning_steps,
+)
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
 
@@ -29,37 +34,10 @@ ECHANTILLON = Path(__file__).parent.parent / "data" / "samples" / "reservations_
 
 TYPES_TEXTUELS = ("str", "object", "string")
 
-
-def _colonnes_encore_convertibles(df: pd.DataFrame) -> dict:
-    """Recense les colonnes textuelles qui auraient dû être converties.
-
-    Args:
-        df: DataFrame nettoyé à contrôler.
-
-    Returns:
-        Un dictionnaire nom de colonne -> raison du signalement.
-    """
-    fautives = {}
-    for col in df.columns:
-        if str(df[col].dtype) not in TYPES_TEXTUELS:
-            continue
-
-        serie = df[col]
-        presentes = int(serie.notna().sum())
-        if presentes == 0:
-            continue
-
-        if _can_be_numeric(serie):
-            fautives[col] = "encore numérisable"
-            continue
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            dates = pd.to_datetime(serie, errors="coerce", dayfirst=True)
-        if int(dates.notna().sum()) / presentes > 0.8:
-            fautives[col] = "encore interprétable en date"
-
-    return fautives
+# find_mistyped_columns vit dans src/ et non ici : l'interface web l'utilise
+# pour son onglet de contrôle. Tests et application vérifient ainsi exactement
+# la même chose.
+_colonnes_encore_convertibles = find_mistyped_columns
 
 
 @pytest.fixture

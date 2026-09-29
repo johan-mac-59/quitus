@@ -26,12 +26,13 @@ devient structurellement impossible au lieu d'être évitée par discipline.
    pendant toute la session, pour chaque session. Stocker les données d'entrée
    et reconstruire la figure à l'affichage.
 3. Côté Streamlit, afficher via un helper unique qui libère les artistes
-   immédiatement après le rendu (voir `show_fig` dans `app.py`).
+   immédiatement après le rendu (voir `afficher_figure` dans `streamlit_app.py`).
 """
 
 from __future__ import annotations
 
 import base64
+import html
 from io import BytesIO
 from typing import Sequence
 
@@ -274,4 +275,9 @@ def figure_to_img_tag(fig: Figure, alt: str, style: str = "", **kwargs) -> str:
         Le fragment HTML de la balise image.
     """
     encoded = figure_to_base64_png(fig, **kwargs)
-    return f'<img src="data:image/png;base64,{encoded}" alt="{alt}" style="{style}">'
+    # Le texte alternatif reprend souvent un nom de colonne, donc une donnée
+    # fournie par l'utilisateur : un guillemet y fermerait l'attribut et
+    # permettrait d'injecter un gestionnaire d'événement (onerror=...).
+    return (f'<img src="data:image/png;base64,{encoded}" '
+            f'alt="{html.escape(str(alt), quote=True)}" '
+            f'style="{html.escape(str(style), quote=True)}">')

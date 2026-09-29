@@ -3,6 +3,80 @@
 Le détail technique de chaque étape de développement se trouve dans
 [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 
+## [1.1.0] — 2026-09-29
+
+Première confrontation avec un utilisateur réel, sur un fichier réel. Six
+retours, qui ont mené à une faille de sécurité, une perte de données silencieuse
+et une interface repensée autour de ses usages.
+
+### Sécurité
+
+- **Le rapport HTML exécutait le contenu du fichier analysé.** Aucune donnée
+  issue du fichier (noms de colonnes, modalités, valeurs d'aperçu) n'était
+  échappée, et l'aperçu désactivait explicitement l'échappement de pandas
+  (`to_html(escape=False)`). Une cellule contenant `<img src=x onerror=…>`
+  produisait un rapport qui exécutait ce code à son ouverture. Corrigé par un
+  échappement systématique, doublé d'une politique de sécurité (CSP) qui interdit
+  toute exécution de script dans le rapport, même si un échappement venait à
+  manquer.
+
+### Corrigé
+
+- **1 849 montants étaient silencieusement vidés** sur le jeu de référence : le
+  séparateur de milliers (`1 052,23 €`) n'était jamais retiré avant conversion,
+  alors que le README citait précisément cet exemple. Les espaces ordinaires,
+  insécables (U+00A0) et fines insécables (U+202F) sont désormais retirées.
+- **Le symbole `£`** était accepté par la détection mais jamais retiré par la
+  conversion : toute colonne en livres sterling aurait été entièrement vidée.
+- **Les en-têtes du tableau des conversions** du rapport de nettoyage étaient
+  inversés (« Type converti | Colonnes » au-dessus de « colonne | type »).
+- **Le test d'intégrité des sources excluait silencieusement l'interface web**
+  après le renommage de `app.py` : il filtrait sa liste de fichiers sur leur
+  existence.
+
+### Ajouté
+
+- **Aucune perte silencieuse** : toute valeur présente qu'une conversion de type
+  ne sait pas lire est recensée dans `stats['values_unparsed']` (colonne, nombre,
+  exemples) et restituée dans la console, le rapport de nettoyage et l'interface.
+  Sur un fichier de prix, une date en l'an 216 — coquille pour 2016 — est ainsi
+  nommée au lieu de disparaître.
+- **Page d'accueil** présentant le projet : le problème traité, des exemples
+  avant / après, le parcours, trois principes et l'histoire du projet.
+- **« Essayer avec un exemple »** : charge l'échantillon versionné, pour éprouver
+  l'outil sans fichier.
+- **Onglet « Après nettoyage »** : profil de contrôle calculé d'office, avec un
+  verdict colonne par colonne sur l'invariant de typage.
+- **Aperçu des rapports HTML** dans l'application, à la demande.
+- **`find_mistyped_columns`**, fonction publique du moteur, partagée par les
+  tests et l'interface.
+
+### Modifié
+
+- **`app.py` devient `streamlit_app.py`**, nom par défaut de Streamlit
+  Community Cloud.
+- **Chaque rapport se consulte et se récupère là où il s'affiche.** L'onglet
+  « Téléchargements » disparaît. Rapports HTML : aperçu et téléchargement.
+  Rapports Markdown : téléchargement.
+- **Le formulaire se réduit aux deux décisions qui altèrent les valeurs** :
+  écrêtage et remplissage. L'aide du remplissage prévient qu'une absence peut
+  avoir un sens.
+- **Le détail des conversions de types est affiché d'emblée**, et non plus replié.
+- **Les rapports ne sont générés qu'au clic** ou à l'ouverture de leur aperçu.
+
+### Retiré
+
+- La case « Rapport de nettoyage » : elle ajoutait un bouton dans un autre onglet,
+  sans effet visible là où on la cochait.
+- La case « Enregistrer aussi dans data/reports » : sans objet en ligne, et
+  contraire à la promesse de confidentialité. L'écriture sur disque reste
+  l'affaire de la ligne de commande.
+- Le réglage du nombre de passes : le moteur s'arrête de lui-même.
+
+313 tests passent.
+
+---
+
 ## [1.0.1] — 2026-09-27
 
 Tient l'invariant du double profilage : le rapport avant nettoyage constate le

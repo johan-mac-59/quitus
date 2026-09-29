@@ -2,7 +2,7 @@
 
 **Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
-**Version 1.0.1**
+**Version 1.1.0**
 
 ---
 
@@ -17,7 +17,7 @@ cd PROJET_NETTOYAGE_AUTO
 
 ```bash
 uv sync
-uv run streamlit run app.py      # interface web
+uv run streamlit run streamlit_app.py   # interface web
 uv run python main.py            # ligne de commande
 ```
 
@@ -29,7 +29,7 @@ python -m venv .venv
 source .venv/bin/activate        # macOS / Linux
 pip install -r requirements.txt
 
-streamlit run app.py             # interface web -> http://localhost:8501
+streamlit run streamlit_app.py   # interface web -> http://localhost:8501
 python main.py                   # ligne de commande
 ```
 
@@ -47,12 +47,23 @@ correctif profite donc aux deux, par construction.
 ### Interface web
 
 ```bash
-streamlit run app.py
+streamlit run streamlit_app.py
 ```
 
-Déposez un fichier, lancez l'analyse, réglez les options, nettoyez, téléchargez.
-Cinq onglets : **Aperçu**, **Profilage**, **Nettoyage**, **Graphiques**,
-**Téléchargements**. Les graphiques sont interactifs et construits à la demande ; les rapports sont produits en mémoire et proposés au téléchargement.
+Déposez un fichier — ou essayez directement avec l'exemple fourni —, lancez
+l'analyse, choisissez les deux traitements optionnels, nettoyez. Cinq onglets :
+
+| Onglet | Contenu |
+|---|---|
+| **Aperçu** | Le fichier brut, ses indicateurs et les types détectés |
+| **Avant nettoyage** | Le diagnostic, défauts compris — c'est le constat de départ |
+| **Nettoyage** | Le bilan, le détail des conversions de types, le fichier nettoyé et son rapport |
+| **Après nettoyage** | Le profil de contrôle, qui vérifie qu'aucune colonne ne reste mal typée |
+| **Graphiques** | Distributions, répartitions et analyses multivariées, à la demande |
+
+Chaque rapport se consulte et se récupère **là où il s'affiche** : les rapports
+HTML s'ouvrent en aperçu dans l'application et se téléchargent, les rapports
+Markdown se téléchargent. Rien n'est calculé tant qu'on ne le demande pas.
 
 ### Ligne de commande
 
@@ -106,7 +117,7 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 
 ```
 PROJET_NETTOYAGE_AUTO/
-├── app.py                      # Façade web (Streamlit)
+├── streamlit_app.py            # Façade web (Streamlit)
 ├── main.py                     # Façade ligne de commande
 ├── src/                        # Logique métier, agnostique de l'interface
 │   ├── file_loader.py
@@ -116,7 +127,7 @@ PROJET_NETTOYAGE_AUTO/
 │   ├── cleaner_logger.py
 │   ├── cleaner_reporter.py
 │   └── console_capture.py
-├── tests/                      # 279 tests
+├── tests/                      # 313 tests
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -152,9 +163,15 @@ Cette frontière n'est pas qu'une convention : `tests/test_integrite_source.py` 
 | Analyse et nettoyage | mémoire du serveur | la session |
 | Cache de calcul | mémoire du serveur, partagé entre sessions | **1 heure au plus, 8 entrées** |
 | Téléchargements | votre navigateur | vous décidez |
-| Enregistrement local | disque du serveur | **persistant — décoché par défaut** |
 
-**Par défaut, rien n'est écrit sur le serveur.** Tous les livrables sont produits en mémoire et transmis au navigateur. Une case à cocher, décochée par défaut, offre l'enregistrement dans `data/` pour un usage local.
+**Rien n'est jamais écrit sur le serveur.** Tous les livrables sont produits en
+mémoire et transmis au navigateur. Pour enregistrer des fichiers sur votre propre
+machine, la ligne de commande (`main.py`) est l'outil adapté : elle écrit dans
+`data/processed/` et `data/reports/`.
+
+**Les rapports HTML sont sûrs à ouvrir**, y compris dans l'aperçu intégré : toute
+donnée issue du fichier (noms de colonnes, valeurs, modalités) est échappée, et
+une politique de sécurité interdit l'exécution de scripts dans le rapport.
 
 Le bouton **« Effacer mes données »** vide immédiatement la session et purge le cache partagé.
 
@@ -175,13 +192,16 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 279 tests
+python -m pytest              # 313 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
 La suite couvre les modules métier, mais aussi trois familles moins habituelles :
 
-* **`test_app_streamlit.py`** — 27 tests d'intégration qui pilotent réellement l'application via le harnais `AppTest` de Streamlit, sans navigateur. Ils vérifient des effets mesurables (les doublons disparaissent, la casse est uniformisée, l'écrêtage demandé n'est pas ignoré) et les deux garanties de confidentialité annoncées.
+* **`test_app_streamlit.py`** — tests d'intégration qui pilotent réellement l'application via le harnais `AppTest` de Streamlit, sans navigateur, de la page d'accueil au contrôle après nettoyage. Ils vérifient des effets mesurables (les doublons disparaissent, la casse est uniformisée, l'écrêtage demandé n'est pas ignoré) et les deux garanties de confidentialité annoncées.
+* **`test_aucune_perte_silencieuse.py`** — sur un jeu réunissant toutes les sources de perte connues, les valeurs **réellement** vidées par le nettoyage et celles **déclarées** à l'utilisateur doivent coïncider exactement.
+* **`test_securite_rapport_html.py`** — un fichier piégé (balises, gestionnaires d'événements, guillemets dans les noms de colonnes) ne doit produire, une fois le rapport analysé comme le ferait un navigateur, aucune balise `script` ni aucun attribut `on…`. Rejoués contre l'ancien code, ces tests échouent : ils détectent réellement la faille qu'ils préviennent.
+* **`test_invariant_post_nettoyage.py`** — après nettoyage, plus aucune colonne textuelle ne doit être convertible en nombre ou en date.
 * **`test_plot_factory.py`** — vérifie qu'après la construction de 90 figures, le registre global de matplotlib est **vide**. Sans quoi un serveur de longue durée fuirait à chaque interaction.
 * **`test_integrite_source.py`** — contrôles structurels : aucune fonction définie deux fois, aucun import de `streamlit` dans `src/`, aucun `input()` sans garde, aucune fonction publique sans docstring.
 

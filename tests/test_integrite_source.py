@@ -21,7 +21,11 @@ SRC_DIR = Path(__file__).parent.parent / "src"
 RACINE = Path(__file__).parent.parent
 
 FICHIERS_SOURCE = sorted(SRC_DIR.glob("*.py"))
-FICHIERS_RACINE = [f for f in (RACINE / "main.py", RACINE / "app.py") if f.exists()]
+# Liste explicite, sans filtre d'existence : un renommage de façade doit faire
+# échouer ces tests bruyamment. Filtrer sur `exists()` avait laissé l'interface
+# web hors de tout contrôle, en silence, lors du passage de app.py à
+# streamlit_app.py.
+FICHIERS_RACINE = [RACINE / "main.py", RACINE / "streamlit_app.py"]
 
 
 def _arbre(fichier: Path) -> ast.Module:

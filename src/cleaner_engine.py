@@ -101,8 +101,22 @@ _MOTIF_NOTE = re.compile(r'^([+-]?\d+(?:[.,]\d+)?)\s*/\s*(\d+(?:[.,]\d+)?)$')
 # Pourcentage : « 78.9875% », « 1,5 % ».
 _MOTIF_POURCENTAGE = re.compile(r'^([+-]?\d+(?:[.,]\d+)?)\s*%$')
 
+# Espaces utilisables comme séparateur de milliers. Les exports Excel français
+# emploient volontiers l'espace insécable (U+00A0) ou l'espace fine insécable
+# (U+202F) plutôt que l'espace ordinaire : « 1 200,50 € » en contient souvent un.
+_ESPACES_MILLIERS = (' ', ' ', ' ')
+
+# Symboles monétaires retirés avant conversion. Tout symbole accepté par la
+# détection DOIT figurer ici : sinon la colonne est jugée numérique, puis chaque
+# valeur échoue à la conversion et se retrouve vidée.
+_SYMBOLES_MONETAIRES = ('€', '$', '£')
+
 # Caractères admis dans un nombre « simple », symboles monétaires compris.
-_CARACTERES_NUMERIQUES = set("0123456789+-.,;€$£ ")
+_CARACTERES_NUMERIQUES = set("0123456789+-.,;") | set(_SYMBOLES_MONETAIRES) | set(_ESPACES_MILLIERS)
+
+# Écritures textuelles d'une absence de valeur. Les convertir en valeur manquante
+# n'est pas une perte : elles n'étaient déjà pas des données.
+_MARQUEURS_VIDES = {'', 'nan', 'none', 'null', 'na', 'n/a', '-', '--'}
 
 
 def _normaliser_valeur_numerique(val_str: str):
@@ -188,11 +202,28 @@ def _can_be_numeric(series: pd.Series) -> bool:
     # Si on est là, tous les échantillons valides sont "proches" d'un nombre.
     return True
 
-def clean_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
-    """Convertit automatiquement les types de colonnes en toute sécurité."""
+def clean_types(df: pd.DataFrame, pertes: dict = None) -> Tuple[pd.DataFrame, dict]:
+    """Convertit automatiquement les colonnes textuelles en nombres ou en dates.
+
+    Une conversion est retenue dès que la grande majorité des valeurs présentes
+    est lisible. Les rares valeurs illisibles deviennent alors des valeurs
+    manquantes — c'est inévitable, une colonne numérique ne pouvant contenir de
+    texte. Mais ce ne doit jamais être silencieux : chacune est recensée dans
+    `pertes`, pour que l'utilisateur voie exactement ce qui a été vidé.
+
+    Args:
+        df: DataFrame à typer.
+        pertes: Dictionnaire à compléter, facultatif. Pour chaque colonne où des
+            valeurs présentes n'ont pu être converties, reçoit
+            `{colonne: {'count': n, 'examples': [valeurs d'origine]}}`.
+
+    Returns:
+        Le DataFrame typé et le dictionnaire des conversions effectuées,
+        `{colonne: ['object -> float']}`.
+    """
     if df.empty:
-        return df.copy(), {} 
-    
+        return df.copy(), {}
+
     conversions = {}
     df_cleaned = df.copy()
 
@@ -205,6 +236,9 @@ def clean_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         if df_cleaned[col].dtype == 'object':
             df_cleaned[col] = df_cleaned[col].astype('string')
 
+        # Conservé pour mesurer ce que la conversion aura vidé.
+        avant = df_cleaned[col].copy()
+
         # 2. Filtrage rapide : est-ce que cette colonne a CHANCE d'être numérique ?
         # Si non (ex: notes "4/5", IDs "A12-B", dates "01/01/2023"), on saute
         # uniquement la branche numérique — la détection de date reste à tenter
@@ -216,6 +250,11 @@ def clean_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         if col not in conversions:
             df_cleaned, conversions = _try_datetime_conversion(df_cleaned, col, conversions)
 
+        if col in conversions and pertes is not None:
+            perdues = _valeurs_perdues(avant, df_cleaned[col])
+            if perdues:
+                pertes[col] = perdues
+
     # Pour garder trace des colonnes concernées dans les conversions
     conversions_with_cols = {}
     for col, conv_type in conversions.items():
@@ -224,6 +263,72 @@ def clean_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
         conversions_with_cols[col].append(conv_type)
 
     return df_cleaned, conversions_with_cols
+
+
+def find_mistyped_columns(df: pd.DataFrame) -> dict:
+    """Recense les colonnes restées en texte alors qu'elles sont convertibles.
+
+    C'est la mesure de l'invariant du double profilage : après nettoyage, plus
+    aucune colonne textuelle ne devrait être interprétable comme nombre ou comme
+    date. Partagée entre la suite de tests et l'interface web, pour qu'elles
+    contrôlent exactement la même chose.
+
+    Args:
+        df: DataFrame, en principe nettoyé, à contrôler.
+
+    Returns:
+        Un dictionnaire nom de colonne -> raison du signalement ; vide si toutes
+        les colonnes sont correctement typées.
+    """
+    suspectes = {}
+    for col in df.columns:
+        serie = df[col]
+        if pd.api.types.is_numeric_dtype(serie) or pd.api.types.is_datetime64_any_dtype(serie):
+            continue
+
+        presentes = int(serie.notna().sum())
+        if presentes == 0:
+            continue
+
+        if _can_be_numeric(serie):
+            suspectes[col] = "encore convertible en nombre"
+            continue
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            dates = pd.to_datetime(serie, errors='coerce', dayfirst=True)
+        if int(dates.notna().sum()) / presentes > 0.8:
+            suspectes[col] = "encore convertible en date"
+
+    return suspectes
+
+
+def _valeurs_perdues(avant: pd.Series, apres: pd.Series, n_exemples: int = 5) -> dict:
+    """Recense les valeurs présentes qu'une conversion a transformées en vide.
+
+    Les écritures textuelles d'une absence (« », « NULL », « N/A »…) ne sont pas
+    comptées : leur passage à vide n'est pas une perte, elles n'étaient déjà pas
+    des données.
+
+    Args:
+        avant: Colonne avant conversion.
+        apres: Colonne après conversion.
+        n_exemples: Nombre maximal de valeurs d'origine citées en exemple.
+
+    Returns:
+        `{'count': n, 'examples': [...]}` si des valeurs ont été perdues, sinon
+        un dictionnaire vide.
+    """
+    texte = avant.astype('string').str.strip()
+    significatives = avant.notna() & ~texte.str.lower().isin(_MARQUEURS_VIDES)
+    perdues = significatives & apres.isna()
+
+    n = int(perdues.sum())
+    if n == 0:
+        return {}
+
+    exemples = [str(v) for v in avant[perdues].drop_duplicates().head(n_exemples)]
+    return {'count': n, 'examples': exemples}
 
 
 def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dict) -> Tuple[pd.DataFrame, dict]:
@@ -251,11 +356,14 @@ def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dic
             na_action='ignore',
         ).astype('string')
 
-    # A. Suppression des symboles monétaires et espaces inutiles (séparateurs de milliers)
-    cleaned_series = cleaned_series.str.replace('€', '', regex=False)
-    cleaned_series = cleaned_series.str.replace('$', '', regex=False)
-    # Les espaces ne sont supprimés que si la colonne est susceptible d'être numérique
-    # On vérifie d'abord si la colonne peut être numérique avant de supprimer les espaces
+    # A. Suppression des symboles monétaires et des séparateurs de milliers.
+    # Sans le retrait des espaces, « 1 052,23 € » échoue à la conversion : sur le
+    # jeu de référence, 1 849 montants étaient ainsi silencieusement vidés. Retirer
+    # tous les espaces est sûr ici : la colonne a déjà été reconnue numérique par
+    # _can_be_numeric, donc un espace entre des chiffres ne peut être qu'un
+    # séparateur de milliers.
+    for symbole in _SYMBOLES_MONETAIRES + _ESPACES_MILLIERS:
+        cleaned_series = cleaned_series.str.replace(symbole, '', regex=False)
 
     # B. Gestion intelligente des séparateurs : Virgule vs Point
 
@@ -1000,6 +1108,9 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
         'case_normalized': {},
         'types_fixed_pandas': {},
         'types_converted': {},
+        # Valeurs présentes qu'une conversion de type n'a pas su lire, et qui
+        # sont donc devenues manquantes. Jamais silencieux : {col: {count, examples}}.
+        'values_unparsed': {},
         'duplicates_removed': 0,
         'missing_filled': {},
         'outliers_corrected': {}
@@ -1033,9 +1144,12 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
             stats['types_fixed_pandas'].update(fix_stats)
 
         # 3. Conversion Types (CRITIQUE : on transforme " 45" en int/float maintenant)
-        current_df, conversions = clean_types(current_df)
+        pertes = {}
+        current_df, conversions = clean_types(current_df, pertes=pertes)
         if conversions:
             stats['types_converted'].update(conversions)
+        if pertes:
+            stats['values_unparsed'].update(pertes)
 
         # 4. Nettoyage Structurel (Colonnes vides)
         current_df, n_dropped = clean_empty_columns(current_df)

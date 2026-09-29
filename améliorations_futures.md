@@ -14,7 +14,7 @@
 ## 📊 Améliorations Fonctionnelles
 - **normalisation des notes sur une échelle commune** : `17/20` est converti en `17`, le numérateur, seul choix cohérent quand une colonne mêle `5` et `5/5`. Une colonne mêlant `17/20` et `4/5` resterait toutefois incohérente : une détection de l'échelle dominante serait utile.
 - **déploiement public** : mise en ligne sur Streamlit Community Cloud ou Hugging Face Spaces
-- **bouton de soutien** : lien externe vers un prestataire de don (variable `LIEN_DON` dans `app.py`)
+- **bouton de soutien** : lien externe vers un prestataire de don (variable `LIEN_DON` dans `streamlit_app.py`)
 - **détection boostée à l'IA** : introduction d'un LLM pour aider à la détection d'anomalie orthographique, détection des types de colonnes complexes...  
 
 

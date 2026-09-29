@@ -6,9 +6,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator
 
+from html import escape as _html_escape
+
 from matplotlib.figure import Figure
 
 from src import plot_factory as pf
+
+
+def _esc(valeur: Any) -> str:
+    """Échappe une valeur avant son insertion dans le rapport HTML.
+
+    Les rapports reproduisent des noms de colonnes, des modalités et des
+    messages issus d'un fichier fourni par l'utilisateur. Sans échappement, une
+    cellule contenant `<img src=x onerror=...>` serait interprétée comme du code
+    à l'ouverture du rapport.
+
+    Args:
+        valeur: Valeur quelconque, convertie en texte.
+
+    Returns:
+        Le texte avec `<`, `>`, `&` et les guillemets neutralisés.
+    """
+    return _html_escape(str(valeur), quote=True)
 
 
 @dataclass(frozen=True)
@@ -471,11 +490,18 @@ class DataProfiler:
         Returns:
             Le fragment HTML d'en-tête.
         """
+        # La politique de sécurité interdit toute exécution de script dans le
+        # rapport. Il n'en a pas besoin (images en base64, styles en ligne), et
+        # c'est une seconde ligne de défense : même si une donnée échappait un
+        # jour à l'échappement, elle ne pourrait rien exécuter — ni dans le
+        # fichier téléchargé, ni dans l'aperçu intégré à l'interface web.
         return """
         <!DOCTYPE html>
         <html lang="fr">
         <head>
             <meta charset="UTF-8">
+            <meta http-equiv="Content-Security-Policy"
+                  content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
             <title>Rapport d'Inspection des Données</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 20px; }
@@ -500,6 +526,11 @@ class DataProfiler:
     def _html_body(self) -> str:
         """Construit le corps du rapport HTML, hors en-tête et fermeture.
 
+        Toute valeur issue du fichier analysé — nom de colonne, modalité, type,
+        message d'erreur — passe par `_esc` avant insertion. Le fichier est
+        fourni par l'utilisateur : une cellule contenant du balisage serait
+        sinon interprétée comme du code dans le rapport.
+
         Returns:
             Le fragment HTML du corps.
         """
@@ -513,31 +544,34 @@ class DataProfiler:
 
         if self.source_file_path:
             source_filename = Path(self.source_file_path).name
-            html += f"<p><strong>Nom du fichier source</strong> : {source_filename}</p>"
-            html += f"<p><strong>Chemin d'accès complet</strong> : {self.source_file_path}</p>"
+            html += f"<p><strong>Nom du fichier source</strong> : {_esc(source_filename)}</p>"
+            html += f"<p><strong>Chemin d'accès complet</strong> : {_esc(self.source_file_path)}</p>"
         html += f"<p><strong>Date et heure de génération</strong> : {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}</p>"
 
         # Structure
         shape = self.profile_results['shape']
         html += "<h2>🧱 Structure</h2>"
         for k, v in {**shape, **{'nb_doublons': self.profile_results.get('nb_doublons', 0)}}.items():
-            html += f"<p><strong>{k}</strong>: {v}</p>"
-            
+            html += f"<p><strong>{_esc(k)}</strong>: {_esc(v)}</p>"
+
         # Aperçu
         html += "<h2>👀 Aperçu</h2>"
         try:
             preview_df = self.df.head(10)
-            html += preview_df.to_html(index=False, table_id='preview-table', escape=False)
+            # escape=True (valeur par défaut de pandas) : l'aperçu reproduit des
+            # cellules brutes du fichier. Il avait été désactivé explicitement,
+            # ce qui injectait tel quel tout balisage présent dans les données.
+            html += preview_df.to_html(index=False, table_id='preview-table', escape=True)
         except Exception:
             html += "<p>Erreur lors de l'affichage de l'aperçu</p>"
             if self.profile_results.get('sample_preview'):
-                html += f"<pre>{self.profile_results['sample_preview']}</pre>"        
+                html += f"<pre>{_esc(self.profile_results['sample_preview'])}</pre>"
 
         # Types
         html += "<h2>🏷️ Colonnes et Types</h2>"
         html += "<table border='1'><tr><th>Colonne</th><th>Type</th></tr>"
         for col, dtype in self.profile_results['dtypes'].items():
-            html += f"<tr><td>{col}</td><td>{dtype}</td></tr>"
+            html += f"<tr><td>{_esc(col)}</td><td>{_esc(dtype)}</td></tr>"
         html += "</table>"
 
         # Valeurs manquantes
@@ -549,7 +583,7 @@ class DataProfiler:
             for col, pct in missing_values_data.get('percent', {}).items():
                 if pct > 0:
                     count = missing_values_data['count'][col]
-                    html += f"<p><strong>{col}</strong>: {pct:.2f}% ({count} lignes)</p>"
+                    html += f"<p><strong>{_esc(col)}</strong>: {pct:.2f}% ({count} lignes)</p>"
                     missing_found = True
         
         if not missing_found:
@@ -560,11 +594,12 @@ class DataProfiler:
             html += "<h2>🚩 Qualité des Lignes</h2>"
             for alert in self.profile_results['row_quality']['alerts']:
                 if alert['type'] == 'row_full_empty':
-                    html += f"<p><strong>{alert['count']} lignes</strong> avec > 90% de valeurs manquantes : {alert['message']}</p>"
+                    html += f"<p><strong>{alert['count']} lignes</strong> avec > 90% de valeurs manquantes : {_esc(alert['message'])}</p>"
                 elif alert['type'] == 'row_partially_empty':
-                    html += f"<p><strong>{alert['count']} lignes</strong> avec {alert['percentage']}% de valeurs manquantes : {alert['message']}</p>"
+                    html += f"<p><strong>{alert['count']} lignes</strong> avec {alert['percentage']}% de valeurs manquantes : {_esc(alert['message'])}</p>"
                     if 'rows' in alert and alert['rows']:
-                        html += f"<p>Index des lignes : {', '.join(map(str, alert['rows']))}</p>"
+                        # L'index peut être textuel (issu d'un JSON, par exemple).
+                        html += f"<p>Index des lignes : {_esc(', '.join(map(str, alert['rows'])))}</p>"
 
         # Stats numériques
         if 'describe_numeric' in self.profile_results:
@@ -577,7 +612,7 @@ class DataProfiler:
             html += "<h2>🚩 Valeurs Aberrantes (Outliers)</h2>"
             html += "<table border='1'><tr><th>Colonne</th><th>Nombre d'outliers</th><th>Limite inférieure</th><th>Limite supérieure</th></tr>"
             for col, info in self.profile_results['outliers'].items():
-                html += f"<tr><td>{col}</td><td>{info['count']}</td><td>{info['lower_bound']:.2f}</td><td>{info['upper_bound']:.2f}</td></tr>"
+                html += f"<tr><td>{_esc(col)}</td><td>{info['count']}</td><td>{info['lower_bound']:.2f}</td><td>{info['upper_bound']:.2f}</td></tr>"
             html += "</table>"
 
         # Stats Catégorielles
@@ -585,7 +620,7 @@ class DataProfiler:
             html += "<h2>📊 Analyse des Colonnes Catégorielles</h2>"
             
             for col, stats in self.profile_results['describe_categorical'].items():
-                html += f"<h3>{col}</h3>"
+                html += f"<h3>{_esc(col)}</h3>"
                 html += f"<p><strong>Cardinalité absolue</strong> : {stats['cardinality_absolute']}</p>"
                 html += f"<p><strong>Cardinalité relative</strong> : {stats['cardinality_relative']}%</p>"
                 html += f"<p><strong>Sparsity Ratio | Taux de remplissage</strong> : {stats['sparsity_ratio']}%</p>"
@@ -597,13 +632,14 @@ class DataProfiler:
                     for category, count in list(stats['top_categories'].items()):
                         total_non_null = len(self.df) - self.df[col].isnull().sum()
                         percentage = (count / total_non_null * 100).round(2) if total_non_null > 0 else 0
-                        html += f"<li>{category} ({percentage}%)</li>"
+                        html += f"<li>{_esc(category)} ({percentage}%)</li>"
                     html += "</ul>"
 
                 if stats['format_anomalies']:
                     html += "<p><strong>⚠️ Anomalies de format détectées</strong> :</p><ul>"
                     for issue in stats['format_anomalies']:
-                        html += f"<li>{issue}</li>"
+                        # Les messages d'anomalie citent des valeurs du fichier.
+                        html += f"<li>{_esc(issue)}</li>"
                     html += "</ul>"
                 else:
                     html += "<p><strong>✅ Format conforme</strong></p>"
@@ -613,8 +649,8 @@ class DataProfiler:
         if len(numeric_cols) > 0:
             html += "<h2>📊 Graphiques Numériques</h2>"
             for col in numeric_cols:
-                html += f"<h3>{col}</h3>"
-                
+                html += f"<h3>{_esc(col)}</h3>"
+
                 # CONTENEUR FLEX : englobe l'histogramme, le boxplot et l'encart
                 html += '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-bottom: 20px;">'
                 
@@ -627,7 +663,7 @@ class DataProfiler:
                     )
                     html += f'<div style="width: 45%;">{img}</div>'
                 except Exception as e:
-                    html += f'<div style="width: 45%;"><p>Erreur histogramme : {e}</p></div>'
+                    html += f'<div style="width: 45%;"><p>Erreur histogramme : {_esc(e)}</p></div>'
 
                 # 2. Boxplot (25% de largeur)
                 try:
@@ -638,7 +674,7 @@ class DataProfiler:
                     )
                     html += f'<div style="width: 25%;">{img}</div>'
                 except Exception as e:
-                    html += f'<div style="width: 25%;"><p>Erreur boxplot : {e}</p></div>'
+                    html += f'<div style="width: 25%;"><p>Erreur boxplot : {_esc(e)}</p></div>'
 
                 # 3. Statistiques (15% de largeur)
                 data = self.df[col].dropna()
@@ -650,7 +686,7 @@ class DataProfiler:
                     upper_bound = q3 + 1.5 * (q3 - q1)
                     
                     html += '<div style="width: 15%; box-sizing: border-box; padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; font-family: sans-serif;">'
-                    html += f'<p style="margin: 0 0 6px 0; font-size: 13px;"><strong>Statistiques de {col}</strong></p>'
+                    html += f'<p style="margin: 0 0 6px 0; font-size: 13px;"><strong>Statistiques de {_esc(col)}</strong></p>'
                     html += f'<p style="margin: 2px 0; font-size: 12px;">Médiane : {median_val:.2f}</p>'
                     html += f'<p style="margin: 2px 0; font-size: 12px;">Borne inf. : {lower_bound:.2f}</p>'
                     html += f'<p style="margin: 2px 0; font-size: 12px;">Borne sup. : {upper_bound:.2f}</p>'
@@ -663,7 +699,7 @@ class DataProfiler:
         if len(categorical_cols) > 0:
             html += "<h2>📊 Graphiques Catégoriels</h2>"
             for col in categorical_cols:
-                html += f"<h3>{col}</h3>"
+                html += f"<h3>{_esc(col)}</h3>"
                 try:
                     html += pf.figure_to_img_tag(
                         self.plot_categorical_top(col),
@@ -671,7 +707,7 @@ class DataProfiler:
                         style="width: 50%; height: auto;",
                     )
                 except Exception as e:
-                    html += f"<p>Erreur lors de la génération du barplot pour {col}: {e}</p>"
+                    html += f"<p>Erreur lors de la génération du barplot pour {_esc(col)}: {_esc(e)}</p>"
 
         return html
 
@@ -922,7 +958,7 @@ class ExploratoryProfiler(DataProfiler):
                     style="width: 95%; height: auto;",
                 )
             except Exception as e:
-                html += f"<p>⚠️ Erreur lors de la génération de la matrice de dispersion: {e}</p>"
+                html += f"<p>⚠️ Erreur lors de la génération de la matrice de dispersion: {_esc(e)}</p>"
 
             try:
                 html += '<h3>Heatmap de corrélation</h3>'
@@ -932,7 +968,7 @@ class ExploratoryProfiler(DataProfiler):
                     style="width: 95%; height: auto;",
                 )
             except Exception as e:
-                html += f"<p>⚠️ Erreur lors de la génération de la heatmap de corrélation: {e}</p>"
+                html += f"<p>⚠️ Erreur lors de la génération de la heatmap de corrélation: {_esc(e)}</p>"
         else:
             html += "<p>Aucune matrice de dispersion générée (moins de 2 colonnes numériques).</p>"
             html += "<p>Aucune heatmap de corrélation générée (moins de 2 colonnes numériques).</p>"

@@ -119,18 +119,38 @@ class CleanerReporter:
         # --- Conversions de types ---
         types_conv = stats.get('types_converted', {})
         if types_conv:
+            illisibles = stats.get('values_unparsed', {}) or {}
             table_content += f"### Conversions de types\n\n"
             table_content += f"Total de conversions effectuées : {len(types_conv)}\n\n"
-            table_content += "| Type converti | Colonnes concernées |\n"
-            table_content += "| :--- | :--- |\n"
-            
-            for type_name, col_names in types_conv.items():
-                if isinstance(col_names, list):
-                    cols_display = ', '.join([str(c) for c in col_names])
+            # Structure réelle : {colonne: ['object -> float']}. Les en-têtes
+            # annonçaient autrefois l'inverse (« Type converti | Colonnes »).
+            table_content += "| Colonne | Conversion | Valeurs illisibles vidées |\n"
+            table_content += "| :--- | :--- | :--- |\n"
+
+            for col_name, conversions in types_conv.items():
+                if isinstance(conversions, list):
+                    conv_display = ', '.join(str(c) for c in conversions)
                 else:
-                    cols_display = str(col_names) # Au cas où c'est un string direct
-                table_content += f"| {type_name} | {cols_display} |\n"
+                    conv_display = str(conversions)  # Au cas où c'est un string direct
+                perte = illisibles.get(col_name)
+                perte_display = str(perte.get('count', 0)) if isinstance(perte, dict) else "0"
+                table_content += f"| {col_name} | {conv_display} | {perte_display} |\n"
             table_content += "\n"
+
+            # Détail des valeurs vidées : une conversion ne doit jamais perdre
+            # de données sans que l'utilisateur puisse voir lesquelles.
+            if illisibles:
+                table_content += "#### ⚠️ Valeurs illisibles vidées lors de la conversion\n\n"
+                table_content += ("Ces valeurs étaient présentes mais n'ont pu être lues dans le type "
+                                  "de la colonne. Elles sont devenues manquantes : vérifiez-les dans "
+                                  "la source.\n\n")
+                table_content += "| Colonne | Nombre | Exemples |\n| :--- | :--- | :--- |\n"
+                for col_name, perte in illisibles.items():
+                    if not isinstance(perte, dict):
+                        continue
+                    exemples = ', '.join(f"`{e}`" for e in perte.get('examples', []))
+                    table_content += f"| {col_name} | {perte.get('count', 0)} | {exemples} |\n"
+                table_content += "\n"
             has_operations = True
             
         # --- Valeurs manquantes comblées (Missing Values) ---
