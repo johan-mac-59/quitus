@@ -55,8 +55,10 @@ CHEMIN_EXEMPLE = Path(__file__).parent / "data" / "samples" / "reservations_exem
 
 # Identité visuelle de Quitus : le logo complet (pictogramme, nom et devise) en
 # tête de page, le pictogramme seul comme icône de l'onglet du navigateur.
-# Variante « light » : conçue pour le thème clair, celui de l'application.
+# Deux variantes du logo : « light » pour le thème clair, « dark » (texte blanc)
+# pour le thème sombre, où le bleu marine deviendrait illisible.
 CHEMIN_LOGO = marque.CHEMIN_LOGO
+CHEMIN_LOGO_SOMBRE = Path(__file__).parent / "assets" / "quitus-logo-dark.svg"
 CHEMIN_ICONE = Path(__file__).parent / "assets" / "quitus-icon.svg"
 
 LIEN_DEPOT = "https://github.com/johan-mac-59/PROJET_NETTOYAGE_AUTO"
@@ -486,8 +488,8 @@ STYLE_BOUTONS_SOUTIEN = """
 """
 
 
-def bloc_contact() -> None:
-    """Invite aux retours et donne les liens de contact.
+def bloc_retours() -> None:
+    """Invite aux remarques et au signalement d'anomalies.
 
     Les signalements passent par la page Issues du dépôt GitHub, qui est
     publique : d'où l'avertissement de ne jamais y joindre un fichier de
@@ -499,13 +501,23 @@ def bloc_contact() -> None:
         "c'est ainsi que Quitus progresse. Plusieurs de ses corrections "
         "récentes sont d'ailleurs nées de retours d'utilisation."
     )
-    liens = [f"[🐞 Signaler une anomalie]({LIEN_ANOMALIES})",
-             f"[GitHub]({LIEN_GITHUB})"]
+    st.markdown(f"[🐞 Signaler une anomalie]({LIEN_ANOMALIES})")
+    st.caption("🔒 Les signalements sont publics : décrivez le problème ou joignez "
+               "un extrait anonymisé, mais ne publiez jamais votre fichier de données.")
+
+
+def bloc_contact() -> None:
+    """Pied de page : les liens pour contacter l'auteur.
+
+    Distinct du signalement d'anomalies : on ne contacte pas une personne
+    comme on remonte un défaut. Placé en toute fin de page.
+    """
+    st.divider()
+    st.markdown("#### 📇 Me contacter")
+    liens = [f"[GitHub]({LIEN_GITHUB})"]
     if LIEN_LINKEDIN:
         liens.append(f"[LinkedIn]({LIEN_LINKEDIN})")
     st.markdown(" · ".join(liens))
-    st.caption("🔒 Les signalements sont publics : décrivez le problème ou joignez "
-               "un extrait anonymisé, mais ne publiez jamais votre fichier de données.")
 
 
 def bouton_soutien(emplacement: str, message: str, message_avant: bool = True) -> None:
@@ -685,7 +697,7 @@ projet. Le code est ouvert : **[consulter le dépôt]({LIEN_DEPOT})**.
     # accompli. Les retours d'abord, qui comptent plus qu'un don. La page
     # d'accueil et l'onglet Présentation ne sont jamais affichés ensemble :
     # une seule clé de bouton suffit.
-    bloc_contact()
+    bloc_retours()
 
     if LIEN_DON:
         st.markdown("#### ☕ Un coup de pouce ?")
@@ -696,6 +708,8 @@ projet. Le code est ouvert : **[consulter le dépôt]({LIEN_DEPOT})**.
             "développement en offrant un café. C'est entièrement facultatif — et "
             "déjà, merci de l'avoir essayé !",
         )
+
+    bloc_contact()
 
 
 def barre_laterale() -> dict:
@@ -1132,7 +1146,7 @@ def onglet_telechargements() -> None:
 
 
 def section_retours_et_soutien(fichiers_disponibles: bool) -> None:
-    """Termine l'onglet Téléchargements : merci, retours, coup de pouce.
+    """Termine l'onglet Téléchargements : merci, retours, coup de pouce, contact.
 
     Toujours affichée, fichier chargé ou non : les moyens de faire un retour
     ou de soutenir le projet ne doivent pas dépendre de l'avancement du
@@ -1146,7 +1160,7 @@ def section_retours_et_soutien(fichiers_disponibles: bool) -> None:
     st.divider()
     if fichiers_disponibles:
         st.markdown("**Merci d'avoir utilisé Quitus !**")
-    bloc_contact()
+    bloc_retours()
     if LIEN_DON:
         st.markdown("#### ☕ Un coup de pouce ?")
         bouton_soutien(
@@ -1158,6 +1172,7 @@ def section_retours_et_soutien(fichiers_disponibles: bool) -> None:
             "données. Si vous voulez encourager son développement, un café "
             "fait toujours plaisir. C'est entièrement facultatif.",
         )
+    bloc_contact()
 
 
 def onglet_controle() -> None:
@@ -1315,6 +1330,22 @@ def lancer_nettoyage(options: dict) -> None:
         st.warning(f"Le profilage de contrôle a échoué : {e}")
 
 
+def choisir_logo() -> Path:
+    """Renvoie la variante du logo lisible sur le thème affiché.
+
+    Streamlit déduit le thème de la couleur de fond ; au tout premier affichage
+    il peut l'ignorer encore : on retombe alors sur la variante claire, le thème
+    par défaut de l'application.
+    """
+    try:
+        sombre = st.context.theme.type == "dark"
+    except Exception:
+        sombre = False
+    if sombre and CHEMIN_LOGO_SOMBRE.exists():
+        return CHEMIN_LOGO_SOMBRE
+    return CHEMIN_LOGO
+
+
 def main() -> None:
     """Point d'entrée de l'application Streamlit."""
     st.set_page_config(
@@ -1330,7 +1361,7 @@ def main() -> None:
     options = barre_laterale()
 
     # Le logo porte le nom et la devise de Quitus : il tient lieu de titre.
-    st.image(str(CHEMIN_LOGO), width=300)
+    st.image(str(choisir_logo()), width=300)
 
     fichier_charge = st.session_state["df_brut"] is not None
 

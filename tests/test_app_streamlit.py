@@ -88,11 +88,24 @@ class TestDemarrage:
         """Les deux SVG existent, sont bien formés, et n'embarquent aucun code."""
         import xml.etree.ElementTree as ET
 
-        for nom in ("quitus-logo-light.svg", "quitus-icon.svg"):
+        for nom in ("quitus-logo-light.svg", "quitus-logo-dark.svg", "quitus-icon.svg"):
             chemin = RACINE / "assets" / nom
             assert ET.parse(chemin).getroot().tag.endswith("svg"), nom
             contenu = chemin.read_text(encoding="utf-8").lower()
             assert "<script" not in contenu and "onload" not in contenu, nom
+
+    def test_logo_selon_le_theme(self, monkeypatch):
+        """Thème sombre : logo à texte blanc ; sinon, ou thème inconnu : logo clair."""
+        from types import SimpleNamespace
+
+        import streamlit_app
+
+        for theme, attendu in (("dark", streamlit_app.CHEMIN_LOGO_SOMBRE),
+                               ("light", streamlit_app.CHEMIN_LOGO),
+                               (None, streamlit_app.CHEMIN_LOGO)):
+            monkeypatch.setattr(streamlit_app.st, "context",
+                                SimpleNamespace(theme=SimpleNamespace(type=theme)))
+            assert streamlit_app.choisir_logo() == attendu, theme
 
     def test_icone_carree(self):
         """L'icône d'onglet du navigateur doit être carrée."""
@@ -189,6 +202,22 @@ class TestBoutonDeSoutien:
         textes = " ".join(m.value for m in onglet.markdown)
         assert "remarque constructive ou anomalie" in textes
         assert "PROJET_NETTOYAGE_AUTO/issues" in textes
+
+    def test_contact_distinct_du_signalement(self, app):
+        """GitHub et LinkedIn ne partagent pas la ligne du signalement d'anomalie."""
+        app.run()
+        for m in app.markdown:
+            if "PROJET_NETTOYAGE_AUTO/issues" in m.value:
+                assert "linkedin" not in m.value and "(https://github.com/johan-mac-59)" not in m.value
+
+    def test_contact_en_fin_de_presentation_et_de_telechargements(self, app, csv_sale):
+        """« Me contacter » clôt la présentation et l'onglet Téléchargements."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        for nom in ("Présentation", "Téléchargements"):
+            onglet = [o for o in app.tabs if nom in o.label][0]
+            textes = [m.value for m in onglet.markdown]
+            assert "Me contacter" in textes[-2], nom
+            assert "linkedin.com/in/johan-machu" in textes[-1], nom
 
     def test_avertissement_confidentialite_des_signalements(self, app):
         """Les signalements étant publics, on déconseille d'y joindre ses données."""

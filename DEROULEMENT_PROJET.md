@@ -1680,4 +1680,22 @@ Au passage, l'onglet Téléchargements se termine désormais toujours par les mo
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 365 tests.*
+## Étape 42 : Un Logo pour Chaque Thème, un Contact à Part 🌗📇
+
+### 1. Le logo lisible sur fond sombre
+Le logo de Quitus avait été dessiné pour un fond clair : sur GitHub en mode sombre, son nom en bleu marine devenait presque illisible. Une variante sombre — nom en blanc, devise éclaircie — rejoint désormais le dossier `assets/`, et chacun voit la bonne version :
+
+* **dans le README**, une balise `<picture>` laisse le navigateur choisir selon le thème du lecteur ;
+* **dans l'application**, le logo suit le thème Streamlit. Si le thème n'est pas encore connu, au tout premier affichage, c'est la variante claire qui s'affiche, celle du thème par défaut.
+
+Les rapports gardent la variante claire : ce sont des documents sur fond blanc.
+
+### 2. Signaler n'est pas contacter
+Le lien « Signaler une anomalie » partageait jusqu'ici sa ligne avec GitHub et LinkedIn, comme s'il s'agissait d'une même démarche. Ce n'en est pas une : on remonte un défaut dans le suivi public du projet, on contacte une personne pour échanger. Le bloc de retours ne garde donc que le signalement et sa mise en garde, et une section **« Me contacter »**, avec GitHub et LinkedIn, ferme désormais la page de présentation et l'onglet Téléchargements.
+
+### 3. Résultat
+**368 tests passent**, dont de nouveaux qui vérifient le choix du logo selon le thème, la validité de la variante sombre et l'absence de script dans son code, la séparation du signalement et du contact, et la place de ce dernier en fin de page.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 368 tests.*

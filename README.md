@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/quitus-logo-light.svg" alt="Quitus — le fichier propre, et la preuve." width="360">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/quitus-logo-dark.svg">
+    <img src="assets/quitus-logo-light.svg" alt="Quitus — le fichier propre, et la preuve." width="360">
+  </picture>
 </p>
 
 # Quitus
@@ -140,7 +143,7 @@ PROJET_NETTOYAGE_AUTO/
 │   ├── cleaner_logger.py
 │   ├── cleaner_reporter.py
 │   └── console_capture.py
-├── tests/                      # 365 tests
+├── tests/                      # 368 tests
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -205,7 +208,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 365 tests
+python -m pytest              # 368 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
