@@ -1704,4 +1704,31 @@ La barre latérale affichait « Quitus » dans le titre standard de Streamlit. E
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 369 tests.*
+## Étape 43 : Mesurer la Charge Avant d'Ouvrir la Porte 📏🚪
+
+Avant la mise en ligne, une question simple : combien de personnes l'application peut-elle servir en même temps ? Plutôt que de deviner, la consommation mémoire d'une session complète — dépôt, analyse, nettoyage — a été mesurée sur des fichiers de taille croissante.
+
+### 1. Les mesures
+
+| Fichier CSV | Pic pendant le traitement | Mémoire conservée ensuite |
+|---|---|---|
+| 1 Mo (20 000 lignes) | ~60 Mo | ~45 Mo |
+| 5 Mo (100 000 lignes) | ~90 Mo | ~45 Mo |
+| 25 Mo (500 000 lignes) | ~340 Mo | ~235 Mo |
+
+Au-delà de quelques mégaoctets, un fichier coûte environ **dix fois sa taille** au moment du traitement : le fichier lu, le profil, la copie nettoyée et le profil de contrôle coexistent en mémoire.
+
+### 2. Ce que cela veut dire en ligne
+Une application gratuite sur Streamlit Community Cloud dispose d'une mémoire limitée, et tous les visiteurs la partagent. Avec de petits fichiers, plusieurs dizaines de personnes peuvent l'utiliser ensemble. Avec des fichiers de 25 Mo, deux ou trois suffiraient à la saturer, et un plantage la redémarrerait pour tout le monde.
+
+Chaque visiteur reste pour autant dans sa propre session : ses données ne sont visibles que de lui. Le cache, commun au serveur, n'est retrouvé que sur un fichier identique octet pour octet, et ne laisse donc rien passer d'un visiteur à l'autre.
+
+### 3. Une limite basse, pour commencer
+La taille maximale d'un fichier déposé passe de 200 Mo à **20 Mo**. C'est volontairement prudent : mieux vaut relever la limite une fois la consommation réelle observée en ligne que découvrir la limite de la plateforme par un plantage. Le texte d'aide annonce la même valeur, et un test vérifie qu'ils restent d'accord.
+
+### 4. Résultat
+**370 tests passent**.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 370 tests.*

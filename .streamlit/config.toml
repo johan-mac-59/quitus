@@ -10,8 +10,10 @@
 gatherUsageStats = false
 
 [server]
-# Taille maximale d'un fichier déposé, en Mo.
-maxUploadSize = 200
+# Taille maximale d'un fichier déposé, en Mo. Volontairement basse : un fichier
+# coûte environ dix fois sa taille en mémoire pendant le traitement (mesuré à
+# l'Étape 43), et une app gratuite sur Streamlit Community Cloud en a peu.
+maxUploadSize = 20
 
 [theme]
 base = "light"

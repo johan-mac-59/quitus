@@ -120,6 +120,16 @@ class TestDemarrage:
             assert ">quitus</div>" in html and "font-weight: 700" in html
             assert f"color: {couleur}" in html
 
+    def test_limite_de_depot_annoncee_et_configuree(self):
+        """La limite affichée à l'utilisateur est celle réellement configurée."""
+        import tomllib
+
+        with open(RACINE / ".streamlit" / "config.toml", "rb") as f:
+            limite = tomllib.load(f)["server"]["maxUploadSize"]
+        assert limite == 20
+        source = (RACINE / "streamlit_app.py").read_text(encoding="utf-8")
+        assert f"{limite} Mo au plus" in source
+
     def test_icone_carree(self):
         """L'icône d'onglet du navigateur doit être carrée."""
         import xml.etree.ElementTree as ET

@@ -603,7 +603,7 @@ def page_accueil(accueil: bool = True) -> None:
                     st.rerun()
         with droite:
             st.caption("… ou déposez votre propre fichier dans la barre latérale : "
-                       "CSV, Excel, JSON ou JSON Lines, 200 Mo au plus.")
+                       "CSV, Excel, JSON ou JSON Lines, 20 Mo au plus.")
     else:
         st.caption(f"Fichier en cours : « {st.session_state['nom_source']} ». "
                    "Suivez les onglets de gauche à droite : aperçu, diagnostic, "
