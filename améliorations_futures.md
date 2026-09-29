@@ -10,7 +10,7 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - ~~**détecter plus de nombres**~~ : les notes fractionnaires (`17/20`, `5/5`) et les pourcentages (`1,5 %`, `78.9875%`) sont désormais convertis. *Étape 35.*
 
 ## 🔧 Prêt, reste à activer
-- **bouton de soutien** : le bouton et sa mention de confidentialité sont en place dans la barre latérale ; il suffit de renseigner l'adresse du prestataire de don (variable `LIEN_DON` dans `streamlit_app.py`) pour qu'il apparaisse.
+- **bouton de soutien** : le bouton et sa mention de confidentialité sont en place dans la barre latérale. Prestataire retenu : **Buy Me a Coffee** — pas de compte à créer pour le donateur, dons ponctuels, 5 % de frais. Reste à créer la page et à renseigner son adresse (variable `LIEN_DON` dans `streamlit_app.py`) pour que le bouton apparaisse.
 - **déploiement public** : le dépôt est prêt — `requirements.txt`, configuration `.streamlit/config.toml`, point d'entrée nommé `streamlit_app.py` comme l'attend Streamlit Community Cloud. Reste la mise en ligne elle-même, sur Streamlit Community Cloud ou Hugging Face Spaces.
 
 ## 🛠️ À faire — technique
