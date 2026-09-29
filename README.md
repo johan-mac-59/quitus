@@ -2,7 +2,7 @@
 
 **Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
-**Version 1.2.0**
+**Version 1.0.0**
 
 ---
 

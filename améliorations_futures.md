@@ -4,10 +4,10 @@ Chaque élément est rangé selon son état réel. Le détail de ce qui a été 
 trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
 
 ## ✅ Livré
-- ~~**rendre flexible le loader**~~ : l'utilisateur choisit son fichier, en ligne de commande (`--input`) comme dans l'interface web (dépôt). *Version 1.0.0, étapes 32 et 33.*
-- ~~**Séparer profiling et cleaning**~~ : l'interface web permet d'analyser, puis de décider, puis de nettoyer, en trois gestes distincts. *Version 1.0.0, étape 33.*
-- ~~**améliorer la détection des dates**~~ : dix formats explicites sont appliqués **cumulativement**, ce qui permet de traiter une colonne mêlant plusieurs conventions. La détection était par ailleurs du code mort, jamais atteint. *Réparée en 1.0.0 (étape 30), rendue cumulative en 1.0.1 (étape 35).*
-- ~~**détecter plus de nombres**~~ : les notes fractionnaires (`17/20`, `5/5`) et les pourcentages (`1,5 %`, `78.9875%`) sont désormais convertis. *Version 1.0.1, étape 35.*
+- ~~**rendre flexible le loader**~~ : l'utilisateur choisit son fichier, en ligne de commande (`--input`) comme dans l'interface web (dépôt). *Étapes 32 et 33.*
+- ~~**Séparer profiling et cleaning**~~ : l'interface web permet d'analyser, puis de décider, puis de nettoyer, en trois gestes distincts. *Étape 33.*
+- ~~**améliorer la détection des dates**~~ : dix formats explicites sont appliqués **cumulativement**, ce qui permet de traiter une colonne mêlant plusieurs conventions. La détection était par ailleurs du code mort, jamais atteint. *Réparée à l'étape 30, rendue cumulative à l'étape 35.*
+- ~~**détecter plus de nombres**~~ : les notes fractionnaires (`17/20`, `5/5`) et les pourcentages (`1,5 %`, `78.9875%`) sont désormais convertis. *Étape 35.*
 
 ## 🔧 Prêt, reste à activer
 - **bouton de soutien** : le bouton et sa mention de confidentialité sont en place dans la barre latérale ; il suffit de renseigner l'adresse du prestataire de don (variable `LIEN_DON` dans `streamlit_app.py`) pour qu'il apparaisse.

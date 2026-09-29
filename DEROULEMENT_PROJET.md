@@ -1567,31 +1567,25 @@ L'Étape 36 avait donné à l'application une page d'accueil racontant le projet
 ### 4. Une seule source : ce journal
 Un `CHANGELOG.md` avait été créé à l'Étape 34, selon une convention répandue : une liste courte, par version, de ce qui a changé. Il faisait largement doublon avec ce journal, qui raconte déjà tout — en plus détaillé, raisonnements et erreurs compris. Le choix a été fait de **n'entretenir qu'une seule source commune**, celle-ci.
 
-La seule information que le CHANGELOG portait en propre était la correspondance entre versions et étapes. Elle est reprise ici :
+La seule information que le CHANGELOG portait en propre était la correspondance entre versions et étapes. Elle a, dans la foulée, été remise en question.
 
-| Version | Date | Étapes | Contenu principal |
-|---|---|---|---|
-| 1.0.0 | 2026-09-27 | 30 à 34 | Assainissement, couche graphique, découplage, interface web, conformité |
-| 1.0.1 | 2026-09-27 | 35 | Invariant du double profilage : aucune colonne mal typée après nettoyage |
-| 1.1.0 | 2026-09-29 | 36 | Retours utilisateur : faille XSS, pertes silencieuses, interface repensée |
-| 1.1.1 | 2026-09-29 | 37 | Onglet Téléchargements rétabli, rapports ouvrables en grand |
-| 1.2.0 | 2026-09-29 | 38 | Horodatage des fichiers, onglet Présentation, source unique |
+Au fil des étapes 35 à 38, le numéro de version avait été incrémenté quatre fois — 1.0.1, 1.1.0, 1.1.1, 1.2.0 —, chaque fois accompagné d'une étiquette git, et jamais sur décision du porteur du projet. Or celui-ci avait fixé une règle claire dès le départ : **la version 1.0 marque une application déployée et validée**. Aucune de ces versions ne correspondait à un tel jalon : l'application n'avait jamais été mise en ligne.
 
-Chaque version reste par ailleurs marquée dans le dépôt par une étiquette git (`v1.0.0` à `v1.2.0`).
+Les numéros intermédiaires ont donc été retirés. Le projet revient en **version 1.0.0**, qui regroupe l'ensemble des étapes 30 à 38. Le numéro de version relève désormais explicitement de la seule décision du porteur du projet : il marque un jalon réel qu'il choisit, pas l'enchaînement des commits.
 
 ### 5. Une feuille de route remise en accord avec la réalité
 La même exigence de cohérence a conduit à relire `améliorations_futures.md`, qui avait dérivé :
 
 * le **bouton de soutien** y figurait comme un projet, alors qu'il est codé et n'attend plus que l'adresse d'un prestataire ;
 * une section **« En cours »** annonçait trois chantiers auxquels personne ne travaillait ;
-* la rubrique **« Livré en V1.0 »** mêlait des livraisons de la 1.0.0 et de la 1.0.1 ;
+* la rubrique **« Livré en V1.0 »** ne disait pas à quelle étape chaque élément avait été livré ;
 * la **documentation API** était présentée comme entièrement à faire, alors que toutes les fonctions publiques sont documentées — un test l'impose — et qu'il ne reste qu'à assembler le document.
 
-La feuille de route est désormais rangée par **état réel** — livré, prêt à activer, à faire — et chaque livraison renvoie à sa version et à son étape dans ce journal. Une feuille de route qui annonce en projet ce qui est déjà fait trompe le lecteur autant qu'une qui annonce fait ce qui ne l'est pas.
+La feuille de route est désormais rangée par **état réel** — livré, prêt à activer, à faire — et chaque livraison renvoie à son étape dans ce journal. Une feuille de route qui annonce en projet ce qui est déjà fait trompe le lecteur autant qu'une qui annonce fait ce qui ne l'est pas.
 
 ### 6. Résultat
 **335 tests passent**, dont 10 consacrés à l'horodatage : format, ordre chronologique, précision à la seconde, marque commune à tous les fichiers d'une exécution, respect d'un `--output` explicite. Et quatre de plus dans l'interface, pour les marques posées à chaque étape et la permanence de l'onglet Présentation.
 
 ---
 
-*Version 1.2.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 335 tests.*
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 335 tests.*
