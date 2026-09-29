@@ -129,25 +129,46 @@ def reinitialiser_aval() -> None:
     st.session_state["etape"] = "charge"
 
 
+def purger_cache(*dfs: pd.DataFrame | None) -> None:
+    """Retire du cache partagé les seules entrées calculées sur ces DataFrames.
+
+    Le cache de Streamlit est commun à toutes les sessions : le vider en bloc
+    effacerait aussi les calculs des autres visiteurs. On retire donc entrée
+    par entrée — profils et rapports, sous toutes leurs variantes — ce qui a
+    été calculé sur les données de cette session, et rien d'autre.
+
+    Args:
+        dfs: DataFrames dont les entrées sont à retirer ; `None` est ignoré.
+    """
+    for df in dfs:
+        if df is None:
+            continue
+        for exploratoire in (False, True):
+            profiler.clear(df, exploratoire)
+            for fmt in ("md", "html"):
+                rendre_rapport.clear(df, exploratoire, fmt)
+
+
 def tout_effacer() -> None:
-    """Vide l'état de session, le cache partagé et le fichier déposé.
+    """Vide l'état de session, les entrées de cache de la session et le fichier déposé.
 
     C'est le droit à l'effacement rendu opérationnel en un clic : le cache de
     Streamlit est global au processus, donc une entrée survit à la session qui
-    l'a créée si on ne la purge pas explicitement.
+    l'a créée si on ne la purge pas explicitement. Seules les entrées de cette
+    session sont purgées : les calculs des autres visiteurs restent en place.
 
     Le composant d'envoi doit être renouvelé, et non seulement l'état vidé :
     il conserve sinon le fichier déposé, qui serait rechargé au rafraîchissement
     suivant — l'effacement n'aurait alors aucun effet visible.
     """
     generation = st.session_state.get("generation_envoi", 0) + 1
+    purger_cache(st.session_state.get("df_brut"), st.session_state.get("df_propre"))
 
     for cle in ETAT_INITIAL:
         st.session_state.pop(cle, None)
     # La clé du composant d'envoi lui-même, désormais orpheline.
     st.session_state.pop(f"envoi_{generation - 1}", None)
 
-    st.cache_data.clear()
     initialiser_etat()
     st.session_state["generation_envoi"] = generation
 
@@ -168,6 +189,8 @@ def installer_fichier(octets: bytes, nom: str) -> None:
         return
 
     df, journal = charger(octets, nom)
+    # Le fichier précédent de la session est abandonné : ses calculs aussi.
+    purger_cache(st.session_state["df_brut"], st.session_state["df_propre"])
     st.session_state["signature"] = signature
     st.session_state["nom_source"] = nom
     st.session_state["df_brut"] = df
@@ -274,9 +297,13 @@ def formater(n: int) -> str:
 CACHE = dict(ttl=3600, max_entries=8)
 
 
-@st.cache_data(show_spinner="Chargement du fichier…", **CACHE)
 def charger(octets: bytes, nom: str) -> tuple[pd.DataFrame, str]:
     """Charge un fichier déposé, avec détection du format et de l'encodage.
+
+    Délibérément hors cache : sa clé serait le contenu brut du fichier, qu'il
+    faudrait garder en session pour pouvoir retirer l'entrée ensuite. Un
+    fichier n'est de toute façon chargé qu'une fois par session, la signature
+    évitant tout rechargement à chaque clic.
 
     Args:
         octets: Contenu brut du fichier.
@@ -285,7 +312,7 @@ def charger(octets: bytes, nom: str) -> tuple[pd.DataFrame, str]:
     Returns:
         Le DataFrame chargé et la sortie console de l'opération.
     """
-    with capture_output() as tampon:
+    with st.spinner("Chargement du fichier…"), capture_output() as tampon:
         df = load_dataframe(octets, nom)
     return df, tampon.getvalue()
 
@@ -464,7 +491,8 @@ configuration du projet ; seul subsiste un cookie technique de sécurité,
 indispensable au fonctionnement.
 
 Le bouton **« Effacer mes données »** de la barre latérale vide immédiatement
-la session et le cache.
+la session et retire du cache tout ce qui a été calculé sur votre fichier.
+Remplacer le fichier ou relancer le nettoyage retire aussi les calculs devenus inutiles.
 
 **Soutien :** le bouton « Soutenir le projet » ouvre une page Buy Me a Coffee
 dans un nouvel onglet. Le paiement s'y déroule entièrement : cette application
@@ -1335,6 +1363,8 @@ def lancer_nettoyage(options: dict) -> None:
         volet_console("nettoyage", "Détail de l'échec")
         return
 
+    # Un nouveau nettoyage remplace le précédent : ses calculs sont retirés.
+    purger_cache(st.session_state["df_propre"])
     st.session_state["df_propre"] = propre
     st.session_state["stats"] = stats
     st.session_state["etape"] = "nettoye"

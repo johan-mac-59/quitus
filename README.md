@@ -143,7 +143,7 @@ PROJET_NETTOYAGE_AUTO/
 │   ├── cleaner_logger.py
 │   ├── cleaner_reporter.py
 │   └── console_capture.py
-├── tests/                      # 370 tests
+├── tests/                      # 374 tests
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -189,7 +189,7 @@ machine, la ligne de commande (`main.py`) est l'outil adapté : elle écrit dans
 donnée issue du fichier (noms de colonnes, valeurs, modalités) est échappée, et
 une politique de sécurité interdit l'exécution de scripts dans le rapport.
 
-Le bouton **« Effacer mes données »** vide immédiatement la session et purge le cache partagé.
+Le bouton **« Effacer mes données »** vide immédiatement la session et retire du cache partagé les calculs faits sur le fichier du visiteur — et seulement ceux-là : les calculs des autres visiteurs restent en place. Remplacer le fichier ou relancer le nettoyage retire de même les calculs devenus inutiles. Le fichier déposé lui-même n'est jamais mis en cache.
 
 ### Cookies
 
@@ -208,7 +208,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 370 tests
+python -m pytest              # 374 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 

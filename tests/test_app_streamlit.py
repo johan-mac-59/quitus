@@ -724,3 +724,68 @@ def _apres_nettoyage(app, contenu: bytes, *, ecreter: bool, combler: bool):
     if not nettoyer:
         nettoyer = [b for b in app.button if "Nettoyer" in b.label]
     return nettoyer[0].click().run()
+
+
+class TestCacheCible:
+    """L'effacement ne retire du cache partagé que les calculs de la session.
+
+    Le cache de Streamlit est commun à tous les visiteurs : le vider en bloc
+    obligerait les autres à tout recalculer. On compte ici les constructions de
+    profileur pour savoir si un appel a été servi par le cache ou recalculé.
+    """
+
+    @pytest.fixture
+    def compteur(self, monkeypatch):
+        import streamlit_app
+
+        appels = []
+
+        class ProfileurCompte(streamlit_app.PreCleaningProfiler):
+            def __init__(self, *args, **kwargs):
+                appels.append(1)
+                super().__init__(*args, **kwargs)
+
+        monkeypatch.setattr(streamlit_app, "PreCleaningProfiler", ProfileurCompte)
+        streamlit_app.profiler.clear()
+        streamlit_app.rendre_rapport.clear()
+        yield appels
+        streamlit_app.profiler.clear()
+        streamlit_app.rendre_rapport.clear()
+
+    def test_purge_ne_touche_que_les_donnees_visees(self, compteur):
+        """Mes entrées disparaissent, celles d'un autre visiteur restent."""
+        import streamlit_app
+
+        mien = pd.DataFrame({"prix": [1.0, 2.0, 3.0]})
+        autre = pd.DataFrame({"prix": [7.0, 8.0, 9.0]})
+        for df in (mien, autre):
+            streamlit_app.profiler(df, exploratoire=False)
+            streamlit_app.rendre_rapport(df, False, "md")
+        assert len(compteur) == 4
+
+        streamlit_app.purger_cache(mien)
+
+        streamlit_app.profiler(autre, exploratoire=False)
+        streamlit_app.rendre_rapport(autre, False, "md")
+        assert len(compteur) == 4, "les calculs de l'autre visiteur doivent rester en cache"
+
+        streamlit_app.profiler(mien, exploratoire=False)
+        streamlit_app.rendre_rapport(mien, False, "md")
+        assert len(compteur) == 6, "mes calculs doivent avoir été retirés du cache"
+
+    def test_purge_ignore_l_absence_de_donnees(self, compteur):
+        """Rien à purger (aucun fichier, jamais calculé) : aucune erreur."""
+        import streamlit_app
+
+        streamlit_app.purger_cache(None, pd.DataFrame({"x": [1]}))
+
+    def test_plus_aucun_vidage_global(self):
+        """L'application ne vide plus jamais le cache de tout le monde."""
+        source = (RACINE / "streamlit_app.py").read_text(encoding="utf-8")
+        assert "st.cache_data.clear()" not in source
+
+    def test_le_fichier_depose_n_est_pas_mis_en_cache(self):
+        """Le chargement, dont la clé serait le fichier brut, reste hors cache."""
+        import streamlit_app
+
+        assert not hasattr(streamlit_app.charger, "clear")

@@ -1726,9 +1726,18 @@ Chaque visiteur reste pour autant dans sa propre session : ses données ne sont 
 ### 3. Une limite basse, pour commencer
 La taille maximale d'un fichier déposé passe de 200 Mo à **20 Mo**. C'est volontairement prudent : mieux vaut relever la limite une fois la consommation réelle observée en ligne que découvrir la limite de la plateforme par un plantage. Le texte d'aide annonce la même valeur, et un test vérifie qu'ils restent d'accord.
 
-### 4. Résultat
-**370 tests passent**.
+### 4. Un effacement qui ne touche que ses propres données
+Le bouton « Effacer mes données » vidait jusqu'ici le cache en entier. Rien n'était perdu pour les autres visiteurs, dont les données vivent dans leur session, mais tous devaient refaire leurs calculs. C'était sûr, mais grossier.
+
+Streamlit permet de retirer une entrée précise du cache, à condition de redonner exactement les arguments du calcul. L'effacement retire désormais, une à une, les entrées calculées sur les données de la session — profils avant et après nettoyage, rapports Markdown et HTML — et rien d'autre. Le même nettoyage ciblé a lieu quand un fichier en remplace un autre, ou quand un nouveau nettoyage remplace le précédent : les calculs devenus inutiles ne restent pas une heure en mémoire.
+
+Le chargement du fichier, lui, sort du cache. Sa clé serait le contenu brut du fichier, qu'il aurait fallu conserver en session pour pouvoir retirer l'entrée ensuite. Il n'y gagnait presque rien : un fichier n'est chargé qu'une fois par session. Le fichier déposé n'entre donc plus jamais dans la mémoire commune.
+
+Un test le démontre en comptant les calculs : après l'effacement, les données d'un autre visiteur sont toujours servies par le cache, celles de la session effacée sont recalculées.
+
+### 5. Résultat
+**374 tests passent**.
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 370 tests.*
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 374 tests.*
