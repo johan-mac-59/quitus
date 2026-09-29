@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -526,6 +527,23 @@ STYLE_TEXTE = """
 [data-testid="stWidgetLabel"] [data-testid="stMarkdownContainer"] p { font-size: 15px; }
 [data-testid="stCaptionContainer"],
 [data-testid="stCaptionContainer"] :is(p, li) { font-size: 15px; }
+</style>
+"""
+
+# Streamlit réserve 6rem au-dessus du contenu pour sa barre d'en-tête, qui ne
+# porte pourtant que le menu, à droite : le logo flottait sous un grand vide.
+# La marge est réduite, et l'en-tête rendu transparent, sans quoi son fond
+# couvrirait le haut du logo. Le logo, agrandi, occupe l'espace ainsi libéré ;
+# il ne dépasse jamais la largeur de la page, sur un écran étroit.
+LARGEUR_LOGO = 450
+STYLE_HAUT_DE_PAGE = f"""
+<style>
+[data-testid="stMainBlockContainer"] {{ padding-top: 2rem; }}
+[data-testid="stHeader"] {{ background: transparent; }}
+[data-testid="stMain"] svg[aria-label^="Quitus"] {{
+    width: {LARGEUR_LOGO}px; max-width: 100%; height: auto; display: block;
+    margin-bottom: 0.75rem;
+}}
 </style>
 """
 
@@ -1410,12 +1428,19 @@ def afficher_logo() -> None:
     Le SVG est inséré dans la page plutôt que chargé comme image : c'est ce
     qui permet à ses couleurs d'hériter du thème de l'application. Si la
     fusion des deux variantes échoue, la variante claire est affichée.
+
+    Par st.markdown et non st.html : ce dernier filtre son contenu avec
+    DOMPurify en profil « HTML seul », qui supprime tout SVG — le logo
+    disparaissait. Le SVG est mis sur une seule ligne, faute de quoi le
+    Markdown prendrait ses lignes indentées pour un bloc de code.
     """
     svg = marque.logo_adaptatif_svg()
     if svg:
-        st.html(f'<div style="max-width: 300px;">{svg}</div>')
+        svg = re.sub(r">\s+<", "><", svg)
+        st.markdown(f'<div>{svg}</div>',
+                    unsafe_allow_html=True)
     else:
-        st.image(str(CHEMIN_LOGO), width=300)
+        st.image(str(CHEMIN_LOGO), width=LARGEUR_LOGO)
 
 
 def main() -> None:
@@ -1429,6 +1454,7 @@ def main() -> None:
     # l'envoie dans un conteneur invisible.
     st.html(STYLE_BOUTONS_SOUTIEN)
     st.html(STYLE_TEXTE)
+    st.html(STYLE_HAUT_DE_PAGE)
 
     initialiser_etat()
     options = barre_laterale()

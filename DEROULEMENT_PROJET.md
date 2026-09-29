@@ -1777,12 +1777,19 @@ Les deux fichiers du logo ne diffèrent que par trois couleurs : le nom, la devi
 
 Un piège a été évité en chemin : `light-dark()` n'accepte que des couleurs. Un contour absent de la variante claire devait donc s'écrire `transparent`, et non `none`, qui aurait invalidé toute la déclaration.
 
-### 3. Un pixel de plus pour la lecture
+Un second piège, lui, n'a pas été évité : inséré par `st.html`, le logo a purement disparu. Cette fonction filtre son contenu avec DOMPurify en profil « HTML seul », qui supprime tout SVG. Le test en place ne l'avait pas vu : il vérifiait ce que Python envoyait, pas ce que le navigateur affichait. Le logo passe désormais par `st.markdown`, dont le rendu ne supprime pas le SVG, mis sur une seule ligne pour que le Markdown ne prenne pas ses lignes indentées pour un bloc de code. Un test interdit de revenir à `st.html` pour lui.
+
+Pour ne plus se contenter de ce que Python envoie, le rendu a ensuite été vérifié dans un vrai navigateur : Chrome sans interface, piloté par son protocole de débogage, charge l'application en thème clair puis en thème sombre. Dans les deux cas, le logo est présent, avec les bonnes couleurs, ainsi que le nom de la barre latérale et les nouvelles tailles de texte.
+
+### 3. Un haut de page resserré
+Streamlit réserve 6rem au-dessus du contenu pour sa barre d'en-tête, qui ne porte pourtant que le menu, à droite : le logo flottait sous un grand vide. La marge est réduite à 2rem, l'en-tête rendu transparent pour que son fond ne couvre pas le logo, et le logo agrandi de moitié, de 300 à 450 pixels, occupe l'espace libéré. Il ne dépasse jamais la largeur de la page sur un écran étroit.
+
+### 4. Un pixel de plus pour la lecture
 Le texte courant passe de 16 à 17 pixels, les libellés et légendes de 14 à 15. Ce réglage passe par une feuille de style ciblée et non par l'option de taille de la configuration, qui aurait créé un thème personnalisé et supprimé de nouveau le choix clair/sombre.
 
-### 4. Résultat
-**377 tests passent**.
+### 5. Résultat
+**378 tests passent**.
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 377 tests.*
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 378 tests.*

@@ -80,9 +80,22 @@ class TestDemarrage:
         assert not app.exception
 
     def test_affiche_le_logo_quitus(self, app):
-        """Le logo Quitus, inséré en SVG, tient lieu de titre en tête de page."""
+        """Le logo Quitus, inséré en SVG, tient lieu de titre en tête de page.
+
+        Jamais par st.html : son filtre DOMPurify, en profil « HTML seul »,
+        supprime tout SVG côté navigateur, et le logo disparaissait.
+        """
         app.run()
-        assert any("aria-label=\"Quitus" in h.proto.body for h in app.get("html"))
+        assert any("<svg" in m.value and 'aria-label="Quitus' in m.value
+                   for m in app.markdown)
+        assert not any("<svg" in h.proto.body for h in app.get("html"))
+
+    def test_logo_agrandi(self):
+        """Le logo s'affiche à 450 px de large, sans dépasser la page."""
+        import streamlit_app
+
+        assert streamlit_app.LARGEUR_LOGO == 450
+        assert "width: 450px; max-width: 100%" in streamlit_app.STYLE_HAUT_DE_PAGE
 
     def test_fichiers_du_logo_valides_et_sans_script(self):
         """Les deux SVG existent, sont bien formés, et n'embarquent aucun code."""
