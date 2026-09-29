@@ -279,6 +279,49 @@ class TestParcoursComplet:
         assert any("Combler" in lib for lib in libelles)
         assert len(app.sidebar.number_input) == 0
 
+    def test_onglet_telechargements_present(self, app, csv_sale):
+        """L'onglet récapitulatif des téléchargements existe."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        assert any("Téléchargements" in o.label for o in app.tabs)
+
+    def test_recapitulatif_apres_analyse(self, app, csv_sale):
+        """Après l'analyse seule, le récapitulatif ne propose que le rapport avant."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        cles = {b.key for b in app.download_button}
+        assert "dl_profilage_avant_recap_html" in cles
+        assert "dl_profilage_avant_recap_md" in cles
+        assert "dl_csv_recap" not in cles
+
+    def test_recapitulatif_apres_nettoyage(self, app, csv_sale):
+        """Après le nettoyage, le récapitulatif réunit tous les fichiers.
+
+        Les mêmes boutons restent aussi proposés dans leur onglet respectif :
+        les clés doivent donc être distinctes, sans quoi Streamlit lèverait
+        une erreur de clé dupliquée.
+        """
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        assert not app.exception
+        cles = {b.key for b in app.download_button}
+        for cle in ("dl_csv_recap", "dl_rapport_nettoyage_recap",
+                    "dl_profilage_avant_recap_html", "dl_profilage_avant_recap_md",
+                    "dl_profilage_apres_recap_html", "dl_profilage_apres_recap_md"):
+            assert cle in cles, f"{cle} manquant dans le récapitulatif"
+        # Les boutons contextuels subsistent.
+        assert "dl_csv" in cles
+
+    def test_ouvrir_un_rapport_en_grand(self, app, csv_sale):
+        """Le bouton « Ouvrir en grand » ouvre le rapport sans erreur."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        bouton = [b for b in app.button if b.key == "fenetre_profilage_avant"]
+        assert bouton, "Le bouton d'ouverture en grand devrait être proposé"
+        app = bouton[0].click().run()
+        assert not app.exception
+
     def test_controle_apres_nettoyage(self, app, csv_sale):
         """Le profil de contrôle est calculé d'office après le nettoyage."""
         app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)

@@ -2,7 +2,7 @@
 
 **Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
-**Version 1.1.0**
+**Version 1.1.1**
 
 ---
 
@@ -51,7 +51,7 @@ streamlit run streamlit_app.py
 ```
 
 Déposez un fichier — ou essayez directement avec l'exemple fourni —, lancez
-l'analyse, choisissez les deux traitements optionnels, nettoyez. Cinq onglets :
+l'analyse, choisissez les deux traitements optionnels, nettoyez. Six onglets :
 
 | Onglet | Contenu |
 |---|---|
@@ -60,10 +60,18 @@ l'analyse, choisissez les deux traitements optionnels, nettoyez. Cinq onglets :
 | **Nettoyage** | Le bilan, le détail des conversions de types, le fichier nettoyé et son rapport |
 | **Après nettoyage** | Le profil de contrôle, qui vérifie qu'aucune colonne ne reste mal typée |
 | **Graphiques** | Distributions, répartitions et analyses multivariées, à la demande |
+| **Téléchargements** | Le récapitulatif : tous les fichiers produits, réunis au même endroit |
 
-Chaque rapport se consulte et se récupère **là où il s'affiche** : les rapports
-HTML s'ouvrent en aperçu dans l'application et se téléchargent, les rapports
-Markdown se téléchargent. Rien n'est calculé tant qu'on ne le demande pas.
+Chaque rapport se consulte et se récupère **là où il s'affiche**, et l'onglet
+Téléchargements les réunit tous. Les rapports HTML s'affichent dans la page ou
+en grand dans une fenêtre modale, et se téléchargent ; les rapports Markdown se
+téléchargent. Rien n'est calculé tant qu'on ne le demande pas.
+
+> **Pourquoi pas un nouvel onglet du navigateur pour les rapports HTML ?** Les
+> navigateurs bloquent l'ouverture d'un HTML encodé dans l'URL, et le service de
+> fichiers statiques de Streamlit imposerait d'écrire le rapport sur le serveur,
+> dans un dossier public. La fenêtre modale est l'équivalent sûr. Pour un vrai
+> onglet, téléchargez le rapport et ouvrez-le : il est autonome.
 
 ### Ligne de commande
 
@@ -127,7 +135,7 @@ PROJET_NETTOYAGE_AUTO/
 │   ├── cleaner_logger.py
 │   ├── cleaner_reporter.py
 │   └── console_capture.py
-├── tests/                      # 313 tests
+├── tests/                      # 317 tests
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -192,7 +200,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 313 tests
+python -m pytest              # 317 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 

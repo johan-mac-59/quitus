@@ -308,7 +308,25 @@ def rapport_nettoyage() -> str:
 HAUTEUR_APERCU_HTML = 800
 
 
-def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str) -> None:
+@st.dialog("Rapport HTML", width="large")
+def fenetre_rapport(df: pd.DataFrame, exploratoire: bool) -> None:
+    """Affiche un rapport HTML dans une fenêtre modale large.
+
+    C'est l'équivalent le plus proche d'une « nouvelle fenêtre » qui reste sûr.
+    Ouvrir le rapport dans un vrai onglet supposerait soit une URL `data:`, que
+    Chrome et Firefox bloquent en navigation, soit le service de fichiers
+    statiques de Streamlit — qui exigerait d'écrire le rapport sur le serveur,
+    dans un dossier public, lisible par quiconque en connaît l'adresse.
+
+    Args:
+        df: DataFrame documenté par le rapport.
+        exploratoire: Utilise le profileur exploratoire.
+    """
+    st.iframe(rendre_rapport(df, exploratoire, "html"), height=HAUTEUR_APERCU_HTML)
+
+
+def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str,
+                              apercu: bool = True, emplacement: str = "") -> None:
     """Propose un rapport de profilage : HTML à afficher ou télécharger, Markdown à télécharger.
 
     Le HTML est le rapport de consultation — tableau de bord autonome,
@@ -331,11 +349,23 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
         df: DataFrame documenté par le rapport.
         exploratoire: Utilise le profileur exploratoire.
         prefixe: Préfixe du nom de fichier, et discriminant des clés de widget.
+        apercu: Propose l'aperçu du rapport HTML en plus des téléchargements.
+        emplacement: Suffixe des clés de widget. Les mêmes boutons figurent dans
+            l'onglet du rapport et dans l'onglet Téléchargements ; Streamlit
+            refuse deux widgets de même clé.
     """
     racine = racine_fichier()
+    cle = f"{prefixe}{emplacement}"
 
-    if st.toggle("👁️ Afficher le rapport HTML", key=f"apercu_{prefixe}"):
-        st.iframe(rendre_rapport(df, exploratoire, "html"), height=HAUTEUR_APERCU_HTML)
+    if apercu:
+        interrupteur, fenetre = st.columns([3, 1], vertical_alignment="center")
+        with interrupteur:
+            afficher_ici = st.toggle("👁️ Afficher le rapport HTML ici", key=f"apercu_{cle}")
+        with fenetre:
+            if st.button("🔎 Ouvrir en grand", key=f"fenetre_{cle}", width="stretch"):
+                fenetre_rapport(df, exploratoire)
+        if afficher_ici:
+            st.iframe(rendre_rapport(df, exploratoire, "html"), height=HAUTEUR_APERCU_HTML)
 
     gauche, droite = st.columns(2)
     with gauche:
@@ -345,7 +375,7 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
             file_name=f"{prefixe}_{racine}.html",
             mime="text/html",
             on_click="ignore",
-            key=f"dl_{prefixe}_html",
+            key=f"dl_{cle}_html",
             width="stretch",
             help="Autonome et partageable par courriel : les graphiques sont intégrés.",
         )
@@ -356,7 +386,7 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
             file_name=f"{prefixe}_{racine}.md",
             mime="text/markdown",
             on_click="ignore",
-            key=f"dl_{prefixe}_md",
+            key=f"dl_{cle}_md",
             width="stretch",
         )
 
@@ -863,6 +893,23 @@ def onglet_nettoyage() -> None:
 
     st.divider()
     st.markdown("**📦 Récupérer le résultat**")
+    boutons_resultat()
+
+    with st.expander("📄 Lire le rapport de nettoyage"):
+        st.markdown(rapport_nettoyage())
+
+    volet_console("nettoyage", "Détail du nettoyage")
+    volet_console("bilan", "Rapport console")
+
+
+def boutons_resultat(emplacement: str = "") -> None:
+    """Propose le fichier nettoyé et le rapport de nettoyage au téléchargement.
+
+    Args:
+        emplacement: Suffixe des clés de widget, pour placer les mêmes boutons
+            dans l'onglet Nettoyage et dans l'onglet Téléchargements.
+    """
+    propre = st.session_state["df_propre"]
     racine = racine_fichier()
     gauche, droite = st.columns(2)
     with gauche:
@@ -874,7 +921,7 @@ def onglet_nettoyage() -> None:
             file_name=f"{racine}_nettoye.csv",
             mime="text/csv",
             on_click="ignore",
-            key="dl_csv",
+            key=f"dl_csv{emplacement}",
             width="stretch",
             type="primary",
         )
@@ -885,15 +932,50 @@ def onglet_nettoyage() -> None:
             file_name=f"rapport_nettoyage_{racine}.md",
             mime="text/markdown",
             on_click="ignore",
-            key="dl_rapport_nettoyage",
+            key=f"dl_rapport_nettoyage{emplacement}",
             width="stretch",
         )
 
-    with st.expander("📄 Lire le rapport de nettoyage"):
-        st.markdown(rapport_nettoyage())
 
-    volet_console("nettoyage", "Détail du nettoyage")
-    volet_console("bilan", "Rapport console")
+def onglet_telechargements() -> None:
+    """Réunit en un seul endroit tout ce qui peut être téléchargé.
+
+    Les mêmes fichiers restent proposés dans leur onglet respectif, là où on
+    les consulte ; celui-ci est le récapitulatif, pour tout récupérer d'un coup
+    d'œil. Chaque section n'apparaît que lorsque l'étape correspondante a eu lieu.
+    """
+    st.subheader("Téléchargements")
+
+    if st.session_state["profil"] is None:
+        st.info("Lancez l'analyse depuis la barre latérale : les rapports "
+                "apparaîtront ici au fur et à mesure.")
+        return
+
+    suffixe = "_recap"
+    nettoye = st.session_state["df_propre"] is not None
+
+    if nettoye:
+        st.markdown("**🧹 Données nettoyées**")
+        boutons_resultat(emplacement=suffixe)
+        st.divider()
+
+    st.markdown("**🔍 Rapport avant nettoyage**")
+    st.caption("Le diagnostic des données telles qu'elles ont été reçues.")
+    boutons_rapport_profilage(st.session_state["df_brut"], exploratoire=False,
+                              prefixe="profilage_avant", apercu=False,
+                              emplacement=suffixe)
+
+    if nettoye and st.session_state["profil_post"] is not None:
+        st.divider()
+        st.markdown("**✅ Rapport après nettoyage**")
+        st.caption("Le profil de contrôle, avec matrice de dispersion et corrélations.")
+        boutons_rapport_profilage(st.session_state["df_propre"], exploratoire=True,
+                                  prefixe="profilage_apres", apercu=False,
+                                  emplacement=suffixe)
+    elif not nettoye:
+        st.divider()
+        st.caption("Le fichier nettoyé et les rapports de nettoyage et de contrôle "
+                   "apparaîtront ici une fois le nettoyage lancé.")
 
 
 def onglet_controle() -> None:
@@ -1076,7 +1158,7 @@ def main() -> None:
         lancer_nettoyage(options)
 
     onglets = st.tabs(["📋 Aperçu", "🔍 Avant nettoyage", "🧹 Nettoyage",
-                       "✅ Après nettoyage", "📊 Graphiques"])
+                       "✅ Après nettoyage", "📊 Graphiques", "⬇️ Téléchargements"])
     with onglets[0]:
         onglet_apercu()
     with onglets[1]:
@@ -1087,6 +1169,8 @@ def main() -> None:
         onglet_controle()
     with onglets[4]:
         onglet_graphiques()
+    with onglets[5]:
+        onglet_telechargements()
 
     st.divider()
     encart_confidentialite()

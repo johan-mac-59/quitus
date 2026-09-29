@@ -1502,4 +1502,33 @@ La leçon de l'étape tient en une phrase : **un utilisateur réel, sur un fichi
 
 ---
 
-*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 313 tests.*
+## Étape 37 : Le Retour de l'Onglet Téléchargements et la Question de la Nouvelle Fenêtre 🪟⬇️
+
+Une étape courte, mais qui illustre deux réflexes utiles : savoir revenir sur une décision quand l'usage la contredit, et vérifier ce qu'une technologie permet réellement avant de promettre une fonctionnalité.
+
+### 1. Revenir sur une suppression
+À l'étape précédente, l'onglet « Téléchargements » avait été supprimé au profit d'un principe séduisant : chaque rapport se récupère là où il s'affiche. Le principe était bon, la suppression ne l'était pas. L'utilisateur appréciait de trouver **tous les fichiers réunis au même endroit**.
+
+Les deux ne s'opposent pas. L'onglet est rétabli comme **récapitulatif**, tandis que les boutons contextuels restent dans chaque onglet. Il se construit au fil du parcours : après l'analyse, il propose le rapport avant nettoyage ; après le nettoyage, il ajoute le fichier nettoyé, le rapport de nettoyage et le rapport de contrôle.
+
+Une contrainte technique a structuré la réalisation : Streamlit refuse deux widgets portant la même clé. Les mêmes boutons figurant désormais à deux endroits, les fonctions qui les produisent reçoivent un suffixe d'emplacement. Un test vérifie précisément que boutons contextuels et récapitulatif coexistent sans collision.
+
+### 2. « Streamlit peut-il afficher un fichier HTML dans une nouvelle fenêtre ? »
+La réponse honnête est : **pas de façon sûre**. Les trois pistes classiques ont chacune un défaut rédhibitoire :
+
+| Piste | Obstacle |
+|---|---|
+| Un lien vers le HTML encodé dans l'URL (`data:`) | Chrome et Firefox bloquent ce type de navigation depuis 2017, vecteur connu d'hameçonnage |
+| Le service de fichiers statiques de Streamlit | Il faudrait écrire le rapport sur le serveur, dans un dossier **public** : quiconque devinerait l'adresse lirait le rapport d'un autre utilisateur |
+| Du JavaScript ouvrant une fenêtre | Fragile, souvent bloqué par les navigateurs, et suppose d'exécuter du script dans l'application |
+
+La deuxième piste mérite d'être soulignée, parce qu'elle est la plus tentante — une option de configuration à activer, et le tour est joué. Elle aurait pourtant détruit la garantie de confidentialité construite aux étapes 33 et 34 : aucune donnée n'est jamais écrite sur le serveur.
+
+L'équivalent sûr retenu est une **fenêtre modale large** (`st.dialog`, jusqu'à 1 280 pixels), qui s'ouvre par-dessus l'application via un bouton « Ouvrir en grand ». Elle bénéficie de toutes les protections du rapport HTML mises en place à l'étape précédente : échappement des données et politique de sécurité interdisant les scripts. Pour un véritable onglet du navigateur, le rapport téléchargé reste autonome et s'ouvre directement. Le README documente ce choix et ses raisons, pour que la question n'ait pas à être redécouverte.
+
+### 3. Résultat
+**317 tests passent.** L'interface offre désormais deux façons de récupérer ses fichiers — dans le contexte, ou d'un seul coup d'œil — et trois façons de lire un rapport HTML : dans la page, en grand, ou téléchargé.
+
+---
+
+*Version 1.1.1 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 317 tests.*

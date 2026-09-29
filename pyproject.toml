@@ -1,6 +1,6 @@
 [project]
 name = "projet-nettoyage-auto"
-version = "1.1.0"
+version = "1.1.1"
 description = "Pipeline interactif de profilage et de nettoyage automatique de fichiers CSV, Excel et JSON, en ligne de commande et via une interface web Streamlit."
 readme = "README.md"
 requires-python = ">=3.14"

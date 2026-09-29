@@ -3,6 +3,26 @@
 Le détail technique de chaque étape de développement se trouve dans
 [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 
+## [1.1.1] — 2026-09-29
+
+### Modifié
+
+- **L'onglet « Téléchargements » est rétabli**, en récapitulatif : tous les
+  fichiers produits y sont réunis, au fil du parcours. Les boutons contextuels
+  restent proposés dans chaque onglet.
+
+### Ajouté
+
+- **« Ouvrir en grand »** : les rapports HTML s'affichent dans une fenêtre
+  modale large (jusqu'à 1 280 px). C'est l'équivalent sûr d'un nouvel onglet :
+  les navigateurs bloquent l'ouverture d'un HTML encodé dans l'URL, et le
+  service de fichiers statiques de Streamlit imposerait d'écrire le rapport sur
+  le serveur, dans un dossier public.
+
+317 tests passent.
+
+---
+
 ## [1.1.0] — 2026-09-29
 
 Première confrontation avec un utilisateur réel, sur un fichier réel. Six
