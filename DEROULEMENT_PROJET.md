@@ -1758,4 +1758,31 @@ Les liens de l'application (dépôt, signalement d'anomalies), les commandes d'i
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 374 tests.*
+## Étape 45 : Premiers Pas en Ligne 🌐🌗
+
+### 1. L'application est déployée
+Quitus tourne désormais sur Streamlit Community Cloud, à l'adresse **https://quitus.streamlit.app/**, branchée sur la branche `main` du dépôt `johan-mac-59/quitus`. La version 1.0.0 ne sera confirmée qu'une fois les vérifications en ligne faites.
+
+### 2. Le premier défaut vu en ligne : le logo et le thème
+Le premier regard sur l'application en ligne a révélé deux défauts liés :
+
+* **le thème était imposé** : la configuration fixait un thème clair, ce qui retirait au visiteur le choix entre clair, sombre et automatique ;
+* **le logo pouvait contredire la page** : la variante était choisie côté Python d'après le thème que Streamlit croyait détecter. Au premier affichage, cette information peut être fausse — la documentation de Streamlit le signale —, et le logo sombre s'est affiché sur une page claire.
+
+Le thème n'est plus imposé : chacun suit son système ou choisit dans le menu Settings.
+
+Pour le logo, le choix a changé de côté. Streamlit applique déjà le thème réel au conteneur de l'application, sous la forme de la propriété CSS `color-scheme` — vérifié dans son code source. La fonction CSS `light-dark(claire, sombre)` permet alors au **navigateur** de choisir la couleur, au moment de l'affichage et à chaque changement de thème, sans attendre Python.
+
+Les deux fichiers du logo ne diffèrent que par trois couleurs : le nom, la devise et un contour. Plutôt que de maintenir un troisième fichier à la main, l'application fusionne les deux variantes : chaque couleur qui diffère devient une valeur `light-dark()`. La couleur claire reste inscrite dans le SVG, si bien qu'un navigateur trop ancien pour `light-dark()` affiche simplement le logo clair. Le nom écrit dans la barre latérale suit la même règle.
+
+Un piège a été évité en chemin : `light-dark()` n'accepte que des couleurs. Un contour absent de la variante claire devait donc s'écrire `transparent`, et non `none`, qui aurait invalidé toute la déclaration.
+
+### 3. Un pixel de plus pour la lecture
+Le texte courant passe de 16 à 17 pixels, les libellés et légendes de 14 à 15. Ce réglage passe par une feuille de style ciblée et non par l'option de taille de la configuration, qui aurait créé un thème personnalisé et supprimé de nouveau le choix clair/sombre.
+
+### 4. Résultat
+**377 tests passent**.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 377 tests.*

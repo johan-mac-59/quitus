@@ -55,10 +55,9 @@ CHEMIN_EXEMPLE = Path(__file__).parent / "data" / "samples" / "reservations_exem
 
 # Identité visuelle de Quitus : le logo complet (pictogramme, nom et devise) en
 # tête de page, le pictogramme seul comme icône de l'onglet du navigateur.
-# Deux variantes du logo : « light » pour le thème clair, « dark » (texte blanc)
-# pour le thème sombre, où le bleu marine deviendrait illisible.
+# Deux variantes du logo, « light » et « dark » (texte blanc), fusionnées par
+# marque.logo_adaptatif_svg() en un seul SVG qui suit le thème affiché.
 CHEMIN_LOGO = marque.CHEMIN_LOGO
-CHEMIN_LOGO_SOMBRE = Path(__file__).parent / "assets" / "quitus-logo-dark.svg"
 CHEMIN_ICONE = Path(__file__).parent / "assets" / "quitus-icon.svg"
 
 LIEN_DEPOT = "https://github.com/johan-mac-59/quitus"
@@ -515,6 +514,21 @@ STYLE_BOUTONS_SOUTIEN = """
 </style>
 """
 
+# Texte courant et petit texte agrandis d'un pixel : 16 → 17 px et 14 → 15 px.
+# Par CSS plutôt que par l'option baseFontSize de la configuration : celle-ci
+# crée un thème personnalisé, qui priverait le visiteur du choix clair/sombre,
+# et agrandirait aussi les titres. À spécificité égale, la dernière règle
+# l'emporte : les libellés de champs et les légendes, écrits en petit, sont donc
+# déclarés après le texte courant.
+STYLE_TEXTE = """
+<style>
+[data-testid="stMarkdownContainer"] :is(p, li) { font-size: 17px; }
+[data-testid="stWidgetLabel"] [data-testid="stMarkdownContainer"] p { font-size: 15px; }
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] :is(p, li) { font-size: 15px; }
+</style>
+"""
+
 
 def bloc_retours() -> None:
     """Invite aux remarques et au signalement d'anomalies.
@@ -761,8 +775,11 @@ def mot_quitus_html() -> str:
 
     Même police, même graisse, même approche serrée ; la couleur suit le
     thème, comme le logo : bleu marine sur fond clair, blanc sur fond sombre.
+    C'est le navigateur qui choisit, via `light-dark()` (cf.
+    `marque.logo_adaptatif_svg`) : la couleur change dès que le visiteur
+    change de thème.
     """
-    couleur = "#FFFFFF" if theme_sombre() else "#12304A"
+    couleur = "light-dark(#12304A, #FFFFFF)"
     return (
         '<div style="font-family: \'Segoe UI\', Inter, \'Helvetica Neue\', Arial, '
         f'sans-serif; font-size: 2.4rem; font-weight: 700; letter-spacing: -1px; '
@@ -1387,24 +1404,18 @@ def lancer_nettoyage(options: dict) -> None:
         st.warning(f"Le profilage de contrôle a échoué : {e}")
 
 
-def theme_sombre() -> bool:
-    """Vrai si l'application s'affiche en thème sombre.
+def afficher_logo() -> None:
+    """Affiche le logo en tête de page, lisible sur les deux thèmes.
 
-    Streamlit déduit le thème de la couleur de fond ; au tout premier affichage
-    il peut l'ignorer encore : on retombe alors sur le thème clair, celui par
-    défaut de l'application.
+    Le SVG est inséré dans la page plutôt que chargé comme image : c'est ce
+    qui permet à ses couleurs d'hériter du thème de l'application. Si la
+    fusion des deux variantes échoue, la variante claire est affichée.
     """
-    try:
-        return st.context.theme.type == "dark"
-    except Exception:
-        return False
-
-
-def choisir_logo() -> Path:
-    """Renvoie la variante du logo lisible sur le thème affiché."""
-    if theme_sombre() and CHEMIN_LOGO_SOMBRE.exists():
-        return CHEMIN_LOGO_SOMBRE
-    return CHEMIN_LOGO
+    svg = marque.logo_adaptatif_svg()
+    if svg:
+        st.html(f'<div style="max-width: 300px;">{svg}</div>')
+    else:
+        st.image(str(CHEMIN_LOGO), width=300)
 
 
 def main() -> None:
@@ -1417,12 +1428,13 @@ def main() -> None:
     # Une balise <style> seule ne prend aucune place dans la page : Streamlit
     # l'envoie dans un conteneur invisible.
     st.html(STYLE_BOUTONS_SOUTIEN)
+    st.html(STYLE_TEXTE)
 
     initialiser_etat()
     options = barre_laterale()
 
     # Le logo porte le nom et la devise de Quitus : il tient lieu de titre.
-    st.image(str(choisir_logo()), width=300)
+    afficher_logo()
 
     fichier_charge = st.session_state["df_brut"] is not None
 

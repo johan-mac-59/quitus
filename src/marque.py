@@ -22,6 +22,9 @@ NOM = "Quitus"
 DEVISE = "Le fichier propre, et la preuve."
 
 CHEMIN_LOGO = Path(__file__).resolve().parent.parent / "assets" / "quitus-logo-light.svg"
+CHEMIN_LOGO_SOMBRE = CHEMIN_LOGO.with_name("quitus-logo-dark.svg")
+
+_ESPACE_SVG = "http://www.w3.org/2000/svg"
 
 # Texte alternatif : ce qu'on lit si l'image ne s'affiche pas.
 _TEXTE_ALTERNATIF = f"{NOM} — {DEVISE}"
@@ -39,6 +42,57 @@ def logo_data_uri() -> str | None:
     except OSError:
         return None
     return "data:image/svg+xml;base64," + base64.b64encode(contenu).decode("ascii")
+
+
+@lru_cache(maxsize=1)
+def logo_adaptatif_svg() -> str | None:
+    """Fusionne les variantes claire et sombre du logo en un seul SVG.
+
+    Chaque couleur qui diffère entre les deux variantes devient une valeur
+    CSS `light-dark(claire, sombre)`, que le navigateur résout selon le
+    `color-scheme` de l'élément parent. Streamlit fixe ce `color-scheme` sur
+    le conteneur de l'application selon le thème réellement affiché : le logo
+    suit donc le thème, y compris quand le visiteur en change, sans que Python
+    ait à le deviner.
+
+    L'attribut de couleur d'origine est conservé : un navigateur qui ignore
+    `light-dark()` affiche simplement la variante claire. Une couleur absente
+    d'une variante s'écrit `transparent` : `light-dark()` n'accepte que des
+    couleurs, et `none` y invaliderait toute la déclaration.
+
+    Returns:
+        Le code SVG, ou None si une variante manque ou si leurs structures
+        divergent au point de ne plus pouvoir être appariées.
+    """
+    import xml.etree.ElementTree as ET
+
+    try:
+        clair = ET.parse(CHEMIN_LOGO).getroot()
+        sombre = ET.parse(CHEMIN_LOGO_SOMBRE).getroot()
+    except (OSError, ET.ParseError):
+        return None
+
+    elements_clairs, elements_sombres = list(clair.iter()), list(sombre.iter())
+    if [e.tag for e in elements_clairs] != [e.tag for e in elements_sombres]:
+        return None
+
+    for el_clair, el_sombre in zip(elements_clairs, elements_sombres):
+        regles = []
+        for attribut in ("fill", "stroke"):
+            valeur_claire = el_clair.get(attribut, "transparent")
+            valeur_sombre = el_sombre.get(attribut, "transparent")
+            if valeur_claire != valeur_sombre:
+                regles.append(f"{attribut}: light-dark({valeur_claire}, {valeur_sombre})")
+        # Un contour propre à la variante sombre garde son épaisseur.
+        if "stroke-width" in el_sombre.attrib and "stroke-width" not in el_clair.attrib:
+            el_clair.set("stroke-width", el_sombre.get("stroke-width"))
+        if regles:
+            el_clair.set("style", "; ".join(regles))
+
+    ET.register_namespace("", _ESPACE_SVG)
+    clair.set("role", "img")
+    clair.set("aria-label", _TEXTE_ALTERNATIF)
+    return ET.tostring(clair, encoding="unicode")
 
 
 def en_tete_html() -> str:

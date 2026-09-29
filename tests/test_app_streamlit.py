@@ -80,9 +80,9 @@ class TestDemarrage:
         assert not app.exception
 
     def test_affiche_le_logo_quitus(self, app):
-        """Le logo Quitus tient lieu de titre en tête de page."""
+        """Le logo Quitus, inséré en SVG, tient lieu de titre en tête de page."""
         app.run()
-        assert len(app.get("image")) >= 1
+        assert any("aria-label=\"Quitus" in h.proto.body for h in app.get("html"))
 
     def test_fichiers_du_logo_valides_et_sans_script(self):
         """Les deux SVG existent, sont bien formés, et n'embarquent aucun code."""
@@ -94,31 +94,51 @@ class TestDemarrage:
             contenu = chemin.read_text(encoding="utf-8").lower()
             assert "<script" not in contenu and "onload" not in contenu, nom
 
-    def test_logo_selon_le_theme(self, monkeypatch):
-        """Thème sombre : logo à texte blanc ; sinon, ou thème inconnu : logo clair."""
-        from types import SimpleNamespace
+    def test_logo_adaptatif_suit_le_theme(self):
+        """Les couleurs propres à chaque variante deviennent light-dark(claire, sombre)."""
+        from src import marque
 
+        svg = marque.logo_adaptatif_svg()
+        assert svg and svg.startswith("<svg")
+        assert "fill: light-dark(#12304A, #FFFFFF)" in svg       # le nom
+        assert "fill: light-dark(#4A6378, #9FB4C7)" in svg       # la devise
+        assert "stroke: light-dark(transparent, #2C5474)" in svg  # le contour
+        assert "none" not in svg.split("light-dark")[1].split(")")[0]
+        assert "<script" not in svg.lower()
+
+    def test_logo_adaptatif_repli_si_variante_absente(self, monkeypatch, tmp_path):
+        """Sans variante sombre, pas de fusion : l'app retombe sur le logo clair."""
+        from src import marque
+
+        monkeypatch.setattr(marque, "CHEMIN_LOGO_SOMBRE", tmp_path / "absent.svg")
+        marque.logo_adaptatif_svg.cache_clear()
+        try:
+            assert marque.logo_adaptatif_svg() is None
+        finally:
+            marque.logo_adaptatif_svg.cache_clear()
+
+    def test_theme_laisse_au_choix_du_visiteur(self):
+        """Aucun thème imposé : le menu Settings propose clair, sombre ou automatique."""
+        import tomllib
+
+        with open(RACINE / ".streamlit" / "config.toml", "rb") as f:
+            assert "base" not in tomllib.load(f).get("theme", {})
+
+    def test_texte_agrandi_d_un_pixel(self):
+        """Texte courant 17 px, libellés et légendes 15 px, déclarés après."""
         import streamlit_app
 
-        for theme, attendu in (("dark", streamlit_app.CHEMIN_LOGO_SOMBRE),
-                               ("light", streamlit_app.CHEMIN_LOGO),
-                               (None, streamlit_app.CHEMIN_LOGO)):
-            monkeypatch.setattr(streamlit_app.st, "context",
-                                SimpleNamespace(theme=SimpleNamespace(type=theme)))
-            assert streamlit_app.choisir_logo() == attendu, theme
+        style = streamlit_app.STYLE_TEXTE
+        assert "font-size: 17px" in style and "font-size: 15px" in style
+        assert style.index("17px") < style.index("stWidgetLabel") < style.index("stCaptionContainer")
 
-    def test_mot_quitus_comme_dans_le_logo(self, monkeypatch):
+    def test_mot_quitus_comme_dans_le_logo(self):
         """La barre latérale écrit « quitus » en minuscules, couleur selon le thème."""
-        from types import SimpleNamespace
-
         import streamlit_app
 
-        for theme, couleur in (("light", "#12304A"), ("dark", "#FFFFFF")):
-            monkeypatch.setattr(streamlit_app.st, "context",
-                                SimpleNamespace(theme=SimpleNamespace(type=theme)))
-            html = streamlit_app.mot_quitus_html()
-            assert ">quitus</div>" in html and "font-weight: 700" in html
-            assert f"color: {couleur}" in html
+        html = streamlit_app.mot_quitus_html()
+        assert ">quitus</div>" in html and "font-weight: 700" in html
+        assert "color: light-dark(#12304A, #FFFFFF)" in html
 
     def test_limite_de_depot_annoncee_et_configuree(self):
         """La limite affichée à l'utilisateur est celle réellement configurée."""

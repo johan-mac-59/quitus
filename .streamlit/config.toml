@@ -15,5 +15,6 @@ gatherUsageStats = false
 # l'Étape 43), et une app gratuite sur Streamlit Community Cloud en a peu.
 maxUploadSize = 20
 
-[theme]
-base = "light"
+# Aucun thème imposé : l'application suit le réglage du système du visiteur, et
+# chacun peut choisir clair, sombre ou automatique dans le menu Settings. Fixer
+# [theme] base supprimerait ce choix.
