@@ -1,7 +1,7 @@
 [project]
 name = "projet-nettoyage-auto"
 version = "1.0.0"
-description = "Pipeline interactif de profilage et de nettoyage automatique de fichiers CSV, Excel et JSON, en ligne de commande et via une interface web Streamlit."
+description = "Quitus — le fichier propre, et la preuve. Profilage et nettoyage automatique de fichiers CSV, Excel et JSON, en ligne de commande et via une interface web Streamlit."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

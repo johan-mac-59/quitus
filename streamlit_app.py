@@ -1,4 +1,4 @@
-"""Interface web du pipeline de nettoyage automatique.
+"""Interface web de Quitus, le pipeline de nettoyage automatique de données.
 
 Seconde façade du projet, l'autre étant `main.py` (ligne de commande). Ce
 module ne contient **aucune logique de nettoyage** : il se contente de
@@ -27,6 +27,7 @@ from types import SimpleNamespace
 import pandas as pd
 import streamlit as st
 
+from src import marque
 from src import plot_factory as pf
 from src.cleaner_engine import (
     find_mistyped_columns,
@@ -51,6 +52,12 @@ EXTENSIONS = ["csv", "xlsx", "xls", "json", "jsonl"]
 # Échantillon synthétique versionné avec le dépôt : il permet d'essayer l'outil
 # sans avoir de fichier sous la main. Aucune donnée personnelle.
 CHEMIN_EXEMPLE = Path(__file__).parent / "data" / "samples" / "reservations_exemple.csv"
+
+# Identité visuelle de Quitus : le logo complet (pictogramme, nom et devise) en
+# tête de page, le pictogramme seul comme icône de l'onglet du navigateur.
+# Variante « light » : conçue pour le thème clair, celui de l'application.
+CHEMIN_LOGO = marque.CHEMIN_LOGO
+CHEMIN_ICONE = Path(__file__).parent / "assets" / "quitus-icon.svg"
 
 LIEN_DEPOT = "https://github.com/johan-mac-59/PROJET_NETTOYAGE_AUTO"
 
@@ -489,7 +496,7 @@ def bloc_contact() -> None:
     st.markdown("#### 💬 Une remarque, une anomalie ?")
     st.markdown(
         "Toute remarque constructive ou anomalie détectée est la bienvenue : "
-        "c'est ainsi que cet outil progresse. Plusieurs de ses corrections "
+        "c'est ainsi que Quitus progresse. Plusieurs de ses corrections "
         "récentes sont d'ailleurs nées de retours d'utilisation."
     )
     liens = [f"[🐞 Signaler une anomalie]({LIEN_ANOMALIES})",
@@ -546,7 +553,7 @@ def page_accueil(accueil: bool = True) -> None:
     )
     st.markdown(
         "Encodage, séparateur, types, doublons, formats monétaires, dates "
-        "incohérentes : l'outil inspecte votre fichier sans rien savoir de lui "
+        "incohérentes : Quitus inspecte votre fichier sans rien savoir de lui "
         "à l'avance, vous montre ses défauts, les corrige sous votre contrôle, "
         "puis **vérifie son propre travail**."
     )
@@ -684,7 +691,7 @@ projet. Le code est ouvert : **[consulter le dépôt]({LIEN_DEPOT})**.
         st.markdown("#### ☕ Un coup de pouce ?")
         bouton_soutien(
             "presentation",
-            "Cet outil est gratuit, sans publicité, et ne conserve aucune de vos "
+            "Quitus est gratuit, sans publicité, et ne conserve aucune de vos "
             "données. S'il vous fait gagner du temps, vous pouvez encourager son "
             "développement en offrant un café. C'est entièrement facultatif — et "
             "déjà, merci de l'avoir essayé !",
@@ -697,7 +704,7 @@ def barre_laterale() -> dict:
     Returns:
         Les options de nettoyage sélectionnées.
     """
-    st.sidebar.title("🧹 Nettoyage automatique")
+    st.sidebar.title("Quitus")
 
     fichier = st.sidebar.file_uploader(
         "Déposez un fichier",
@@ -1081,6 +1088,7 @@ def onglet_telechargements() -> None:
     if st.session_state["profil"] is None:
         st.info("Lancez l'analyse depuis la barre latérale : les rapports "
                 "apparaîtront ici au fur et à mesure.")
+        section_retours_et_soutien(fichiers_disponibles=False)
         return
 
     suffixe = "_recap"
@@ -1120,17 +1128,36 @@ def onglet_telechargements() -> None:
                "les précédents, et le fichier nettoyé partage la marque de ses "
                "rapports.")
 
-    # Le moment où l'utilisateur récupère ses fichiers est celui où l'outil
-    # lui a rendu service : un merci y a sa place, sans insistance, suivi des
-    # moyens de faire un retour et, pour qui le souhaite, de soutenir le projet.
+    section_retours_et_soutien(fichiers_disponibles=True)
+
+
+def section_retours_et_soutien(fichiers_disponibles: bool) -> None:
+    """Termine l'onglet Téléchargements : merci, retours, coup de pouce.
+
+    Toujours affichée, fichier chargé ou non : les moyens de faire un retour
+    ou de soutenir le projet ne doivent pas dépendre de l'avancement du
+    parcours. Le merci, lui, n'apparaît qu'une fois des fichiers produits —
+    remercier quelqu'un qui n'a encore rien fait sonnerait faux.
+
+    Args:
+        fichiers_disponibles: Vrai si des fichiers sont déjà proposés au
+            téléchargement.
+    """
     st.divider()
-    st.markdown("**Merci d'avoir utilisé cet outil !**")
+    if fichiers_disponibles:
+        st.markdown("**Merci d'avoir utilisé Quitus !**")
     bloc_contact()
-    bouton_soutien(
-        "telechargements",
-        "S'il vous a rendu service, un café aide à le faire vivre et à "
-        "l'améliorer. C'est entièrement facultatif.",
-    )
+    if LIEN_DON:
+        st.markdown("#### ☕ Un coup de pouce ?")
+        bouton_soutien(
+            "telechargements",
+            "S'il vous a rendu service, un café aide à le faire vivre et à "
+            "l'améliorer. C'est entièrement facultatif."
+            if fichiers_disponibles else
+            "Quitus est gratuit, sans publicité, et ne conserve aucune de vos "
+            "données. Si vous voulez encourager son développement, un café "
+            "fait toujours plaisir. C'est entièrement facultatif.",
+        )
 
 
 def onglet_controle() -> None:
@@ -1291,8 +1318,8 @@ def lancer_nettoyage(options: dict) -> None:
 def main() -> None:
     """Point d'entrée de l'application Streamlit."""
     st.set_page_config(
-        page_title="Nettoyage automatique de données",
-        page_icon="🧹",
+        page_title="Quitus",
+        page_icon=str(CHEMIN_ICONE),
         layout="wide",
     )
     # Une balise <style> seule ne prend aucune place dans la page : Streamlit
@@ -1302,7 +1329,8 @@ def main() -> None:
     initialiser_etat()
     options = barre_laterale()
 
-    st.title("🧹 Nettoyage automatique de données")
+    # Le logo porte le nom et la devise de Quitus : il tient lieu de titre.
+    st.image(str(CHEMIN_LOGO), width=300)
 
     fichier_charge = st.session_state["df_brut"] is not None
 
@@ -1324,6 +1352,10 @@ def main() -> None:
                         "déposez-en un dans la barre latérale, ou essayez "
                         "l'exemple fourni depuis l'onglet Présentation.",
                         icon="📂")
+        # Retours et soutien restent accessibles au bas de l'onglet
+        # Téléchargements, même sans fichier.
+        with onglets[-1]:
+            section_retours_et_soutien(fichiers_disponibles=False)
         st.divider()
         encart_confidentialite()
         return

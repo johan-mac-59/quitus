@@ -11,6 +11,7 @@ from matplotlib.figure import Figure
 
 from src import plot_factory as pf
 from src.horodatage import horodater
+from src.marque import en_tete_html, en_tete_markdown
 
 
 def _esc(valeur: Any) -> str:
@@ -312,7 +313,7 @@ class DataProfiler:
     def _generate_markdown_report(self) -> str:
         """Convertit les résultats en Markdown structuré."""
         # Préambule avec métadonnées de source
-        md = [f"# 📊 Rapport d'Inspection des Données\n", "---\n"]
+        md = [en_tete_markdown(), f"# 📊 Rapport d'Inspection des Données\n", "---\n"]
         
         # Ajout des métadonnées de source
         md.append("## 📂 Métadonnées & Contexte Source\n")
@@ -536,7 +537,7 @@ class DataProfiler:
         Returns:
             Le fragment HTML du corps.
         """
-        html = """
+        html = en_tete_html() + """
             <h1>📊 Rapport d'Inspection des Données</h1>
             <hr>
 

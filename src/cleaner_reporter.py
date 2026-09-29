@@ -3,6 +3,7 @@ from datetime import datetime
 import logging
 
 from src.horodatage import horodater
+from src.marque import en_tete_markdown
 
 class CleanerReporter:
     """Génère un rapport détaillé du nettoyage des données."""
@@ -14,17 +15,13 @@ class CleanerReporter:
         self.report_title = "Rapport de Nettoyage des Données"
     
     def _get_header(self) -> str:
-        """Crée l'en-tête Markdown avec la date."""
+        """Crée l'en-tête Markdown : logo de Quitus, titre, date et source."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if self.source_file_path:
-            source_filename = Path(self.source_file_path).name
-            return f"# {self.report_title}\n\n" \
-                   f"**Date de génération :** {timestamp}\n\n" \
-                   f"**Fichier source :** `{source_filename}`\n\n"
-        else:
-            return f"# {self.report_title}\n\n" \
-                   f"**Date de génération :** {timestamp}\n\n" \
-                   f"**Fichier source :** `Inconnu`\n\n"
+        source = Path(self.source_file_path).name if self.source_file_path else "Inconnu"
+        return (en_tete_markdown()
+                + f"# {self.report_title}\n\n"
+                + f"**Date de génération :** {timestamp}\n\n"
+                + f"**Fichier source :** `{source}`\n\n")
     
     def _get_summary_section(self) -> str:
         """Résumé des métriques globales (Avant/Après)."""

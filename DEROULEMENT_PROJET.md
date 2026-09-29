@@ -1648,4 +1648,36 @@ La correction supprime la cause de la confusion plutôt que de l'expliquer : **l
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 349 tests.*
+## Étape 41 : Le Projet Prend un Nom : Quitus 🏷️✅
+
+Quarante étapes durant, le projet s'est appelé par ce qu'il faisait : « nettoyage automatique ». Il porte désormais un nom : **Quitus**.
+
+### 1. Un nom qui dit la promesse
+En comptabilité, *donner quitus*, c'est attester qu'une gestion est en règle : on a vérifié, on certifie. Le mot rejoint exactement ce que le projet a appris à faire au fil des étapes — ne pas seulement nettoyer un fichier, mais **prouver** qu'il est propre : le profil avant nettoyage constate le désordre, le profil après atteste sa disparition (Étape 35), et aucune valeur ne disparaît sans être déclarée (Étape 36).
+
+La devise qui accompagne le logo le dit en une ligne : **« Le fichier propre, et la preuve. »**
+
+### 2. Un tournant, pas un chantier
+Nommer le projet n'imposait pas de tout renommer. Le dossier, le dépôt GitHub et le nom technique du paquet restent inchangés : les modifier n'aurait rien apporté à l'utilisateur, et aurait cassé des liens, des chemins et l'environnement de travail. Le nom apparaît là où il se voit : l'application, sa documentation et ses rapports.
+
+### 3. Le logo, partout où l'on regarde
+Le logo — un tableau dont les cellules s'estompent de ligne en ligne, frappé d'une pastille verte cochée — remplace l'emoji balai qui servait jusqu'ici d'identité :
+
+* **en tête de l'application**, où il tient lieu de titre ;
+* **dans l'onglet du navigateur**, sous la forme d'une icône carrée tirée du même dessin — le logo complet, en bandeau, serait illisible à cette taille ;
+* **en tête du README** ;
+* **en tête de chaque rapport** : profilage HTML, profilage Markdown, rapport de nettoyage.
+
+Dans les rapports, le logo est intégré au fichier lui-même, encodé en base64, plutôt que référencé par un chemin : un rapport téléchargé doit s'afficher complet où qu'on l'ouvre. C'est aussi la seule source d'image qu'autorise la politique de sécurité des rapports HTML (Étape 36). Et si le fichier du logo venait à manquer, l'en-tête retombe sur le nom et la devise en texte : un rapport ne doit jamais échouer pour une question d'habillage.
+
+L'onglet du navigateur affiche désormais simplement « Quitus ». La formule descriptive « nettoyage automatique de données », jugée peu parlante, a été retirée des titres, en attendant une formule plus fidèle à ce que fait réellement l'outil.
+
+### 4. Retours et soutien, même sans fichier
+Au passage, l'onglet Téléchargements se termine désormais toujours par les moyens de faire un retour et de soutenir le projet, qu'un fichier ait été chargé ou non. Le remerciement, lui, n'apparaît qu'une fois des fichiers produits : remercier quelqu'un qui n'a encore rien fait sonnerait faux.
+
+### 5. Résultat
+**365 tests passent**, dont de nouveaux qui vérifient la présence du logo en tête de chaque rapport, sa conformité à la politique de sécurité, le repli textuel en son absence, la validité des fichiers SVG et l'absence de tout script dans ceux-ci.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 365 tests.*

@@ -79,10 +79,27 @@ class TestDemarrage:
         app.run()
         assert not app.exception
 
-    def test_affiche_le_titre(self, app):
-        """Le titre principal est présent."""
+    def test_affiche_le_logo_quitus(self, app):
+        """Le logo Quitus tient lieu de titre en tête de page."""
         app.run()
-        assert any("Nettoyage automatique" in t.value for t in app.title)
+        assert len(app.get("image")) >= 1
+
+    def test_fichiers_du_logo_valides_et_sans_script(self):
+        """Les deux SVG existent, sont bien formés, et n'embarquent aucun code."""
+        import xml.etree.ElementTree as ET
+
+        for nom in ("quitus-logo-light.svg", "quitus-icon.svg"):
+            chemin = RACINE / "assets" / nom
+            assert ET.parse(chemin).getroot().tag.endswith("svg"), nom
+            contenu = chemin.read_text(encoding="utf-8").lower()
+            assert "<script" not in contenu and "onload" not in contenu, nom
+
+    def test_icone_carree(self):
+        """L'icône d'onglet du navigateur doit être carrée."""
+        import xml.etree.ElementTree as ET
+
+        racine = ET.parse(RACINE / "assets" / "quitus-icon.svg").getroot()
+        assert racine.get("viewBox") == "0 0 64 64"
 
     def test_propose_le_depot_de_fichier(self, app):
         """Le composant d'envoi de fichier est offert d'emblée."""
@@ -117,12 +134,30 @@ class TestBoutonDeSoutien:
             assert lien.proto.url == self.URL
 
     def test_present_dans_la_barre_et_sur_l_accueil(self, app):
-        """Dès l'arrivée : un bouton dans la barre latérale, un dans la présentation."""
+        """Dès l'arrivée : barre latérale, présentation et onglet Téléchargements."""
         app.run()
         assert len(app.sidebar.get("link_button")) == 1
-        assert len(app.main.get("link_button")) == 1
+        assert len(app.tabs[0].get("link_button")) == 1
         textes = " ".join(m.value for m in app.markdown)
         assert "Un coup de pouce" in textes
+
+    def test_coup_de_pouce_sous_les_telechargements_sans_fichier(self, app):
+        """Même sans fichier, l'onglet Téléchargements propose retours et soutien."""
+        app.run()
+        onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
+        assert len(onglet.get("link_button")) == 1
+        textes = " ".join(m.value for m in onglet.markdown)
+        assert "Un coup de pouce" in textes
+        assert "remarque constructive ou anomalie" in textes
+        # Pas de remerciement tant que rien n'a été fait.
+        assert "Merci d'avoir utilisé" not in textes
+
+    def test_coup_de_pouce_apres_analyse_seule(self, app, csv_sale):
+        """Fichier chargé mais pas encore analysé : le bloc reste présent."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
+        assert len(onglet.get("link_button")) == 1
 
     def test_present_dans_l_onglet_presentation(self, app, csv_sale):
         """Une fois un fichier chargé, la présentation garde son bouton."""
@@ -136,7 +171,7 @@ class TestBoutonDeSoutien:
         onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
         assert len(onglet.get("link_button")) == 1
         textes = " ".join(m.value for m in onglet.markdown)
-        assert "Merci d'avoir utilisé cet outil" in textes
+        assert "Merci d'avoir utilisé Quitus" in textes
 
     def test_bloc_contact_sur_l_accueil(self, app):
         """La présentation invite aux retours, avec les liens de contact."""
