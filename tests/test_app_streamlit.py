@@ -188,6 +188,16 @@ class TestDemarrage:
         assert not any("Nettoyer" in lib for lib in libelles)
 
 
+def _boutons_soutien(conteneur):
+    """Les boutons de soutien d'un conteneur, à l'exclusion des boutons de contact."""
+    return [b for b in conteneur.get("link_button") if "soutien_" in b.proto.id]
+
+
+def _boutons_contact(conteneur):
+    """Les boutons de contact (GitHub, LinkedIn) d'un conteneur."""
+    return [b for b in conteneur.get("link_button") if "contact_" in b.proto.id]
+
+
 class TestBoutonDeSoutien:
     """Le bouton de soutien renvoie vers la page Buy Me a Coffee du projet."""
 
@@ -196,7 +206,7 @@ class TestBoutonDeSoutien:
     def test_tous_les_boutons_pointent_vers_la_bonne_page(self, app, csv_sale):
         """Où qu'il apparaisse, le bouton renvoie vers la même page, en https."""
         app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
-        liens = app.get("link_button")
+        liens = _boutons_soutien(app)
         assert liens, "Au moins un bouton de soutien devrait être affiché"
         for lien in liens:
             assert "Soutenir" in lien.proto.label
@@ -205,8 +215,8 @@ class TestBoutonDeSoutien:
     def test_present_dans_la_barre_et_sur_l_accueil(self, app):
         """Dès l'arrivée : barre latérale, présentation et onglet Téléchargements."""
         app.run()
-        assert len(app.sidebar.get("link_button")) == 1
-        assert len(app.tabs[0].get("link_button")) == 1
+        assert len(_boutons_soutien(app.sidebar)) == 1
+        assert len(_boutons_soutien(app.tabs[0])) == 1
         textes = " ".join(m.value for m in app.markdown)
         assert "Un coup de pouce" in textes
 
@@ -214,7 +224,7 @@ class TestBoutonDeSoutien:
         """Même sans fichier, l'onglet Téléchargements propose retours et soutien."""
         app.run()
         onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
-        assert len(onglet.get("link_button")) == 1
+        assert len(_boutons_soutien(onglet)) == 1
         textes = " ".join(m.value for m in onglet.markdown)
         assert "Un coup de pouce" in textes
         assert "remarque constructive ou anomalie" in textes
@@ -226,30 +236,31 @@ class TestBoutonDeSoutien:
         app.run()
         app = _deposer(app, csv_sale, "sale.csv")
         onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
-        assert len(onglet.get("link_button")) == 1
+        assert len(_boutons_soutien(onglet)) == 1
 
     def test_present_dans_l_onglet_presentation(self, app, csv_sale):
         """Une fois un fichier chargé, la présentation garde son bouton."""
         app.run()
         app = _deposer(app, csv_sale, "sale.csv")
-        assert len(app.tabs[0].get("link_button")) == 1
+        assert len(_boutons_soutien(app.tabs[0])) == 1
 
     def test_present_sous_les_telechargements(self, app, csv_sale):
         """L'onglet Téléchargements se termine par un merci et le bouton."""
         app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
         onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
-        assert len(onglet.get("link_button")) == 1
+        assert len(_boutons_soutien(onglet)) == 1
         textes = " ".join(m.value for m in onglet.markdown)
         assert "Merci d'avoir utilisé Quitus" in textes
 
     def test_bloc_contact_sur_l_accueil(self, app):
-        """La présentation invite aux retours, avec les liens de contact."""
+        """La présentation invite aux retours, avec les boutons de contact."""
         app.run()
         textes = " ".join(m.value for m in app.markdown)
         assert "remarque constructive ou anomalie" in textes
         assert "johan-mac-59/quitus/issues" in textes
-        assert "github.com/johan-mac-59" in textes
-        assert "linkedin.com/in/johan-machu" in textes
+        urls = [b.proto.url for b in _boutons_contact(app.tabs[0])]
+        assert urls == ["https://github.com/johan-mac-59",
+                        "https://www.linkedin.com/in/johan-machu/"]
 
     def test_bloc_contact_sous_les_telechargements(self, app, csv_sale):
         """L'onglet Téléchargements invite aussi aux retours."""
@@ -272,8 +283,10 @@ class TestBoutonDeSoutien:
         for nom in ("Présentation", "Téléchargements"):
             onglet = [o for o in app.tabs if nom in o.label][0]
             textes = [m.value for m in onglet.markdown]
-            assert "Me contacter" in textes[-2], nom
-            assert "linkedin.com/in/johan-machu" in textes[-1], nom
+            assert "Me contacter" in textes[-1], nom
+            contact = _boutons_contact(onglet)
+            assert [b.proto.label for b in contact] == ["💻 GitHub", "💼 LinkedIn"], nom
+            assert onglet.get("link_button")[-1].proto.id == contact[-1].proto.id, nom
 
     def test_avertissement_confidentialite_des_signalements(self, app):
         """Les signalements étant publics, on déconseille d'y joindre ses données."""
@@ -290,20 +303,36 @@ class TestBoutonDeSoutien:
         app.run()
         styles = " ".join(e.proto.body for e in app.get("html"))
         assert 'st-key-soutien_' in styles
+        assert 'st-key-contact_' in styles
         assert "zoom: 1.2" in styles
 
-    def test_cles_des_boutons_commencent_par_soutien(self, app, csv_sale):
-        """Le style repose sur ce préfixe : tout bouton de soutien doit le porter."""
+    def test_boutons_colores_lisibles_dans_les_deux_themes(self, app):
+        """Soutien, contact et dépôt portent leurs couleurs, GitHub s'inverse en sombre.
+
+        Le rendu a été vérifié dans Chrome, en thème clair puis sombre ; on
+        s'assure ici que les règles restent émises.
+        """
+        app.run()
+        styles = " ".join(e.proto.body for e in app.get("html"))
+        assert "#FFDD00" in styles              # Buy Me a Coffee
+        assert "#0A66C2" in styles              # LinkedIn
+        assert "light-dark(#24292F, #F0F6FC)" in styles  # GitHub, selon le thème
+        assert "stFileUploaderDropzone" in styles and "#3DDC97" in styles
+
+    def test_cles_des_boutons_commencent_par_soutien_ou_contact(self, app, csv_sale):
+        """Le style repose sur ces préfixes : tout bouton-lien doit porter l'un d'eux."""
         import streamlit_app
 
         assert "soutien_" in streamlit_app.STYLE_BOUTONS_SOUTIEN
+        assert "contact_" in streamlit_app.STYLE_BOUTONS_SOUTIEN
         app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
         liens = app.get("link_button")
         assert liens
         for lien in liens:
             # L'identifiant d'un widget à clé embarque cette clé.
-            assert "soutien_" in lien.proto.id, (
-                f"bouton sans clé « soutien_… » : il ne serait pas agrandi ({lien.proto.id})"
+            assert "soutien_" in lien.proto.id or "contact_" in lien.proto.id, (
+                f"bouton sans clé « soutien_… » ni « contact_… » : "
+                f"il ne serait pas agrandi ({lien.proto.id})"
             )
 
     def test_message_facultatif(self, app):

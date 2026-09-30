@@ -503,15 +503,49 @@ ne voit passer aucune donnée de paiement, et ne sait pas qui a donné.
         )
 
 
-# Agrandit de 20 % les boutons de soutien, et eux seuls. Streamlit n'offre pas de
-# réglage de taille pour st.link_button, mais donne à chaque widget muni d'une
-# clé la classe CSS « st-key-<clé> » : les boutons de soutien, dont les clés
-# commencent toutes par « soutien_ », sont ainsi ciblés sans toucher aux autres.
-# `zoom` plutôt que `transform: scale` : il agrandit ET décale ce qui suit, là où
-# une mise à l'échelle ferait déborder le bouton sur le texte voisin.
+# Agrandit de 20 % les boutons de soutien et de contact, et eux seuls. Streamlit
+# n'offre pas de réglage de taille pour st.link_button, mais donne à chaque
+# widget muni d'une clé la classe CSS « st-key-<clé> » : ces boutons, dont les
+# clés commencent par « soutien_ » ou « contact_ », sont ainsi ciblés sans
+# toucher aux autres. `zoom` plutôt que `transform: scale` : il agrandit ET
+# décale ce qui suit, là où une mise à l'échelle ferait déborder le bouton sur
+# le texte voisin.
+#
+# Ces boutons, et la zone de dépôt, portent aussi leurs couleurs : celles de
+# chaque service, et le vert de Quitus pour le dépôt. Un fond plein et un texte
+# fixé explicitement restent lisibles dans les deux thèmes. Seul le noir de
+# GitHub disparaîtrait sur fond sombre : il s'inverse par `light-dark()`, que le
+# navigateur résout d'après le thème réel, comme pour le logo. Le survol de
+# Streamlit, qui recolore texte et bordure, est neutralisé au profit d'un
+# simple assombrissement.
 STYLE_BOUTONS_SOUTIEN = """
 <style>
-[class*="st-key-soutien_"] { zoom: 1.2; }
+[class*="st-key-soutien_"], [class*="st-key-contact_"] { zoom: 1.2; }
+[class*="st-key-soutien_"] a, [class*="st-key-contact_"] a,
+[data-testid="stFileUploaderDropzone"] button {
+    background: var(--fond-bouton); border: 1px solid var(--fond-bouton);
+}
+:is([class*="st-key-soutien_"], [class*="st-key-contact_"]) a :is(p, div),
+[data-testid="stFileUploaderDropzone"] button :is(p, div, span) {
+    color: var(--texte-bouton);
+}
+:is([class*="st-key-soutien_"], [class*="st-key-contact_"]) a:hover,
+[data-testid="stFileUploaderDropzone"] button:hover {
+    border-color: var(--fond-bouton); filter: brightness(0.92);
+}
+[class*="st-key-soutien_"] { --fond-bouton: #FFDD00; --texte-bouton: #000000; }
+[class*="st-key-contact_"][class*="_linkedin"] {
+    --fond-bouton: #0A66C2; --texte-bouton: #FFFFFF;
+}
+[class*="st-key-contact_"][class*="_github"] {
+    --fond-bouton: light-dark(#24292F, #F0F6FC);
+    --texte-bouton: light-dark(#FFFFFF, #24292F);
+}
+[data-testid="stFileUploaderDropzone"] {
+    --fond-bouton: #3DDC97; --texte-bouton: #12304A;
+    border: 2px dashed #3DDC97; background: rgba(61, 220, 151, 0.10);
+}
+[data-testid="stFileUploaderDropzone"] button { width: 100%; }
 </style>
 """
 
@@ -566,17 +600,22 @@ def bloc_retours() -> None:
                "un extrait anonymisé, mais ne publiez jamais votre fichier de données.")
 
 
-def bloc_contact() -> None:
-    """Les liens pour contacter l'auteur.
+def bloc_contact(emplacement: str) -> None:
+    """Les boutons pour contacter l'auteur, de la taille du bouton de soutien.
 
     Distinct du signalement d'anomalies : on ne contacte pas une personne
     comme on remonte un défaut.
+
+    Args:
+        emplacement: Discriminant des clés des boutons, qui commencent par
+            « contact_ » pour recevoir le même agrandissement que le soutien.
     """
     st.markdown("#### 📇 Me contacter")
-    liens = [f"[GitHub]({LIEN_GITHUB})"]
-    if LIEN_LINKEDIN:
-        liens.append(f"[LinkedIn]({LIEN_LINKEDIN})")
-    st.markdown(" · ".join(liens))
+    with st.container(horizontal=True):
+        st.link_button("💻 GitHub", LIEN_GITHUB, key=f"contact_{emplacement}_github")
+        if LIEN_LINKEDIN:
+            st.link_button("💼 LinkedIn", LIEN_LINKEDIN,
+                           key=f"contact_{emplacement}_linkedin")
 
 
 def soutien_et_contact(emplacement: str, message: str) -> None:
@@ -598,7 +637,7 @@ def soutien_et_contact(emplacement: str, message: str) -> None:
     else:
         colonne_contact = colonne_soutien
     with colonne_contact:
-        bloc_contact()
+        bloc_contact(emplacement)
 
 
 def bouton_soutien(emplacement: str, message: str, message_avant: bool = True) -> None:

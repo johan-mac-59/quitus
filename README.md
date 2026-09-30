@@ -163,7 +163,7 @@ quitus/
 │   ├── console_capture.py      # Sortie console vers l'interface web
 │   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
 │   └── marque.py               # Nom, devise et logo pour l'application et les rapports
-├── tests/                      # 378 tests, un fichier par module et par garantie
+├── tests/                      # 379 tests, un fichier par module et par garantie
 ├── assets/                     # Logos clair et sombre, icône
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
@@ -233,7 +233,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 378 tests
+python -m pytest              # 379 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 

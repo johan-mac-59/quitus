@@ -1822,6 +1822,22 @@ L'Étape 38 avait fixé la règle : **la version 1.0 marque une application dép
 * l'étiquette git **`v1.0.0`** est posée sur ce commit : elle désigne le code réellement déployé, correctifs de sécurité de l'Étape 36 compris ;
 * le verrou de dépendances `uv.lock`, resté à `0.1.0`, est remis en accord avec `pyproject.toml`, qui annonçait déjà `1.0.0`.
 
+
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 378 tests.*
+## Étape 48 : Des Boutons qui se Voient, dans les Deux Thèmes 🎨🌗
+
+### 1. Le contact à égalité avec le soutien
+Les liens GitHub et LinkedIn du bloc « Me contacter » n'étaient que du texte, à côté d'un bouton « Soutenir le projet » agrandi de 20 %. Ils deviennent des boutons de même taille. Leurs clés commencent par `contact_`, et la règle CSS qui agrandissait les boutons de soutien vise désormais ce préfixe aussi.
+
+### 2. Des couleurs lisibles en clair comme en sombre
+Chaque bouton porte la couleur de son service : jaune Buy Me a Coffee pour le soutien, bleu LinkedIn, noir GitHub. La zone de dépôt de fichier prend le vert de Quitus, avec un cadre en pointillés et un bouton plein, élargi à toute la largeur du cadre.
+
+Un fond plein et un texte fixé explicitement restent lisibles quel que soit le thème. Une seule couleur posait problème : le noir de GitHub disparaît sur un fond sombre. Il s'inverse donc par `light-dark()`, la même technique que pour le logo à l'Étape 45 : c'est le navigateur qui choisit, d'après le thème réellement affiché.
+
+### 3. Vérifié dans un vrai navigateur
+Le rendu a été contrôlé dans Chrome, piloté par Playwright, en thème clair puis en thème sombre. Les couleurs calculées par le navigateur sont celles attendues, et les captures d'écran le confirment. Les tests qui comptaient les boutons-liens en supposant qu'il n'y avait que le soutien distinguent maintenant les deux familles, et un nouveau test s'assure que les règles de couleur restent émises.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 379 tests.*
