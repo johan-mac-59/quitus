@@ -461,6 +461,7 @@ def boutons_rapport_profilage(df: pd.DataFrame, exploratoire: bool, prefixe: str
             on_click="ignore",
             key=f"dl_{cle}_md",
             width="stretch",
+            help="Même contenu que le rapport HTML, sans les graphiques, en texte brut.",
         )
 
 
@@ -1209,6 +1210,7 @@ def boutons_resultat(emplacement: str = "") -> None:
             key=f"dl_csv{emplacement}",
             width="stretch",
             type="primary",
+            help="Vos données corrigées. Encodé pour qu'Excel affiche correctement les accents.",
         )
     with droite:
         st.download_button(
@@ -1219,6 +1221,7 @@ def boutons_resultat(emplacement: str = "") -> None:
             on_click="ignore",
             key=f"dl_rapport_nettoyage{emplacement}",
             width="stretch",
+            help="Bilan avant/après et détail de chaque opération, colonne par colonne.",
         )
 
 
@@ -1230,6 +1233,10 @@ def onglet_telechargements() -> None:
     d'œil. Chaque section n'apparaît que lorsque l'étape correspondante a eu lieu.
     """
     st.subheader("Téléchargements")
+    st.markdown("Tout ce que Quitus a produit pour votre fichier, réuni ici. Les "
+                "rapports existent en deux formats : **HTML** pour les lire, "
+                "graphiques inclus, dans n'importe quel navigateur ; **Markdown** "
+                "pour les archiver ou les réutiliser, en texte brut, sans graphiques.")
 
     if st.session_state["profil"] is None:
         st.info("Lancez l'analyse depuis la barre latérale : les rapports "
@@ -1242,11 +1249,20 @@ def onglet_telechargements() -> None:
 
     if nettoye:
         st.markdown("**🧹 Données nettoyées**")
+        st.caption("**Le résultat** : vos données corrigées, prêtes à être ouvertes "
+                   "dans Excel ou réutilisées (bouton rouge). Le rapport de nettoyage "
+                   "l'accompagne. Il compare l'avant et l'après, puis détaille chaque "
+                   "opération effectuée, colonne par colonne : doublons supprimés, "
+                   "espaces, casse, conversions de types, valeurs comblées ou "
+                   "écrêtées. C'est la preuve de ce qui a changé.")
         boutons_resultat(emplacement=suffixe)
         st.divider()
 
     st.markdown("**🔍 Rapport avant nettoyage**")
-    st.caption("Le diagnostic des données telles qu'elles ont été reçues.")
+    st.caption("**Le constat de départ** : les données telles qu'elles ont été "
+               "reçues, défauts compris. Structure, types détectés, valeurs "
+               "manquantes, lignes suspectes, statistiques, valeurs aberrantes et "
+               "répartition de chaque colonne.")
     boutons_rapport_profilage(st.session_state["df_brut"], exploratoire=False,
                               prefixe="profilage_avant",
                               horodatage=st.session_state["horodatage_analyse"],
@@ -1255,7 +1271,10 @@ def onglet_telechargements() -> None:
     if nettoye and st.session_state["profil_post"] is not None:
         st.divider()
         st.markdown("**✅ Rapport après nettoyage**")
-        st.caption("Le profil de contrôle, avec matrice de dispersion et corrélations.")
+        st.caption("**La vérification** : le même examen, refait sur les données "
+                   "nettoyées, pour constater que les défauts ont disparu. Il ajoute "
+                   "une matrice de dispersion et une carte des corrélations entre "
+                   "colonnes numériques.")
         boutons_rapport_profilage(st.session_state["df_propre"], exploratoire=True,
                                   prefixe="profilage_apres",
                                   horodatage=st.session_state["horodatage_nettoyage"],

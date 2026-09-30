@@ -1790,10 +1790,11 @@ Quelques finitions ont suivi l'étiquette :
 
 * le paquet Python prend lui aussi le nom **`quitus`** : l'environnement virtuel s'affiche désormais sous ce nom dans VS Code ;
 * le README donne **le lien de l'application en ligne** dès ses premières lignes et en tête du démarrage rapide, et son arborescence retrouve les fichiers réels du projet ;
-* **GitHub et LinkedIn deviennent des boutons**, de la taille du bouton de soutien, et chaque bouton prend la couleur de son service ; la zone de dépôt, le vert de Quitus. Seul le noir de GitHub disparaissait sur fond sombre : il s'inverse par `light-dark()`, comme le logo. Le rendu a été contrôlé dans Chrome, en thème clair puis sombre.
+* **GitHub et LinkedIn deviennent des boutons**, de la taille du bouton de soutien, et chaque bouton prend la couleur de son service ; la zone de dépôt, le vert de Quitus. Seul le noir de GitHub disparaissait sur fond sombre : il s'inverse par `light-dark()`, comme le logo. Le rendu a été contrôlé dans Chrome, en thème clair puis sombre ;
+* l'onglet **Téléchargements guide le visiteur** : une introduction explique les deux formats de rapport (HTML pour lire, Markdown pour archiver), et chaque partie dit ce qu'elle contient — le résultat, le constat de départ, la vérification. Chaque bouton de téléchargement décrit son fichier dans une infobulle.
 
-**379 tests passent.**
+**381 tests passent.**
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 379 tests.*
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 381 tests.*

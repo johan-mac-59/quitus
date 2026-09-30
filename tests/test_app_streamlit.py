@@ -851,3 +851,23 @@ class TestCacheCible:
         import streamlit_app
 
         assert not hasattr(streamlit_app.charger, "clear")
+
+
+class TestGuideTelechargements:
+    """L'onglet Téléchargements explique chaque partie et chaque document."""
+
+    def test_introduction_et_legendes(self, app, csv_sale):
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
+        textes = " ".join(m.value for m in onglet.markdown)
+        legendes = " ".join(c.value for c in onglet.caption)
+        assert "Tout ce que Quitus a produit" in textes
+        for attendu in ("Le résultat", "Le constat de départ", "La vérification"):
+            assert attendu in legendes, attendu
+
+    def test_chaque_telechargement_a_une_infobulle(self, app, csv_sale):
+        app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
+        boutons = app.get("download_button")
+        assert boutons
+        for bouton in boutons:
+            assert bouton.proto.help, f"sans infobulle : {bouton.proto.label}"
