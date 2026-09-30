@@ -21,11 +21,17 @@
 
 **Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
-**Version 1.0.0**
+**Version 1.0.0** · 🌐 **Essayer en ligne : [quitus.streamlit.app](https://quitus.streamlit.app/)**
 
 ---
 
 ## 🚀 Démarrage rapide
+
+### En ligne, sans rien installer
+
+👉 **[https://quitus.streamlit.app](https://quitus.streamlit.app/)** — déposez un fichier, ou cliquez sur « Essayer avec un exemple ».
+
+### En local
 
 ```bash
 git clone https://github.com/johan-mac-59/quitus.git
@@ -148,14 +154,17 @@ quitus/
 ├── streamlit_app.py            # Façade web (Streamlit)
 ├── main.py                     # Façade ligne de commande
 ├── src/                        # Logique métier, agnostique de l'interface
-│   ├── file_loader.py
-│   ├── data_profiler.py
-│   ├── cleaner_engine.py
-│   ├── plot_factory.py
-│   ├── cleaner_logger.py
-│   ├── cleaner_reporter.py
-│   └── console_capture.py
-├── tests/                      # 378 tests
+│   ├── file_loader.py          # Lecture : format, encodage, séparateur
+│   ├── data_profiler.py        # Profilage avant et après nettoyage
+│   ├── cleaner_engine.py       # Nettoyage
+│   ├── plot_factory.py         # Graphiques réutilisables
+│   ├── cleaner_logger.py       # Traçabilité console
+│   ├── cleaner_reporter.py     # Rapport de nettoyage
+│   ├── console_capture.py      # Sortie console vers l'interface web
+│   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
+│   └── marque.py               # Nom, devise et logo pour l'application et les rapports
+├── tests/                      # 378 tests, un fichier par module et par garantie
+├── assets/                     # Logos clair et sombre, icône
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
 │   ├── raw/                    # Données sources (ignoré par git)
@@ -163,8 +172,12 @@ quitus/
 │   └── reports/                # Rapports (ignoré par git)
 ├── .streamlit/config.toml      # Configuration web — à versionner, voir Confidentialité
 ├── pyproject.toml              # Dépendances (uv)
+├── uv.lock                     # Verrou des versions exactes (uv)
 ├── requirements.txt            # Dépendances (pip)
-└── DEROULEMENT_PROJET.md       # Journal technique du projet
+├── .python-version             # Version de Python attendue
+├── README.md
+├── AMELIORATIONS.md            # Améliorations à faire, par importance, et livrées
+└── DEROULEMENT_PROJET.md       # Journal technique du projet, étape par étape
 ```
 
 ### Le principe : `src/` ne connaît aucune interface
