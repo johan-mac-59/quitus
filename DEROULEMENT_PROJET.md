@@ -1792,4 +1792,20 @@ Le texte courant passe de 16 à 17 pixels, les libellés et légendes de 14 à 1
 
 ---
 
+## Étape 46 : La Feuille de Route Retrouve sa Mémoire 🗂️🔁
+
+### 1. Ce que l'historique révélait
+Relue à la lumière de ses 23 versions successives dans git, la feuille de route avait perdu la trace de la moitié de ses réussites : **huit améliorations livrées en avaient été retirées sans jamais être inscrites comme livrées**. Le rapport de nettoyage (Étapes 16-17), l'enrichissement du profilage et son rapport HTML autonome (20, 21, 29), l'écrêtage optionnel (22), la casse ciblée (23, 26), le support JSON (25), le profilage après nettoyage (28) et la question du profilage conscient des types (35) avaient simplement disparu une fois faits. Quant au déploiement public, effectif depuis l'Étape 45, il figurait encore comme « prêt, reste à activer ».
+
+Une liste qui efface ce qu'elle accomplit ne rend compte que de ce qui manque : elle sous-estime le projet autant qu'une autre le surestimerait.
+
+### 2. Une nouvelle organisation
+* **Les améliorations à faire viennent en tête**, classées par ordre d'importance et non plus selon un découpage technique/fonctionnel. Les deux défauts relevés après la mise en ligne passent en premier : les numéros de téléphone perdent leur `0` initial — une perte silencieuse, précisément ce que l'Étape 36 s'était engagée à ne plus laisser passer —, et le rapport HTML devient illisible en thème sombre.
+* **Les améliorations livrées viennent ensuite**, toutes, dans l'ordre chronologique, chacune renvoyant à son étape dans ce journal.
+
+### 3. Un nom qui dit ce que contient le fichier
+Un fichier qui recense aussi ce qui est livré ne peut plus s'appeler « améliorations futures ». Il devient **`AMELIORATIONS.md`**, sans accent ni espace, comme `DEROULEMENT_PROJET.md`. Le renommage passe par `git mv`, si bien que l'historique du fichier reste consultable par `git log --follow`. Le README pointe vers le nouveau nom et annonce les vraies priorités, au lieu de la détection des notes et pourcentages, livrée depuis l'Étape 35.
+
+---
+
 *Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 378 tests.*

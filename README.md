@@ -273,8 +273,8 @@ Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans un
 
 ## 📈 Évolutions prévues
 
-Voir [`améliorations_futures.md`](améliorations_futures.md). Les principaux axes :
-module de validation de contraintes, détection des notes (`17/20`) et des pourcentages, et sélection du traitement colonne par colonne dans l'interface web.
+Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Les priorités :
+préserver les numéros de téléphone (le `0` initial est aujourd'hui perdu), rendre le rapport HTML lisible en mode sombre, et choisir le traitement colonne par colonne dans l'interface web.
 
 Le journal technique détaillé du projet, étape par étape, se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 
