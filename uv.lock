@@ -588,39 +588,6 @@ wheels = [
 ]
 
 [[package]]
-name = "projet-nettoyage-auto"
-version = "1.0.0"
-source = { editable = "." }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "openpyxl" },
-    { name = "pandas" },
-    { name = "seaborn" },
-    { name = "streamlit" },
-    { name = "tabulate" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "matplotlib", specifier = ">=3.11.1" },
-    { name = "numpy" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas" },
-    { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "streamlit", specifier = ">=1.64.0" },
-    { name = "tabulate", specifier = ">=0.10.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.1.1" }]
-
-[[package]]
 name = "protobuf"
 version = "7.36.2"
 source = { registry = "https://pypi.org/simple" }
@@ -724,6 +691,39 @@ sdist = { url = "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c09
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23", size = 30042, upload-time = "2026-06-04T16:18:57.319Z" },
 ]
+
+[[package]]
+name = "quitus"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "seaborn" },
+    { name = "streamlit" },
+    { name = "tabulate" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "matplotlib", specifier = ">=3.11.1" },
+    { name = "numpy" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas" },
+    { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "streamlit", specifier = ">=1.64.0" },
+    { name = "tabulate", specifier = ">=0.10.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "referencing"
