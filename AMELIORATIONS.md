@@ -28,4 +28,4 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - ~~**détecter plus de nombres**~~ : les notes fractionnaires (`17/20`, `5/5`) et les pourcentages (`1,5 %`, `78.9875%`) sont désormais convertis. *Étape 35.*
 - ~~**profilage conscient des types**~~ : la question était mal posée. Le profil avant nettoyage doit montrer les types bruts ; c'est le profil après nettoyage qui ne doit plus comporter de colonne mal typée, invariant désormais tenu et testé. *Étape 35.*
 - ~~**bouton de soutien**~~ : un bouton « Soutenir le projet » renvoie vers la page [Buy Me a Coffee](https://buymeacoffee.com/johan_mac) — pas de compte à créer pour le donateur, dons ponctuels. Le paiement se fait entièrement chez le prestataire. *Étape 39.*
-- ~~**déploiement public**~~ : l'application tourne sur Streamlit Community Cloud, à l'adresse [quitus.streamlit.app](https://quitus.streamlit.app/). *Étape 45.*
+- ~~**déploiement public**~~ : l'application tourne sur Streamlit Community Cloud, à l'adresse [quitus.streamlit.app](https://quitus.streamlit.app/). *Étape 43.*

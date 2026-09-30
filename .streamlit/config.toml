@@ -12,7 +12,7 @@ gatherUsageStats = false
 [server]
 # Taille maximale d'un fichier déposé, en Mo. Volontairement basse : un fichier
 # coûte environ dix fois sa taille en mémoire pendant le traitement (mesuré à
-# l'Étape 43), et une app gratuite sur Streamlit Community Cloud en a peu.
+# l'Étape 42), et une app gratuite sur Streamlit Community Cloud en a peu.
 maxUploadSize = 20
 
 # Aucun thème imposé : l'application suit le réglage du système du visiteur, et

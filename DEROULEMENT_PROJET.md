@@ -188,8 +188,6 @@ Un fichier CSV nettoyé automatiquement avec un rapport détaillé des transform
 
 *Projet en cours de développement - Bootcamp Data Analyst Wild Code School*
 
-
-
 ---
 
 ## Étape 7 : Refactoring et Architecture Modulaire (En cours)
@@ -497,10 +495,6 @@ Dans cette phase finale, l'objectif est de transformer un projet technique en un
 
 ### Résumé de la maturité du projet au terme de cette étape
 Le projet est passé d'un script de nettoyage expérimentale à un **systle de pipeline de données structuré, testé et prêt pour une présentation professionnelle**, capable de démontrer à la fois des compétences en Python avancé, en manipulation de données (Pandas/Numpy) et en gestion moderne du cycle de vie logiciel.
-
-
-
-
 
 ---
 
@@ -1006,7 +1000,6 @@ L'ajout de nouveaux graphiques risquait de créer un rapport trop long et illisi
 ### 3. Impact sur la performance et l'auditabilité
 * **Densité d'information** : Le rapport est devenu beaucoup plus compact. Un analyste peut désormais auditer un dataset complet en un seul coup d'œil, sans scrolling excessif.
 * **Robustesse du rendu** : Utilisation de l'encodage **Base64** pour injecter les visuels directement dans le HTML, garantissant un rapport "Self-Contained" (autonome), portable par email et sans dépendance de fichiers externes.
-
 
 ---
 
@@ -1658,7 +1651,7 @@ En comptabilité, *donner quitus*, c'est attester qu'une gestion est en règle :
 La devise qui accompagne le logo le dit en une ligne : **« Le fichier propre, et la preuve. »**
 
 ### 2. Un tournant, pas un chantier
-Nommer le projet n'imposait pas de tout renommer. Le dossier, le dépôt GitHub et le nom technique du paquet restent inchangés : les modifier n'aurait rien apporté à l'utilisateur, et aurait cassé des liens, des chemins et l'environnement de travail. Le nom apparaît là où il se voit : l'application, sa documentation et ses rapports.
+Nommer le projet n'imposait pas de tout renommer. Le dossier, le dépôt GitHub et le nom technique du paquet restent inchangés : les modifier n'aurait rien apporté à l'utilisateur, et aurait cassé des liens, des chemins et l'environnement de travail. Ils suivront plus tard, un par un et sans rien casser (Étapes 43 à 45). Le nom apparaît là où il se voit : l'application, sa documentation et ses rapports.
 
 ### 3. Le logo, partout où l'on regarde
 Le logo — un tableau dont les cellules s'estompent de ligne en ligne, frappé d'une pastille verte cochée — remplace l'emoji balai qui servait jusqu'ici d'identité :
@@ -1675,36 +1668,19 @@ L'onglet du navigateur affiche désormais simplement « Quitus ». La formule de
 ### 4. Retours et soutien, même sans fichier
 Au passage, l'onglet Téléchargements se termine désormais toujours par les moyens de faire un retour et de soutenir le projet, qu'un fichier ait été chargé ou non. Le remerciement, lui, n'apparaît qu'une fois des fichiers produits : remercier quelqu'un qui n'a encore rien fait sonnerait faux.
 
-### 5. Résultat
-**365 tests passent**, dont de nouveaux qui vérifient la présence du logo en tête de chaque rapport, sa conformité à la politique de sécurité, le repli textuel en son absence, la validité des fichiers SVG et l'absence de tout script dans ceux-ci.
+### 5. Un logo pour chaque thème, un contact à part
+Quelques finitions ont suivi :
+
+* **une variante sombre du logo** — nom en blanc, devise éclaircie — rejoint `assets/` : le README la sert aux lecteurs en thème sombre par une balise `<picture>`, et l'application suit son thème. Les rapports, documents sur fond blanc, gardent la variante claire ;
+* **signaler n'est pas contacter** : le lien « Signaler une anomalie » ne partage plus sa ligne avec GitHub et LinkedIn. On remonte un défaut dans le suivi public du projet ; on contacte une personne pour échanger. Une section **« Me contacter »** ferme désormais la présentation et l'onglet Téléchargements, à côté du coup de pouce ;
+* **le nom dans la barre latérale** s'écrit comme dans le logo : **quitus**, en minuscules, même police, même graisse.
+
+### 6. Résultat
+**369 tests passent**, dont de nouveaux qui vérifient la présence du logo en tête de chaque rapport, sa conformité à la politique de sécurité, le repli textuel en son absence, la validité des deux variantes SVG et l'absence de tout script dans celles-ci, ainsi que la séparation du signalement et du contact.
 
 ---
 
-## Étape 42 : Un Logo pour Chaque Thème, un Contact à Part 🌗📇
-
-### 1. Le logo lisible sur fond sombre
-Le logo de Quitus avait été dessiné pour un fond clair : sur GitHub en mode sombre, son nom en bleu marine devenait presque illisible. Une variante sombre — nom en blanc, devise éclaircie — rejoint désormais le dossier `assets/`, et chacun voit la bonne version :
-
-* **dans le README**, une balise `<picture>` laisse le navigateur choisir selon le thème du lecteur ;
-* **dans l'application**, le logo suit le thème Streamlit. Si le thème n'est pas encore connu, au tout premier affichage, c'est la variante claire qui s'affiche, celle du thème par défaut.
-
-Les rapports gardent la variante claire : ce sont des documents sur fond blanc.
-
-### 2. Signaler n'est pas contacter
-Le lien « Signaler une anomalie » partageait jusqu'ici sa ligne avec GitHub et LinkedIn, comme s'il s'agissait d'une même démarche. Ce n'en est pas une : on remonte un défaut dans le suivi public du projet, on contacte une personne pour échanger. Le bloc de retours ne garde donc que le signalement et sa mise en garde, et une section **« Me contacter »**, avec GitHub et LinkedIn, ferme désormais la page de présentation et l'onglet Téléchargements.
-
-### 3. Un pied de page en deux colonnes
-Le bas de la présentation et de l'onglet Téléchargements se lit désormais en deux temps. D'abord les retours, sur toute la largeur. Puis, sous un trait de séparation, le coup de pouce et le contact côte à côte, qui se répondent sans se confondre.
-
-### 4. Le nom dans la barre latérale
-La barre latérale affichait « Quitus » dans le titre standard de Streamlit. Elle écrit désormais **quitus** comme le logo : en minuscules, dans la même police, en gras, avec la même approche serrée. La couleur suit le thème, comme pour le logo.
-
-### 5. Résultat
-**369 tests passent**, dont de nouveaux qui vérifient le choix du logo selon le thème, la validité de la variante sombre et l'absence de script dans son code, la séparation du signalement et du contact, la place de ce dernier en fin de page, et le rendu du nom dans la barre latérale.
-
----
-
-## Étape 43 : Mesurer la Charge Avant d'Ouvrir la Porte 📏🚪
+## Étape 42 : Mesurer la Charge Avant d'Ouvrir la Porte 📏🚪
 
 Avant la mise en ligne, une question simple : combien de personnes l'application peut-elle servir en même temps ? Plutôt que de deviner, la consommation mémoire d'une session complète — dépôt, analyse, nettoyage — a été mesurée sur des fichiers de taille croissante.
 
@@ -1740,30 +1716,17 @@ Un test le démontre en comptant les calculs : après l'effacement, les données
 
 ---
 
-## Étape 44 : Le Dépôt Prend le Nom du Projet 🔗🏷️
+## Étape 43 : Premiers Pas en Ligne 🌐🌗
 
-### 1. Aligner l'adresse sur le nom
-Depuis l'Étape 41, le projet s'appelle Quitus, mais son dépôt GitHub portait encore son nom de travail, `PROJET_NETTOYAGE_AUTO`. Il devient **`johan-mac-59/quitus`**, en minuscules comme dans le logo.
+### 1. D'abord, le dépôt prend le nom du projet
+Depuis l'Étape 41, le projet s'appelle Quitus, mais son dépôt GitHub portait encore son nom de travail, `PROJET_NETTOYAGE_AUTO`. Il devient **`johan-mac-59/quitus`**, et le renommage a été fait **avant** la mise en ligne : Streamlit Community Cloud se branche sur le nom du dépôt, et renommer après coup aurait obligé à reconfigurer l'application.
 
-### 2. Les anciens liens continuent de fonctionner
-Des CV déjà envoyés portent l'ancienne adresse. Renommer un dépôt ne crée pas de copie : c'est le même dépôt, historique et tickets compris, qui change de nom. GitHub redirige ensuite l'ancienne adresse vers la nouvelle, sans date d'expiration, aussi bien pour les pages que pour les commandes `git`. La redirection a été vérifiée après le renommage.
+Des CV déjà envoyés portent l'ancienne adresse. Renommer un dépôt ne crée pas de copie : c'est le même dépôt, historique et tickets compris, qui change de nom, et GitHub redirige l'ancienne adresse vers la nouvelle, sans date d'expiration — vérifié après le renommage. La seule précaution est de ne jamais recréer un dépôt portant l'ancien nom : la redirection cesserait. Les liens de l'application, les commandes d'installation du README et le dépôt local pointent désormais vers la nouvelle adresse.
 
-La seule précaution est de ne jamais recréer un dépôt portant l'ancien nom : GitHub le considérerait de nouveau pris, et la redirection cesserait.
-
-### 3. Le bon moment
-Le renommage a été fait avant la mise en ligne : Streamlit Community Cloud se branche sur le nom du dépôt, et renommer après coup aurait obligé à reconfigurer l'application.
-
-### 4. Ce qui a suivi
-Les liens de l'application (dépôt, signalement d'anomalies), les commandes d'installation du README et le dépôt local pointent désormais vers la nouvelle adresse. Le dossier local, lui, garde son nom : il n'est visible de personne.
-
----
-
-## Étape 45 : Premiers Pas en Ligne 🌐🌗
-
-### 1. L'application est déployée
+### 2. L'application est déployée
 Quitus tourne désormais sur Streamlit Community Cloud, à l'adresse **https://quitus.streamlit.app/**, branchée sur la branche `main` du dépôt `johan-mac-59/quitus`. La version 1.0.0 ne sera confirmée qu'une fois les vérifications en ligne faites.
 
-### 2. Le premier défaut vu en ligne : le logo et le thème
+### 3. Le premier défaut vu en ligne : le logo et le thème
 Le premier regard sur l'application en ligne a révélé deux défauts liés :
 
 * **le thème était imposé** : la configuration fixait un thème clair, ce qui retirait au visiteur le choix entre clair, sombre et automatique ;
@@ -1781,21 +1744,21 @@ Un second piège, lui, n'a pas été évité : inséré par `st.html`, le logo a
 
 Pour ne plus se contenter de ce que Python envoie, le rendu a ensuite été vérifié dans un vrai navigateur : Chrome sans interface, piloté par son protocole de débogage, charge l'application en thème clair puis en thème sombre. Dans les deux cas, le logo est présent, avec les bonnes couleurs, ainsi que le nom de la barre latérale et les nouvelles tailles de texte.
 
-### 3. Un haut de page resserré
+### 4. Un haut de page resserré
 Streamlit réserve 6rem au-dessus du contenu pour sa barre d'en-tête, qui ne porte pourtant que le menu, à droite : le logo flottait sous un grand vide. La marge est réduite à 2rem, l'en-tête rendu transparent pour que son fond ne couvre pas le logo, et le logo agrandi de moitié, de 300 à 450 pixels, occupe l'espace libéré. Il ne dépasse jamais la largeur de la page sur un écran étroit.
 
-### 4. Un pixel de plus pour la lecture
+### 5. Un pixel de plus pour la lecture
 Le texte courant passe de 16 à 17 pixels, les libellés et légendes de 14 à 15. Ce réglage passe par une feuille de style ciblée et non par l'option de taille de la configuration, qui aurait créé un thème personnalisé et supprimé de nouveau le choix clair/sombre.
 
-### 5. Résultat
+### 6. Résultat
 **378 tests passent**.
 
 ---
 
-## Étape 46 : La Feuille de Route Retrouve sa Mémoire 🗂️🔁
+## Étape 44 : La Feuille de Route Retrouve sa Mémoire 🗂️🔁
 
 ### 1. Ce que l'historique révélait
-Relue à la lumière de ses 23 versions successives dans git, la feuille de route avait perdu la trace de la moitié de ses réussites : **huit améliorations livrées en avaient été retirées sans jamais être inscrites comme livrées**. Le rapport de nettoyage (Étapes 16-17), l'enrichissement du profilage et son rapport HTML autonome (20, 21, 29), l'écrêtage optionnel (22), la casse ciblée (23, 26), le support JSON (25), le profilage après nettoyage (28) et la question du profilage conscient des types (35) avaient simplement disparu une fois faits. Quant au déploiement public, effectif depuis l'Étape 45, il figurait encore comme « prêt, reste à activer ».
+Relue à la lumière de ses 23 versions successives dans git, la feuille de route avait perdu la trace de la moitié de ses réussites : **huit améliorations livrées en avaient été retirées sans jamais être inscrites comme livrées**. Le rapport de nettoyage (Étapes 16-17), l'enrichissement du profilage et son rapport HTML autonome (20, 21, 29), l'écrêtage optionnel (22), la casse ciblée (23, 26), le support JSON (25), le profilage après nettoyage (28) et la question du profilage conscient des types (35) avaient simplement disparu une fois faits. Quant au déploiement public, effectif depuis l'Étape 43, il figurait encore comme « prêt, reste à activer ».
 
 Une liste qui efface ce qu'elle accomplit ne rend compte que de ce qui manque : elle sous-estime le projet autant qu'une autre le surestimerait.
 
@@ -1807,36 +1770,29 @@ Une liste qui efface ce qu'elle accomplit ne rend compte que de ce qui manque : 
 Un fichier qui recense aussi ce qui est livré ne peut plus s'appeler « améliorations futures ». Il devient **`AMELIORATIONS.md`**, sans accent ni espace, comme `DEROULEMENT_PROJET.md`. Le renommage passe par `git mv`, si bien que l'historique du fichier reste consultable par `git log --follow`. Le README pointe vers le nouveau nom et annonce les vraies priorités, au lieu de la détection des notes et pourcentages, livrée depuis l'Étape 35.
 
 ### 4. Le dossier de travail suit le nom du projet
-Après le dépôt GitHub (Étape 44), c'est au tour du dossier de travail local de quitter son nom d'origine, `PROJET_NETTOYAGE_AUTO`, pour devenir **`quitus`**. Le dossier a été copié en entier, historique git, données et branches locales compris, et non cloné : un clone n'aurait emporté ni les commits pas encore poussés, ni les données ignorées par git. Seul l'environnement virtuel a été recréé plutôt que copié, ses exécutables gardant en dur le chemin de l'ancien dossier. Les 378 tests passent dans le nouveau dossier.
+Après le dépôt GitHub (Étape 43), c'est au tour du dossier de travail local de quitter son nom d'origine, `PROJET_NETTOYAGE_AUTO`, pour devenir **`quitus`**. Le dossier a été copié en entier, historique git, données et branches locales compris, et non cloné : un clone n'aurait emporté ni les commits pas encore poussés, ni les données ignorées par git. Seul l'environnement virtuel a été recréé plutôt que copié, ses exécutables gardant en dur le chemin de l'ancien dossier. Les 378 tests passent dans le nouveau dossier.
 
 La configuration de conteneur de développement (`.devcontainer/`) est retirée au passage.
 
 ---
 
-## Étape 47 : Version 1.0.0 🏁
+## Étape 45 : Version 1.0.0, et Premières Retouches 🏁
 
 ### 1. Le jalon est atteint
-L'Étape 38 avait fixé la règle : **la version 1.0 marque une application déployée et validée**, et l'étiquette `v1.0.0` ne serait posée qu'à ce moment-là. L'application est en ligne depuis l'Étape 45 ; les vérifications faites, le porteur du projet valide la version 1.0.0.
+L'Étape 38 avait fixé la règle : **la version 1.0 marque une application déployée et validée**, et l'étiquette `v1.0.0` ne serait posée qu'à ce moment-là. L'application est en ligne depuis l'Étape 43 ; les vérifications faites, le porteur du projet valide la version 1.0.0.
 
 ### 2. Ce qui a été fait
 * l'étiquette git **`v1.0.0`** est posée sur ce commit : elle désigne le code réellement déployé, correctifs de sécurité de l'Étape 36 compris ;
 * le verrou de dépendances `uv.lock`, resté à `0.1.0`, est remis en accord avec `pyproject.toml`, qui annonçait déjà `1.0.0`.
 
+### 3. Premières retouches
+Quelques finitions ont suivi l'étiquette :
 
----
+* le paquet Python prend lui aussi le nom **`quitus`** : l'environnement virtuel s'affiche désormais sous ce nom dans VS Code ;
+* le README donne **le lien de l'application en ligne** dès ses premières lignes et en tête du démarrage rapide, et son arborescence retrouve les fichiers réels du projet ;
+* **GitHub et LinkedIn deviennent des boutons**, de la taille du bouton de soutien, et chaque bouton prend la couleur de son service ; la zone de dépôt, le vert de Quitus. Seul le noir de GitHub disparaissait sur fond sombre : il s'inverse par `light-dark()`, comme le logo. Le rendu a été contrôlé dans Chrome, en thème clair puis sombre.
 
-## Étape 48 : Des Boutons qui se Voient, dans les Deux Thèmes 🎨🌗
-
-### 1. Le contact à égalité avec le soutien
-Les liens GitHub et LinkedIn du bloc « Me contacter » n'étaient que du texte, à côté d'un bouton « Soutenir le projet » agrandi de 20 %. Ils deviennent des boutons de même taille. Leurs clés commencent par `contact_`, et la règle CSS qui agrandissait les boutons de soutien vise désormais ce préfixe aussi.
-
-### 2. Des couleurs lisibles en clair comme en sombre
-Chaque bouton porte la couleur de son service : jaune Buy Me a Coffee pour le soutien, bleu LinkedIn, noir GitHub. La zone de dépôt de fichier prend le vert de Quitus, avec un cadre en pointillés et un bouton plein, élargi à toute la largeur du cadre.
-
-Un fond plein et un texte fixé explicitement restent lisibles quel que soit le thème. Une seule couleur posait problème : le noir de GitHub disparaît sur un fond sombre. Il s'inverse donc par `light-dark()`, la même technique que pour le logo à l'Étape 45 : c'est le navigateur qui choisit, d'après le thème réellement affiché.
-
-### 3. Vérifié dans un vrai navigateur
-Le rendu a été contrôlé dans Chrome, piloté par Playwright, en thème clair puis en thème sombre. Les couleurs calculées par le navigateur sont celles attendues, et les captures d'écran le confirment. Les tests qui comptaient les boutons-liens en supposant qu'il n'y avait que le soutien distinguent maintenant les deux familles, et un nouveau test s'assure que les règles de couleur restent émises.
+**379 tests passent.**
 
 ---
 
