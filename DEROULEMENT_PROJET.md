@@ -1806,6 +1806,11 @@ Une liste qui efface ce qu'elle accomplit ne rend compte que de ce qui manque : 
 ### 3. Un nom qui dit ce que contient le fichier
 Un fichier qui recense aussi ce qui est livré ne peut plus s'appeler « améliorations futures ». Il devient **`AMELIORATIONS.md`**, sans accent ni espace, comme `DEROULEMENT_PROJET.md`. Le renommage passe par `git mv`, si bien que l'historique du fichier reste consultable par `git log --follow`. Le README pointe vers le nouveau nom et annonce les vraies priorités, au lieu de la détection des notes et pourcentages, livrée depuis l'Étape 35.
 
+### 4. Le dossier de travail suit le nom du projet
+Après le dépôt GitHub (Étape 44), c'est au tour du dossier de travail local de quitter son nom d'origine, `PROJET_NETTOYAGE_AUTO`, pour devenir **`quitus`**. Le dossier a été copié en entier, historique git, données et branches locales compris, et non cloné : un clone n'aurait emporté ni les commits pas encore poussés, ni les données ignorées par git. Seul l'environnement virtuel a été recréé plutôt que copié, ses exécutables gardant en dur le chemin de l'ancien dossier. Les 378 tests passent dans le nouveau dossier.
+
+La configuration de conteneur de développement (`.devcontainer/`) est retirée au passage.
+
 ---
 
 *Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 378 tests.*
