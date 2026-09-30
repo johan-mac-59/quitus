@@ -1287,11 +1287,12 @@ def onglet_telechargements() -> None:
     # Rappel de la convention de nommage : c'est elle qui permet de comparer
     # plusieurs essais sans qu'aucun n'écrase l'autre.
     st.divider()
-    st.caption("🕒 Chaque nom de fichier se termine par la date et l'heure de "
-               "l'étape qui l'a produit (`AAAAMMJJ_HHMMSS`). Relancez le nettoyage "
-               "avec d'autres options : les nouveaux fichiers ne remplaceront pas "
-               "les précédents, et le fichier nettoyé partage la marque de ses "
-               "rapports.")
+    st.caption("🕒 Seuls les fichiers du **dernier nettoyage** sont proposés ici : "
+               "relancer le nettoyage remplace les précédents sur cette page. "
+               "Téléchargez-les avant si vous voulez comparer plusieurs essais. "
+               "Sur votre ordinateur, rien ne s'écrase : chaque nom se termine par "
+               "la date et l'heure de l'étape qui l'a produit (`AAAAMMJJ_HHMMSS`), "
+               "et le fichier nettoyé porte la même marque que ses rapports.")
 
     section_retours_et_soutien(fichiers_disponibles=True)
 

@@ -864,6 +864,9 @@ class TestGuideTelechargements:
         assert "Tout ce que Quitus a produit" in textes
         for attendu in ("Le résultat", "Le constat de départ", "La vérification"):
             assert attendu in legendes, attendu
+        # Un nouveau nettoyage remplace le précédent : la page ne doit pas
+        # laisser croire qu'elle accumule les essais.
+        assert "dernier nettoyage" in legendes
 
     def test_chaque_telechargement_a_une_infobulle(self, app, csv_sale):
         app = _apres_nettoyage(app, csv_sale, ecreter=True, combler=True)
