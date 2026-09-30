@@ -1813,4 +1813,15 @@ La configuration de conteneur de développement (`.devcontainer/`) est retirée 
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique. 378 tests.*
+## Étape 47 : Version 1.0.0 🏁
+
+### 1. Le jalon est atteint
+L'Étape 38 avait fixé la règle : **la version 1.0 marque une application déployée et validée**, et l'étiquette `v1.0.0` ne serait posée qu'à ce moment-là. L'application est en ligne depuis l'Étape 45 ; les vérifications faites, le porteur du projet valide la version 1.0.0.
+
+### 2. Ce qui a été fait
+* l'étiquette git **`v1.0.0`** est posée sur ce commit : elle désigne le code réellement déployé, correctifs de sécurité de l'Étape 36 compris ;
+* le verrou de dépendances `uv.lock`, resté à `0.1.0`, est remis en accord avec `pyproject.toml`, qui annonçait déjà `1.0.0`.
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 378 tests.*
