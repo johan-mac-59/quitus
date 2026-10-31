@@ -480,10 +480,10 @@ class TestParcoursComplet:
         assert app.session_state["profil"] is not None
         assert "shape" in app.session_state["profil"]
 
-        # Étape 2 : cocher les deux traitements lourds puis nettoyer
-        for case in app.sidebar.checkbox:
-            if "Écrêter" in case.label or "Combler" in case.label:
-                case.set_value(True)
+        # Étape 2 : choisir toutes les colonnes des deux traitements lourds,
+        # puis nettoyer
+        for liste in app.sidebar.multiselect:
+            _choisir(liste, None)
         boutons = [b for b in app.sidebar.button if "Nettoyer" in b.label]
         if not boutons:
             # Le bouton de soumission d'un formulaire est exposé séparément.
@@ -560,11 +560,52 @@ class TestParcoursComplet:
         app.run()
         app = _deposer(app, csv_sale, "sale.csv")
         app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
-        libelles = [c.label for c in app.sidebar.checkbox]
+        libelles = [m.label for m in app.sidebar.multiselect]
         assert len(libelles) == 2
         assert any("Écrêter" in lib for lib in libelles)
         assert any("Combler" in lib for lib in libelles)
+        assert len(app.sidebar.checkbox) == 0
         assert len(app.sidebar.number_input) == 0
+
+    def test_chaque_decision_propose_ses_colonnes(self, app, csv_sale):
+        """Chaque traitement propose les colonnes concernées, avec leur nombre."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        ecreter, combler = _listes(app)
+        # Les montants, encore en texte, ne révèlent leurs extrêmes qu'après
+        # correction des types : ils doivent être proposés quand même.
+        assert [_colonne(o) for o in ecreter.options] == ["montant"]
+        assert [_colonne(o) for o in combler.options] == ["note"]
+        # Cinq notes absentes, plus une dans la ligne dupliquée.
+        assert combler.options[0] == "note (6)"
+        # Rien n'est choisi d'office.
+        assert ecreter.value == [] and combler.value == []
+
+    def test_seules_les_colonnes_choisies_sont_traitees(self, app):
+        """Une colonne non choisie garde ses extrêmes et ses absences."""
+        lignes = ["a;b;c;d"]
+        for i in range(40):
+            extreme = i % 13 == 0
+            lignes.append(";".join([
+                str(9000 if extreme else 100 + i % 7),
+                str(9000 if extreme else 100 + i % 7),
+                "" if i % 9 == 0 else str(i % 5),
+                "" if i % 9 == 0 else str(i % 5),
+            ]))
+        contenu = "\n".join(lignes).encode("utf-8")
+        app = _apres_nettoyage(app, contenu, ecreter=["a"], combler=["c"])
+        assert not app.exception
+
+        propre = app.session_state["df_propre"]
+        assert propre["a"].max() < 9000
+        assert propre["b"].max() == 9000
+        assert propre["c"].isna().sum() == 0
+        assert propre["d"].isna().sum() == 5
+
+        stats = app.session_state["stats"]
+        assert set(stats["outliers_corrected"]) == {"a"}
+        assert set(stats["missing_filled"]) == {"c"}
 
     def test_onglet_telechargements_present(self, app, csv_sale):
         """L'onglet récapitulatif des téléchargements existe."""
@@ -758,14 +799,53 @@ class TestRobustesse:
 # Utilitaire de parcours
 # --------------------------------------------------------------------------
 
-def _apres_nettoyage(app, contenu: bytes, *, ecreter: bool, combler: bool):
+def _colonne(option: str) -> str:
+    """Retrouve le nom de colonne d'une option affichée « nom (nombre) ».
+
+    Args:
+        option: Libellé de l'option, tel que la liste l'affiche.
+
+    Returns:
+        Le nom de la colonne.
+    """
+    return option.rsplit(" (", 1)[0]
+
+
+def _listes(app):
+    """Retourne les listes de colonnes des deux traitements.
+
+    Args:
+        app: Application après analyse.
+
+    Returns:
+        Le couple (liste d'écrêtage, liste de remplissage).
+    """
+    listes = {m.label: m for m in app.sidebar.multiselect}
+    return (next(m for lib, m in listes.items() if "Écrêter" in lib),
+            next(m for lib, m in listes.items() if "Combler" in lib))
+
+
+def _choisir(liste, colonnes) -> None:
+    """Choisit des colonnes dans la liste d'un traitement.
+
+    Args:
+        liste: Liste de colonnes (multiselect) du traitement.
+        colonnes: Colonnes à choisir ; None pour toutes celles proposées.
+    """
+    if colonnes is None:
+        colonnes = [_colonne(o) for o in liste.options]
+    liste.set_value(list(colonnes))
+
+
+def _apres_nettoyage(app, contenu: bytes, *, ecreter, combler):
     """Déroule le parcours complet jusqu'au nettoyage inclus.
 
     Args:
         app: Instance d'AppTest vierge.
         contenu: Octets du fichier à déposer.
-        ecreter: Coche l'écrêtage des valeurs aberrantes.
-        combler: Coche le remplissage des valeurs manquantes.
+        ecreter: Colonnes à écrêter : True pour toutes celles proposées,
+            False pour aucune, ou une liste de noms.
+        combler: Colonnes à combler, sur le même modèle.
 
     Returns:
         L'application après nettoyage.
@@ -776,11 +856,8 @@ def _apres_nettoyage(app, contenu: bytes, *, ecreter: bool, combler: bool):
     analyse = [b for b in app.sidebar.button if "Analyser" in b.label]
     app = analyse[0].click().run()
 
-    for case in app.sidebar.checkbox:
-        if "Écrêter" in case.label:
-            case.set_value(ecreter)
-        elif "Combler" in case.label:
-            case.set_value(combler)
+    for liste, choix in zip(_listes(app), (ecreter, combler)):
+        _choisir(liste, None if choix is True else (choix or []))
 
     nettoyer = [b for b in app.sidebar.button if "Nettoyer" in b.label]
     if not nettoyer:

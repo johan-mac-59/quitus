@@ -254,3 +254,46 @@ class TestPipelineEndToEnd:
         """Test avec doublons dans le pipeline."""
         final_df, stats = run_all_cleaning_steps(dirty_df_with_exact_doublons)
         assert not final_df.empty
+
+class TestTraitementColonneParColonne:
+    """Écrêtage et remplissage se décident colonne par colonne.
+
+    Un extrême peut être réel, une absence peut avoir un sens : l'utilisateur
+    doit pouvoir traiter une colonne et en laisser une autre intacte.
+    """
+
+    @pytest.fixture
+    def df_jumeaux(self):
+        """Deux paires de colonnes identiques : l'une traitée, l'autre non."""
+        base = [10, 11, 12, 13, 14, 15, 12, 11, 500]
+        trous = [1.0, np.nan, 3.0, np.nan, 5.0, 6.0, 7.0, 8.0, 9.0]
+        return pd.DataFrame({'a': base, 'b': base, 'c': trous, 'd': trous})
+
+    def test_clip_outliers_seulement_les_colonnes_choisies(self, df_jumeaux):
+        df, corrections = clip_outliers(df_jumeaux, columns=['a'])
+        assert set(corrections) == {'a'}
+        assert df['a'].max() < 500
+        assert df['b'].max() == 500
+
+    def test_clip_outliers_none_traite_tout(self, df_jumeaux):
+        _, corrections = clip_outliers(df_jumeaux)
+        assert set(corrections) == {'a', 'b'}
+
+    def test_colonne_inconnue_ignoree(self, df_jumeaux):
+        _, corrections = clip_outliers(df_jumeaux, columns=['absente'])
+        assert corrections == {}
+
+    def test_clean_missing_values_seulement_les_colonnes_choisies(self, df_jumeaux):
+        df, actions = clean_missing_values(df_jumeaux, columns=['c'])
+        assert set(actions) == {'c'}
+        assert df['c'].isna().sum() == 0
+        assert df['d'].isna().sum() == 2
+
+    def test_pipeline_transmet_le_choix(self, df_jumeaux):
+        df, stats = run_all_cleaning_steps(
+            df_jumeaux, correct_outliers=True, fill_missing=True,
+            outlier_columns=['b'], missing_columns=['d'])
+        assert set(stats['outliers_corrected']) == {'b'}
+        assert set(stats['missing_filled']) == {'d'}
+        assert df['a'].max() == 500
+        assert df['c'].isna().sum() == 2

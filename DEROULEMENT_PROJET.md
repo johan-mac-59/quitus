@@ -1853,4 +1853,31 @@ Un test vérifie que le document fixe son fond, sa couleur de texte et son sché
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 405 tests.*
+## Étape 48 : Décider Colonne par Colonne 🎚️📋
+
+### 1. Le défaut de conception
+Depuis l'Étape 22, l'utilisateur décide d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Mais il en décidait **pour tout le fichier à la fois** : deux cases à cocher, tout ou rien.
+
+Or les deux principes qui justifient ces décisions sont, par nature, propres à chaque colonne. Un extrême peut être une erreur de saisie dans une colonne de poids, et une vente exceptionnelle bien réelle dans une colonne de montants. Une absence peut être un oubli dans une colonne et avoir un sens dans une autre : l'Étape 36 l'avait relevé sur les prix de carburants en rupture. Face à un fichier qui mêlait les deux cas, l'utilisateur n'avait que deux mauvais choix : tout corriger, et abîmer des données justes, ou ne rien corriger.
+
+### 2. Le moteur apprend à cibler
+`clip_outliers` et `clean_missing_values` reçoivent un paramètre `columns`, et `run_all_cleaning_steps` les paramètres `outlier_columns` et `missing_columns` qui le leur transmettent. La valeur `None` signifie toutes les colonnes : la ligne de commande, qui pose ses deux questions globales, garde ainsi exactement son comportement. Une colonne choisie mais disparue entre-temps, par exemple une colonne vide supprimée, est simplement ignorée.
+
+Le format des statistiques ne change pas : seules les colonnes réellement traitées y figurent. Les rapports, le bilan console et l'interface n'ont donc rien eu à apprendre.
+
+### 3. Deux listes au lieu de deux cases
+Dans la barre latérale, chaque case à cocher devient une **liste de colonnes à choisir**. Chacune ne propose que les colonnes concernées, avec leur nombre de valeurs en cause : `montant (3)`, `note (6)`. Les montants encore stockés en texte y figurent aussi : leurs extrêmes, invisibles avant la correction des types, sont estimés comme ils l'étaient déjà pour l'ancienne case. Rien n'est choisi d'office : le principe « rien ne change sans vous » est inchangé. Quand aucune colonne n'est concernée, la liste est désactivée et le dit.
+
+Le texte d'aide de l'écrêtage rappelle désormais qu'un extrême peut être réel, comme celui du remplissage rappelait déjà qu'une absence peut avoir un sens. Sur la page d'accueil, l'étape « Décider » annonce des traitements appliqués « colonne par colonne », et non plus « case par case ». Le README précise que la ligne de commande, elle, décide pour toutes les colonnes à la fois.
+
+### 4. Vérifié dans le navigateur
+Sur l'application locale, avec un fichier comportant un extrême dans les montants, un autre dans les poids, des poids et des villes manquants : seuls les montants ont été écrêtés, et le poids extrême conservé ; seuls les poids ont été comblés, et les villes manquantes laissées vides.
+
+Au passage, un piège du serveur de développement : après une modification du moteur, Streamlit recharge le script de l'application mais peut garder l'ancien module en mémoire, et le premier essai a échoué sur un paramètre « inconnu ». Un redémarrage du serveur a suffi. En ligne, chaque déploiement repart de zéro.
+
+### 5. Résultat
+Les tests du moteur vérifient qu'une colonne non choisie reste intacte. Ceux de l'interface vérifient les colonnes proposées et leur nombre, et le résultat d'un parcours où une colonne sur deux est traitée. Les tests existants pilotent désormais les listes au lieu des cases. **412 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 412 tests.*

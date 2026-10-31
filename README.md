@@ -140,7 +140,7 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 
 1. **Chargement** — détection du format, de l'encodage et du séparateur.
 2. **Audit initial** — inspection des données brutes.
-3. **Décisions** — l'utilisateur choisit d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Ces deux traitements modifient les distributions : ils ne sont jamais appliqués sans accord explicite.
+3. **Décisions** — l'utilisateur choisit d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Ces deux traitements modifient les distributions : ils ne sont jamais appliqués sans accord explicite. Dans l'interface web, ils se décident colonne par colonne ; la ligne de commande les applique à toutes les colonnes ou à aucune.
 4. **Nettoyage** — corrections automatiques, puis traitements choisis.
 5. **Validation** — second profilage, sur les données nettoyées.
 6. **Livraison** — CSV propre et rapports.
@@ -233,14 +233,15 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 381 tests
+python -m pytest              # 412 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
 La suite couvre les modules métier, mais aussi trois familles moins habituelles :
 
-* **`test_app_streamlit.py`** — tests d'intégration qui pilotent réellement l'application via le harnais `AppTest` de Streamlit, sans navigateur, de la page d'accueil au contrôle après nettoyage. Ils vérifient des effets mesurables (les doublons disparaissent, la casse est uniformisée, l'écrêtage demandé n'est pas ignoré) et les deux garanties de confidentialité annoncées.
+* **`test_app_streamlit.py`** — tests d'intégration qui pilotent réellement l'application via le harnais `AppTest` de Streamlit, sans navigateur, de la page d'accueil au contrôle après nettoyage. Ils vérifient des effets mesurables (les doublons disparaissent, la casse est uniformisée, l'écrêtage demandé n'est pas ignoré, une colonne non choisie reste intacte) et les deux garanties de confidentialité annoncées.
 * **`test_aucune_perte_silencieuse.py`** — sur un jeu réunissant toutes les sources de perte connues, les valeurs **réellement** vidées par le nettoyage et celles **déclarées** à l'utilisateur doivent coïncider exactement.
+* **`test_zero_initial.py`** — un téléphone, un code postal ou un matricule écrit avec un zéro initial reste du texte, dans chacun des quatre formats, du chargement au fichier nettoyé. Une perte d'autant plus sournoise qu'aucune valeur ne devient manquante.
 * **`test_securite_rapport_html.py`** — un fichier piégé (balises, gestionnaires d'événements, guillemets dans les noms de colonnes) ne doit produire, une fois le rapport analysé comme le ferait un navigateur, aucune balise `script` ni aucun attribut `on…`. Rejoués contre l'ancien code, ces tests échouent : ils détectent réellement la faille qu'ils préviennent.
 * **`test_invariant_post_nettoyage.py`** — après nettoyage, plus aucune colonne textuelle ne doit être convertible en nombre ou en date.
 * **`test_plot_factory.py`** — vérifie qu'après la construction de 90 figures, le registre global de matplotlib est **vide**. Sans quoi un serveur de longue durée fuirait à chaque interaction.

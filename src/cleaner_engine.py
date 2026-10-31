@@ -699,15 +699,25 @@ def clean_case_sensitivity(df: pd.DataFrame, target_columns: list = None) -> Tup
     
     return df_cleaned, corrections
 
-def clean_missing_values(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
-    """Nettoie les valeurs manquantes de manière intelligente."""
+def clean_missing_values(df: pd.DataFrame, columns: list = None) -> Tuple[pd.DataFrame, dict]:
+    """Comble les valeurs manquantes : médiane si numérique, mode sinon.
+
+    Args:
+        df: DataFrame à traiter.
+        columns: Colonnes à combler ; None pour toutes. Une colonne absente du
+            DataFrame est ignorée.
+
+    Returns:
+        Le DataFrame comblé et, par colonne traitée, le nombre de valeurs
+        comblées et la méthode employée.
+    """
     if df.empty:
         return df.copy(), {}
     
     actions = {}
     df_cleaned = df.copy()
 
-    for col in df_cleaned.columns:
+    for col in _colonnes_retenues(df_cleaned, df_cleaned.columns, columns):
         null_count = df_cleaned[col].isna().sum()
         if null_count > 0:
             if pd.api.types.is_numeric_dtype(df_cleaned[col]):
@@ -732,8 +742,18 @@ def clean_missing_values(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
     return df_cleaned, actions
 
-def clip_outliers(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
-    """Corrige les valeurs aberrantes avec la méthode IQR (Cliping)."""
+def clip_outliers(df: pd.DataFrame, columns: list = None) -> Tuple[pd.DataFrame, dict]:
+    """Écrête les valeurs aberrantes des colonnes numériques (méthode IQR).
+
+    Args:
+        df: DataFrame à traiter.
+        columns: Colonnes à écrêter ; None pour toutes les colonnes numériques.
+            Une colonne absente ou non numérique est ignorée.
+
+    Returns:
+        Le DataFrame écrêté et le nombre de valeurs ramenées dans les bornes,
+        par colonne.
+    """
     if df.empty:
         return df.copy(), {}
 
@@ -745,7 +765,7 @@ def clip_outliers(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     # On s'assure de prendre uniquement les colonnes numériques actives
     numeric_cols = df.select_dtypes(include=[np.number]).columns
 
-    for col in numeric_cols:
+    for col in _colonnes_retenues(df, numeric_cols, columns):
         non_null_data = df[col].dropna()
         
         # Cas limite : si on a trop peu de données, l'IQR n'est pas fiable
@@ -787,6 +807,23 @@ def clip_outliers(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
             corrections[col] = int(n_outliers)
 
     return df, corrections
+
+def _colonnes_retenues(df: pd.DataFrame, candidates, demandees) -> list:
+    """Restreint des colonnes candidates à celles que l'utilisateur a choisies.
+
+    Args:
+        df: DataFrame traité.
+        candidates: Colonnes auxquelles le traitement s'applique.
+        demandees: Colonnes choisies ; None pour toutes les candidates.
+
+    Returns:
+        Les colonnes à traiter, dans l'ordre du DataFrame.
+    """
+    if demandees is None:
+        return list(candidates)
+    demandees = set(demandees)
+    return [col for col in candidates if col in demandees and col in df.columns]
+
 
 SEPARATEUR = "=" * 60
 
@@ -1123,7 +1160,10 @@ def get_user_decisions(initial_df: pd.DataFrame, profiler_results: dict, *,
     return decided_outliers, decided_missing
 
 
-def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iterations: int = 5, correct_outliers: bool = True, fill_missing: bool = True) -> Tuple[pd.DataFrame, dict]:
+def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iterations: int = 5,
+                           correct_outliers: bool = True, fill_missing: bool = True,
+                           outlier_columns: list = None,
+                           missing_columns: list = None) -> Tuple[pd.DataFrame, dict]:
     """
     Applique les nettoyages de manière itérative et ordonnée.
     
@@ -1132,6 +1172,11 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
         max_iterations: Nombre maximum d'itérations
         correct_outliers: Booléen pour décider si on corrige les outliers
         fill_missing: Booléen pour décider si on remplit les valeurs manquantes
+        outlier_columns: Colonnes à écrêter, si `correct_outliers` est vrai ;
+            None pour toutes. C'est par là que l'interface web transmet le
+            choix fait colonne par colonne.
+        missing_columns: Colonnes à combler, si `fill_missing` est vrai ;
+            None pour toutes.
     
     Ordre stratégique pour éviter les erreurs en cascade :
     1. Forme (espaces) -> Pour préparer la conversion de types
@@ -1229,7 +1274,7 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
     
     # 8. Missing Values (Remplissage) - Exécuté ici de manière explicite
     if fill_missing:
-        current_df, fillings = clean_missing_values(current_df)
+        current_df, fillings = clean_missing_values(current_df, columns=missing_columns)
         if fillings:
             stats['missing_filled'].update(fillings)
         else:
@@ -1243,7 +1288,7 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
 
     # 9. Outliers IQR (En dernier, sur données numérées et propres) 
     if correct_outliers:
-        current_df, outliers = clip_outliers(current_df)
+        current_df, outliers = clip_outliers(current_df, columns=outlier_columns)
         if outliers:
             for col, count in outliers.items():
                 stats['outliers_corrected'][col] = stats['outliers_corrected'].get(col, 0) + count

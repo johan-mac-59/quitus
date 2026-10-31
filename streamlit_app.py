@@ -743,7 +743,7 @@ def page_accueil(accueil: bool = True) -> None:
         ("2 · Diagnostiquer", "Un premier rapport dresse l'état des lieux, défauts "
                               "compris. C'est le constat de départ."),
         ("3 · Décider", "Deux traitements modifient vos valeurs. Ils ne s'appliquent "
-                        "qu'avec votre accord, case par case."),
+                        "qu'avec votre accord, colonne par colonne."),
         ("4 · Vérifier", "Un second rapport contrôle le résultat : plus aucune "
                          "colonne ne doit rester mal typée."),
     ]
@@ -905,16 +905,19 @@ def barre_laterale() -> dict:
 def formulaire_options(df: pd.DataFrame) -> dict:
     """Construit le formulaire des options de nettoyage.
 
-    Seules les deux décisions qui altèrent les données sont exposées. Tout le
-    reste — doublons, espaces, casse, types — est corrigé d'office, et le
-    nombre de passes est laissé au moteur, qui s'arrête dès que plus rien ne
-    change.
+    Seules les deux décisions qui altèrent les données sont exposées, et
+    chacune se prend colonne par colonne : on peut écrêter des mesures et
+    laisser intacts des montants dont les extrêmes sont réels, combler une
+    colonne et respecter les absences d'une autre. Tout le reste — doublons,
+    espaces, casse, types — est corrigé d'office, et le nombre de passes est
+    laissé au moteur, qui s'arrête dès que plus rien ne change.
 
     Args:
         df: DataFrame brut, pour calculer les diagnostics affichés en aide.
 
     Returns:
-        Les options choisies et un drapeau indiquant si le nettoyage est demandé.
+        Les colonnes choisies pour chaque traitement et un drapeau indiquant
+        si le nettoyage est demandé.
     """
     profil = st.session_state["profil"]
     res_out = summarize_outliers(df, {}, profil)
@@ -926,28 +929,34 @@ def formulaire_options(df: pd.DataFrame) -> dict:
                    "Les deux traitements ci-dessous modifient les valeurs : "
                    "ils ne sont appliqués qu'avec votre accord.")
 
-        nb_out = sum(res_out["columns"].values())
-        ecreter = st.checkbox(
-            f"Écrêter les valeurs aberrantes ({formater(nb_out)})" if res_out["has_outliers"]
-            else "Écrêter les valeurs aberrantes",
-            value=False,
-            disabled=not res_out["has_outliers"],
+        # Chaque colonne est proposée avec son nombre de valeurs concernées.
+        aberrantes = res_out["columns"]
+        ecreter = st.multiselect(
+            "Écrêter les valeurs aberrantes",
+            options=list(aberrantes),
+            format_func=lambda c: f"{c} ({formater(aberrantes[c])})",
+            disabled=not aberrantes,
+            placeholder="Choisir des colonnes" if aberrantes
+            else "Aucune valeur aberrante",
             help="Méthode IQR. Ramène les valeurs extrêmes dans les bornes "
-                 "statistiques. Modifie les distributions."
-                 + ("\n\n" + "\n".join(f"- {c} : {n}"
-                                       for c, n in res_out["columns"].items())
-                    if res_out["has_outliers"] else ""),
+                 "statistiques, dans les seules colonnes choisies. Modifie "
+                 "les distributions.\n\nUn extrême peut être réel : un gros "
+                 "montant n'est pas forcément une erreur de saisie.",
         )
 
-        combler = st.checkbox(
-            f"Combler les valeurs manquantes ({formater(res_manq['total'])})"
-            if res_manq["total"] else "Combler les valeurs manquantes",
-            value=False,
-            disabled=res_manq["total"] == 0,
+        manquantes = res_manq["by_column"]
+        combler = st.multiselect(
+            "Combler les valeurs manquantes",
+            options=list(manquantes),
+            format_func=lambda c: f"{c} ({formater(manquantes[c][0])})",
+            disabled=not manquantes,
+            placeholder="Choisir des colonnes" if manquantes
+            else "Aucune valeur manquante",
             help="Médiane pour les colonnes numériques, mode pour les "
-                 "catégorielles.\n\n⚠️ Une absence peut avoir un sens : un "
-                 "produit en rupture n'a pas de prix, un champ non applicable "
-                 "est vide à dessein. La combler invente une valeur.",
+                 "catégorielles, dans les seules colonnes choisies.\n\n⚠️ "
+                 "Une absence peut avoir un sens : un produit en rupture n'a "
+                 "pas de prix, un champ non applicable est vide à dessein. La "
+                 "combler invente une valeur.",
         )
 
         lancer = st.form_submit_button("🧹 Nettoyer", width="stretch",
@@ -1449,8 +1458,10 @@ def lancer_nettoyage(options: dict) -> None:
             "nettoyage", run_all_cleaning_steps,
             brut.copy(),
             profile_info=st.session_state["profil"],
-            correct_outliers=options["ecreter"],
-            fill_missing=options["combler"],
+            correct_outliers=bool(options["ecreter"]),
+            fill_missing=bool(options["combler"]),
+            outlier_columns=options["ecreter"],
+            missing_columns=options["combler"],
         )
     except Exception as e:
         st.error(f"Le nettoyage a échoué : {e}")
