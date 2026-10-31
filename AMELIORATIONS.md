@@ -5,14 +5,13 @@ livrées suivent, dans l'ordre chronologique. Le détail de chaque livraison se
 trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
 
 ## 🎯 À faire — par ordre d'importance
-1. **Rapport HTML illisible en mode sombre** : affiché dans l'application Streamlit en thème sombre, le rapport HTML devient illisible. Il doit rester lisible quel que soit le thème choisi par le visiteur.
-2. **Traitement colonne par colonne** : dans l'interface web, choisir quelles colonnes écrêter ou combler, au lieu de deux décisions globales.
-3. **Seuil des valeurs aberrantes paramétrable** : l'utilisateur décide aujourd'hui d'écrêter ou non, mais le seuil IQR reste fixé à 1,5 pour toutes les colonnes. Il devrait pouvoir s'adapter au contexte métier — plus tolérant pour des montants à forte dispersion, plus strict pour des mesures stables. *Issu de la liste de l'Étape 6.*
-4. **Normalisation des notes sur une échelle commune** : `17/20` est converti en `17`, le numérateur, seul choix cohérent quand une colonne mêle `5` et `5/5`. Une colonne mêlant `17/20` et `4/5` resterait toutefois incohérente : une détection de l'échelle dominante serait utile.
-5. **Documentation API** : rédaction d'un document technique détaillé décrivant l'interface et les paramètres de chaque fonction. *À moitié fait : toutes les fonctions publiques ont une docstring, et un test l'impose. Reste à assembler le document.*
-6. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs).
-7. **Support du format Parquet** : CSV, Excel, JSON et JSON Lines sont pris en charge, Parquet non. *Issu de la liste de l'Étape 6.*
-8. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
+1. **Traitement colonne par colonne** : dans l'interface web, choisir quelles colonnes écrêter ou combler, au lieu de deux décisions globales.
+2. **Seuil des valeurs aberrantes paramétrable** : l'utilisateur décide aujourd'hui d'écrêter ou non, mais le seuil IQR reste fixé à 1,5 pour toutes les colonnes. Il devrait pouvoir s'adapter au contexte métier — plus tolérant pour des montants à forte dispersion, plus strict pour des mesures stables. *Issu de la liste de l'Étape 6.*
+3. **Normalisation des notes sur une échelle commune** : `17/20` est converti en `17`, le numérateur, seul choix cohérent quand une colonne mêle `5` et `5/5`. Une colonne mêlant `17/20` et `4/5` resterait toutefois incohérente : une détection de l'échelle dominante serait utile.
+4. **Documentation API** : rédaction d'un document technique détaillé décrivant l'interface et les paramètres de chaque fonction. *À moitié fait : toutes les fonctions publiques ont une docstring, et un test l'impose. Reste à assembler le document.*
+5. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs).
+6. **Support du format Parquet** : CSV, Excel, JSON et JSON Lines sont pris en charge, Parquet non. *Issu de la liste de l'Étape 6.*
+7. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
 
 ## ✅ Livré
 - ~~**un vrai rapport de nettoyage**~~ : chaque exécution produit un rapport qui indique la source et l'horodatage, compare l'avant et l'après, et détaille colonne par colonne chaque opération effectuée. Le journal de nettoyage est couvert par des tests. *Étapes 16 et 17.*
@@ -29,3 +28,4 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - ~~**bouton de soutien**~~ : un bouton « Soutenir le projet » renvoie vers la page [Buy Me a Coffee](https://buymeacoffee.com/johan_mac) — pas de compte à créer pour le donateur, dons ponctuels. Le paiement se fait entièrement chez le prestataire. *Étape 39.*
 - ~~**déploiement public**~~ : l'application tourne sur Streamlit Community Cloud, à l'adresse [quitus.streamlit.app](https://quitus.streamlit.app/). *Étape 43.*
 - ~~**numéros de téléphone tronqués**~~ : un code écrit avec un zéro initial (téléphone, code postal, matricule) reste du texte, au chargement de chaque format comme au nettoyage. *Étape 46.*
+- ~~**rapport HTML lisible en mode sombre**~~ : le rapport fixe son propre fond clair et sa couleur de texte ; il reste lisible dans l'application quel que soit le thème choisi. *Étape 47.*

@@ -1831,4 +1831,26 @@ Un nouveau fichier de tests, `test_zero_initial.py`, couvre la règle, chacun de
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 404 tests.*
+## Étape 47 : Un Rapport qui Garde sa Feuille Blanche 📄🌗
+
+### 1. Le défaut
+Deuxième défaut relevé après la mise en ligne : affiché dans l'application en thème sombre, le rapport HTML devenait illisible. Il a d'abord été reproduit dans Chrome, sur l'application lancée en local, avec un petit fichier déposé : titres, tableau et logo du rapport se fondaient dans le fond sombre de la page.
+
+### 2. La cause
+Le rapport ne fixait que la couleur de ses titres et le fond de ses en-têtes de tableau. Ni le fond de la page ni la couleur du texte courant n'étaient définis. Téléchargé et ouvert seul, il héritait du blanc par défaut du navigateur, et le défaut ne se voyait pas. Affiché dans l'iframe de l'interface web, il était **transparent** : derrière lui apparaissait le fond de l'application, sombre en thème sombre, sous un texte resté foncé.
+
+### 3. Une feuille claire, quel que soit le thème
+Deux solutions étaient possibles : suivre le thème de la page, ou en être indépendant.
+
+Suivre le thème supposait que le rapport le connaisse. Or une iframe ne voit pas le `color-scheme` de la page qui l'accueille, et la détection côté Python est, l'Étape 43 l'a montré, peu fiable au premier affichage. Surtout, les graphiques du rapport sont des images sur fond blanc, et son logo est la variante claire : un rapport sombre aurait juxtaposé une page noire et des rectangles blancs.
+
+Le rapport fixe donc lui-même **son fond blanc, la couleur de son texte et un `color-scheme: light`**, qui accorde aussi ses barres de défilement. Il se lit comme une feuille posée sur la page : identique en thème clair et en thème sombre, identique dans l'aperçu, dans la fenêtre « Ouvrir en grand » et dans le fichier téléchargé. Les deux rapports, avant et après nettoyage, partagent cet en-tête.
+
+Le résultat a été contrôlé dans Chrome, en thème sombre, sur la même application locale : le rapport est lisible, logo compris. Au passage, la même vérification a confirmé l'Étape 46 dans l'interface web : la colonne de téléphones du fichier déposé garde ses `06`.
+
+### 4. Résultat
+Un test vérifie que le document fixe son fond, sa couleur de texte et son schéma de couleurs. **405 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 405 tests.*

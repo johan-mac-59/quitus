@@ -498,6 +498,13 @@ class DataProfiler:
         # c'est une seconde ligne de défense : même si une donnée échappait un
         # jour à l'échappement, elle ne pourrait rien exécuter — ni dans le
         # fichier téléchargé, ni dans l'aperçu intégré à l'interface web.
+        #
+        # Le rapport fixe lui-même son fond et sa couleur de texte, en clair.
+        # Affiché dans l'iframe de l'interface web, il serait sinon transparent :
+        # en thème sombre, son texte foncé disparaissait sur le fond de la page.
+        # Il ne suit pas le thème de la page, qu'une iframe ne peut pas
+        # connaître, et ses graphiques comme son logo sont conçus sur fond blanc.
+        # `color-scheme: light` aligne en outre les barres de défilement.
         return """
         <!DOCTYPE html>
         <html lang="fr">
@@ -507,6 +514,7 @@ class DataProfiler:
                   content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
             <title>Rapport d'Inspection des Données</title>
             <style>
+                html { color-scheme: light; background-color: #ffffff; color: #1f2933; }
                 body { font-family: Arial, sans-serif; margin: 20px; }
                 h1, h2, h3 { color: #2c3e50; }
                 table { border-collapse: collapse; width: 100%; margin: 10px 0; }

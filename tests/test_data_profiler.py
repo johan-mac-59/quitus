@@ -240,3 +240,22 @@ class TestDataProfilerRobustness:
         profiler.generate_report(str(tmp_path / "rapport.md"))
         elapsed = time.time() - start
         assert elapsed < 5.0, f"La génération du rapport a pris trop de temps : {elapsed}s"
+
+class TestRapportHtmlLisible:
+    """Le rapport HTML reste lisible quel que soit le thème de la page qui l'affiche.
+
+    Affiché dans l'iframe de l'interface web, un rapport sans fond propre est
+    transparent : en thème sombre, son texte foncé disparaissait sur le fond de
+    la page.
+    """
+
+    def test_fond_et_texte_fixes(self, valid_df):
+        """Le document fixe lui-même son fond, sa couleur de texte et son schéma."""
+        profiler = DataProfiler(valid_df)
+        profiler.run_analysis()
+        html = profiler._generate_html_report()
+
+        regle = html.split("html {", 1)[1].split("}", 1)[0]
+        assert "color-scheme: light" in regle
+        assert "background-color: #ffffff" in regle
+        assert "color: #1f2933" in regle
