@@ -1797,4 +1797,38 @@ Quelques finitions ont suivi l'étiquette :
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 381 tests.*
+## Étape 46 : Le Zéro qui Disparaissait 📞0️⃣
+
+### 1. Le défaut
+Le premier défaut inscrit dans la feuille de route après la mise en ligne : une colonne de numéros de téléphone ressortait du nettoyage en entiers. `0612345678` devenait `612345678`. Les codes postaux de l'Ain (`01000`) et les matricules (`00042`) subissaient le même sort.
+
+C'est exactement le genre de perte que l'Étape 36 s'était engagée à ne plus laisser passer, et c'est la plus sournoise de toutes : **aucune valeur ne devient manquante**. Le recensement des valeurs vidées n'avait donc rien à signaler, et le profil après nettoyage voyait une colonne parfaitement typée. Toutes les garanties en place étaient respectées, et la donnée était pourtant abîmée.
+
+### 2. Trois endroits, pas un
+L'enquête, menée format par format, a montré que le zéro se perdait à trois endroits distincts :
+
+* **au chargement d'un CSV** : `read_csv` lit `0612345678` en `int64` avant même que le nettoyage commence ;
+* **au chargement d'un JSON ou d'un classeur Excel** : `read_json` convertit en nombres les chaînes qui en ont l'air, et `read_excel` fait de même avec une cellule pourtant saisie en texte ;
+* **au nettoyage** : une colonne restée textuelle, comme celle d'un fichier JSON Lines, était convertie par `clean_types`.
+
+Corriger un seul de ces endroits aurait laissé les deux autres ouverts, selon le format déposé.
+
+### 3. Une règle unique
+Un code se reconnaît à son écriture : **rien que des chiffres, éventuellement groupés par des espaces, et un zéro suivi d'un autre chiffre en tête**. `0`, `0.5` ou `0,25` ne sont pas concernés, puisque le zéro y est seul ou suivi d'un séparateur décimal. Une date comme `01/02/2024` non plus : la détection des dates doit pouvoir la lire. La première version de la règle s'en tenait au zéro suivi d'un chiffre. Essayée sur les fichiers du dossier `data/`, elle protégeait à tort toutes les colonnes de dates, d'où la précision.
+
+Une seule valeur de ce genre suffit à garder toute la colonne en texte : un code ne se mêle pas à des nombres. Et la colonne est examinée **en entier**, et non sur les cent premières valeurs comme le reste de la détection numérique : un code situé à la ligne 500 doit protéger sa colonne autant qu'un autre.
+
+La règle, `has_leading_zero`, vit dans le moteur, et les deux couches l'appliquent :
+
+* **le chargement** lit d'abord le fichier tout en texte pour repérer les colonnes concernées, puis le relit en ne gardant que celles-ci en texte, pandas typant toutes les autres comme avant. Le CSV et l'Excel partagent ce mécanisme. Le JSON est lu sans inférence de type : ses nombres restent des nombres, ses chaînes des chaînes, et c'est le nettoyage, qui recense ce qu'il ne peut lire, qui convertit le reste ;
+* **le nettoyage** écarte ces colonnes de la conversion numérique. Le contrôle après nettoyage applique la même règle : il ne les signale donc pas comme « encore convertibles », et l'invariant de l'Étape 35 reste tenu.
+
+### 4. Ce qui ne peut pas être réparé
+Un classeur Excel où le numéro a été saisi comme un nombre, puis simplement affiché avec un format à dix chiffres, ne contient plus le zéro : la cellule stocke `612345678`. Aucun outil ne peut le retrouver sans deviner, et Quitus ne devine pas.
+
+### 5. Résultat
+Un nouveau fichier de tests, `test_zero_initial.py`, couvre la règle, chacun des quatre formats au chargement, et le parcours complet jusqu'au fichier nettoyé. **404 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 404 tests.*

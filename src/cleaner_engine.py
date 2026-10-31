@@ -118,6 +118,37 @@ _CARACTERES_NUMERIQUES = set("0123456789+-.,;") | set(_SYMBOLES_MONETAIRES) | se
 # n'est pas une perte : elles n'étaient déjà pas des données.
 _MARQUEURS_VIDES = {'', 'nan', 'none', 'null', 'na', 'n/a', '-', '--'}
 
+# Code écrit avec un zéro initial : « 0612345678 », « 01000 », « 06 12 34 56 78 ».
+# Rien que des chiffres, éventuellement groupés par des espaces. « 0 », « 0.5 »
+# ou « 0,25 » n'en sont pas, ni une date comme « 01/02/2024 », que la détection
+# des dates doit pouvoir lire.
+_MOTIF_ZERO_INITIAL = r'^[+-]?0\d[\d\s]*$'
+
+
+def has_leading_zero(series: pd.Series) -> bool:
+    """Indique si une colonne contient un code écrit avec un zéro initial.
+
+    Un numéro de téléphone, un code postal ou un matricule ressemble à un nombre,
+    mais n'en est pas un : le convertir en entier supprimerait son zéro initial,
+    une perte que rien ne signalerait. Une seule valeur de ce genre suffit à
+    garder toute la colonne en texte, car un code ne se mêle pas à des nombres.
+
+    La colonne est examinée en entier, et non sur un échantillon : un code situé
+    au-delà des premières lignes doit protéger la colonne autant qu'un autre.
+
+    Args:
+        series: Colonne à examiner, quel que soit son type.
+
+    Returns:
+        True si au moins une valeur présente est faite de chiffres et commence
+        par un zéro suivi d'un chiffre.
+    """
+    presentes = series.dropna()
+    if presentes.empty:
+        return False
+    texte = presentes.astype('string').str.strip()
+    return bool(texte.str.match(_MOTIF_ZERO_INITIAL).any())
+
 
 def _normaliser_valeur_numerique(val_str: str):
     """Ramène une écriture numérique tolérée à une forme convertible.
@@ -160,10 +191,12 @@ def _can_be_numeric(series: pd.Series) -> bool:
 
     Règles de filtrage (heuristiques) :
 
-    1. Rejeter les identifiants alphanumériques mixtes (« R43873 », « AB-12 »).
-    2. Accepter les nombres monétaires (« 1 200,50 € »), les notes
+    1. Rejeter les codes écrits avec un zéro initial (« 0612345678 »), que la
+       conversion priverait de leur zéro.
+    2. Rejeter les identifiants alphanumériques mixtes (« R43873 », « AB-12 »).
+    3. Accepter les nombres monétaires (« 1 200,50 € »), les notes
        fractionnaires (« 17/20 ») et les pourcentages (« 1,5 % »).
-    3. Rejeter tout le reste.
+    4. Rejeter tout le reste.
 
     Args:
         series: Colonne à examiner.
@@ -176,6 +209,11 @@ def _can_be_numeric(series: pd.Series) -> bool:
     if len(valid_data) == 0:
         return False
 
+    # Règle 1 : un code à zéro initial reste du texte. Examinée sur toute la
+    # colonne, et non sur l'échantillon ci-dessous.
+    if has_leading_zero(valid_data):
+        return False
+
     # On prend un échantillon significatif pour la détection (plus rapide et robuste)
     sample = valid_data.head(100)
 
@@ -186,7 +224,7 @@ def _can_be_numeric(series: pd.Series) -> bool:
         if not val_str:
             continue
 
-        # Règle 1 : identifiant alphanumérique mixte (« R43873 », « A12B »). On
+        # Règle 2 : identifiant alphanumérique mixte (« R43873 », « A12B »). On
         # rejette dès qu'une valeur mêle lettres et chiffres sans former un mot
         # entier — « euro » passerait, « R43873 » non.
         if any(c.isalpha() for c in val_str) and any(c.isdigit() for c in val_str):
@@ -194,7 +232,7 @@ def _can_be_numeric(series: pd.Series) -> bool:
             if not noyau.isalpha() and not noyau.isdigit():
                 return False
 
-        # Règle 2 : la valeur doit se ramener à une forme numérique connue —
+        # Règle 3 : la valeur doit se ramener à une forme numérique connue —
         # nombre simple, monétaire, note fractionnaire ou pourcentage.
         if _normaliser_valeur_numerique(val_str) is None:
             return False

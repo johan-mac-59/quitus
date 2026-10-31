@@ -19,6 +19,8 @@ from typing import BinaryIO, Union
 
 import pandas as pd
 
+from src.cleaner_engine import has_leading_zero
+
 
 # --------------------------------------------------------------------------
 # Portes d'entrée publiques
@@ -103,10 +105,34 @@ def _csv_from_bytes(data: bytes) -> pd.DataFrame:
     print(f"   -> Séparateur : '{delimiter}' | Encodage : {encoding}")
 
     try:
-        return pd.read_csv(BytesIO(data), sep=delimiter, encoding=encoding)
+        return _lire_en_protegeant_les_codes(
+            lambda **options: pd.read_csv(BytesIO(data), sep=delimiter, encoding=encoding, **options))
     except pd.errors.EmptyDataError:
         # Fichier non strictement vide, mais sans colonne exploitable.
         return pd.DataFrame()
+
+
+def _lire_en_protegeant_les_codes(lire) -> pd.DataFrame:
+    """Lit un fichier tabulaire sans retirer le zéro initial de ses codes.
+
+    pandas lit « 0612345678 » comme l'entier 612345678, y compris dans une
+    cellule Excel de type texte. Une première lecture, tout en texte, repère les
+    colonnes concernées (téléphones, codes postaux, matricules) ; la lecture
+    définitive les garde en texte et laisse pandas typer toutes les autres.
+
+    Args:
+        lire: Fonction de lecture pandas, appelée avec ses seules options de
+            typage (`dtype`).
+
+    Returns:
+        Le DataFrame chargé.
+    """
+    texte = lire(dtype=str)
+    codes = {col: str for col in texte.columns if has_leading_zero(texte[col])}
+    if not codes:
+        return lire()
+    print(f"   -> Codes à zéro initial conservés en texte : {', '.join(map(str, codes))}")
+    return lire(dtype=codes)
 
 
 def _excel_from_bytes(data: bytes) -> pd.DataFrame:
@@ -122,7 +148,8 @@ def _excel_from_bytes(data: bytes) -> pd.DataFrame:
     Returns:
         Le DataFrame de la première feuille.
     """
-    return pd.read_excel(BytesIO(data), engine='openpyxl')
+    return _lire_en_protegeant_les_codes(
+        lambda **options: pd.read_excel(BytesIO(data), engine='openpyxl', **options))
 
 
 def _json_from_bytes(data: bytes) -> pd.DataFrame:
@@ -142,7 +169,11 @@ def _json_from_bytes(data: bytes) -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        df = pd.read_json(BytesIO(data))
+        # `dtype=False` : les nombres du JSON restent des nombres, et ses chaînes
+        # des chaînes. Sans cela, pandas convertit « "0612345678" » en entier et
+        # lui retire son zéro initial. Les autres chaînes numériques sont
+        # converties ensuite par le nettoyage, qui recense ce qu'il ne peut lire.
+        df = pd.read_json(BytesIO(data), dtype=False)
         print("   -> Format JSON détecté et chargé avec succès.")
         return df
     except Exception as e:
