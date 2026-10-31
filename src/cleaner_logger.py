@@ -43,6 +43,11 @@ class CleanLogger:
             total = sum(int(v.get('count', 0)) for v in illisibles.values() if isinstance(v, dict))
             summary += (f"⚠️ Valeurs illisibles vidées lors de la conversion : {total} "
                         f"({', '.join(map(str, illisibles))})\n")
+        if self.stats.get('grades_rescaled', {}):
+            echelles = self.stats['grades_rescaled']
+            total = sum(int(v.get('count', 0)) for v in echelles.values() if isinstance(v, dict))
+            summary += (f"🎯 Notes ramenées à une échelle commune : {total} "
+                        f"({', '.join(map(str, echelles))})\n")
         if self.stats.get('missing_filled', {}):
             missing_stats = self.stats['missing_filled']
             

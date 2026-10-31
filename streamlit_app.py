@@ -79,6 +79,7 @@ LIBELLES_STATS = {
     "types_fixed_pandas": ("Types entiers restaurés", "colonnes"),
     "types_converted": ("Types convertis", "colonnes"),
     "values_unparsed": ("Valeurs illisibles vidées", "valeurs"),
+    "grades_rescaled": ("Notes ramenées à une échelle commune", "valeurs"),
     "duplicates_removed": ("Doublons supprimés", "lignes"),
     "missing_filled": ("Valeurs manquantes comblées", "valeurs"),
     "outliers_corrected": ("Valeurs aberrantes écrêtées", "valeurs"),
@@ -730,8 +731,9 @@ def page_accueil(accueil: bool = True) -> None:
          "Après nettoyage": "1200.50", "Ce qui a été fait": "Montant lu comme un nombre"},
         {"Dans le fichier reçu": "13/09/2024 · 2023-09-15 · 18-07-2023",
          "Après nettoyage": "Trois vraies dates", "Ce qui a été fait": "Conventions mêlées, toutes reconnues"},
-        {"Dans le fichier reçu": '"5/5", "17/20", "78,5 %"',
-         "Après nettoyage": "5 · 17 · 78.5", "Ce qui a été fait": "Notes et pourcentages chiffrés"},
+        {"Dans le fichier reçu": '"17/20", "4/5" · "78,5 %"',
+         "Après nettoyage": "17 · 16 · 78.5",
+         "Ce qui a été fait": "Notes ramenées sur 20, pourcentage chiffré"},
         {"Dans le fichier reçu": "Deux lignes identiques",
          "Après nettoyage": "Une seule", "Ce qui a été fait": "Doublon exact supprimé"},
     ])
@@ -1172,6 +1174,25 @@ def onglet_nettoyage() -> None:
         st.dataframe(pd.DataFrame(conversions), hide_index=True)
     else:
         st.caption("Aucune colonne n'a changé de type.")
+
+    # Une note ramenée à une autre échelle change de valeur affichée : on le dit.
+    echelles = stats.get("grades_rescaled") or {}
+    if echelles:
+        st.info(
+            "**Notes ramenées à une échelle commune.** Ces colonnes mêlaient "
+            "plusieurs échelles de notation : chaque note a été exprimée sur "
+            "l'échelle la plus fréquente de sa colonne."
+        )
+        st.dataframe(
+            pd.DataFrame([
+                {"Colonne": col,
+                 "Échelle": f"sur {info.get('scale', 0):g}".replace(".", ","),
+                 "Notes ramenées": info.get("count", 0),
+                 "Exemples": ", ".join(info.get("examples", []))}
+                for col, info in echelles.items()
+            ]),
+            hide_index=True,
+        )
 
     st.markdown("**Opérations effectuées**")
     lignes = []

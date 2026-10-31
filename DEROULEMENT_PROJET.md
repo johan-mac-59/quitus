@@ -1913,4 +1913,39 @@ Les tests couvrent les bornes, le décompte, l'écrêtage colonne par colonne se
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 422 tests.*
+## Étape 50 : Toutes les Notes sur la Même Échelle 🎯📐
+
+### 1. La limite de l'Étape 35
+Depuis l'Étape 35, une note fractionnaire est convertie en son **numérateur** : `17/20` devient `17`. Ce choix avait une bonne raison, toujours valable : une colonne qui mêle `5` et `5/5` doit donner deux fois 5, et non 5 et 1.
+
+Mais il supposait que toutes les notes d'une colonne partagent la même échelle. Une colonne mêlant `17/20` et `4/5` donnait 17 et 4 : deux nombres côte à côte, incomparables, dont la moyenne ne voulait plus rien dire. Le défaut était silencieux, la colonne ressortant parfaitement typée.
+
+### 2. L'échelle dominante
+Pour chaque colonne de notes, l'échelle retenue est le **dénominateur le plus fréquent**. À égalité, c'est le plus grand qui l'emporte, car il préserve le mieux la finesse des notes : ramener des notes sur 20 à une échelle sur 4 en écraserait les nuances. Les dénominateurs nuls sont ignorés.
+
+Chaque note est ensuite exprimée sur cette échelle :
+
+* une note déjà sur l'échelle garde son numérateur, comme avant : une colonne à échelle unique ne change pas d'un iota ;
+* une note sur une autre échelle y est ramenée : parmi des notes sur 20, `4/5` devient `16` ;
+* un nombre nu, sans dénominateur, est tenu pour déjà exprimé sur l'échelle de la colonne, ce qui conserve le comportement voulu pour `5` et `5/5`.
+
+### 3. Rien ne change en silence
+Ramener une note à une autre échelle change la valeur affichée. Fidèle au principe posé à l'Étape 36, l'opération est donc toujours déclarée. Pour chaque colonne concernée, le moteur recense l'échelle retenue, le nombre de notes ramenées et des exemples (`4/5 → 16`), dans une nouvelle statistique, `grades_rescaled`. On la retrouve à trois endroits :
+
+* dans le **rapport de nettoyage**, un tableau sous les conversions de types ;
+* dans le **bilan console** de la ligne de commande ;
+* dans l'**onglet Nettoyage** de l'interface web, un encadré suivi du même tableau, et une ligne dans les opérations effectuées.
+
+Les exemples sont écrits à la française, avec une virgule décimale : `4,5/5 → 3,6`.
+
+Sur la page d'accueil, l'exemple de notes montre désormais le cas mêlé, `"17/20", "4/5"` donnant `17 · 16`, et le README décrit la nouvelle règle.
+
+### 4. Vérifications
+Appliqué aux fichiers du dossier `data/`, le nettoyage ne ramène aucune note : aucun d'eux ne mêle plusieurs échelles, et rien n'y change. Dans le navigateur, sur l'application locale, un fichier mêlant notes sur 20, notes sur 5 et un nombre nu ressort entièrement sur 20, et l'onglet Nettoyage affiche l'encadré et le détail des deux notes ramenées.
+
+### 5. Résultat
+Les tests couvrent les échelles mêlées, l'échelle unique inchangée, l'égalité de fréquence, la virgule décimale, le dénominateur nul, la statistique transmise par le pipeline, la section du rapport et l'encadré de l'interface. **430 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 430 tests.*

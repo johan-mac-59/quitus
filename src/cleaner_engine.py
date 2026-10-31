@@ -150,20 +150,25 @@ def has_leading_zero(series: pd.Series) -> bool:
     return bool(texte.str.match(_MOTIF_ZERO_INITIAL).any())
 
 
-def _normaliser_valeur_numerique(val_str: str):
+def _normaliser_valeur_numerique(val_str: str, echelle: float = None):
     """Ramène une écriture numérique tolérée à une forme convertible.
 
     Prend en charge, outre les nombres simples et monétaires :
 
-    * les **notes fractionnaires** (« 17/20 », « 5/5 ») — le **numérateur** est
-      retenu, et non le quotient. C'est le seul choix cohérent quand une même
-      colonne mêle « 5 » et « 5/5 », ce qui est fréquent dans les exports réels :
-      convertir « 5/5 » en 1.0 le rendrait incomparable aux « 5 » nus.
+    * les **notes fractionnaires** (« 17/20 », « 5/5 ») — la note est exprimée
+      sur l'échelle de la colonne : le **numérateur** est retenu quand la note
+      est déjà sur cette échelle, et non le quotient. C'est le seul choix
+      cohérent quand une même colonne mêle « 5 » et « 5/5 », ce qui est
+      fréquent dans les exports réels : convertir « 5/5 » en 1.0 le rendrait
+      incomparable aux « 5 » nus. Une note sur une autre échelle y est ramenée :
+      sur une colonne notée sur 20, « 4/5 » devient 16.
     * les **pourcentages** (« 78.9875 % ») — la valeur affichée est retenue, non
       sa fraction : une colonne intitulée « taux » attend 78.9875, pas 0.789875.
 
     Args:
         val_str: Valeur textuelle, déjà débarrassée de ses espaces de bordure.
+        echelle: Échelle commune des notes de la colonne (voir
+            `_echelle_dominante`) ; None pour retenir le numérateur tel quel.
 
     Returns:
         Une chaîne convertible par `pd.to_numeric`, ou None si la valeur n'est
@@ -174,7 +179,11 @@ def _normaliser_valeur_numerique(val_str: str):
 
     note = _MOTIF_NOTE.match(val_str)
     if note:
-        return note.group(1).replace(',', '.')
+        numerateur = note.group(1).replace(',', '.')
+        denominateur = float(note.group(2).replace(',', '.'))
+        if echelle is None or denominateur in (0, echelle):
+            return numerateur
+        return repr(round(float(numerateur) / denominateur * echelle, 6))
 
     pourcentage = _MOTIF_POURCENTAGE.match(val_str)
     if pourcentage:
@@ -184,6 +193,33 @@ def _normaliser_valeur_numerique(val_str: str):
     if any(c not in _CARACTERES_NUMERIQUES for c in val_str):
         return None
     return val_str
+
+
+def _echelle_dominante(series: pd.Series):
+    """Détermine l'échelle des notes fractionnaires d'une colonne.
+
+    L'échelle retenue est le dénominateur le plus fréquent ; à égalité, le plus
+    grand, qui préserve le mieux la finesse des notes. Une colonne mêlant
+    « 17/20 » et « 4/5 » n'est cohérente qu'une fois toutes ses notes
+    ramenées à la même échelle.
+
+    Args:
+        series: Colonne textuelle.
+
+    Returns:
+        Le dénominateur dominant, ou None si la colonne ne contient aucune note
+        fractionnaire à dénominateur non nul.
+    """
+    denominateurs = (
+        series.dropna().astype('string').str.strip()
+        .str.extract(_MOTIF_NOTE.pattern)[1].dropna()
+        .str.replace(',', '.', regex=False).astype(float)
+    )
+    denominateurs = denominateurs[denominateurs != 0]
+    if denominateurs.empty:
+        return None
+    frequences = denominateurs.value_counts()
+    return float(frequences[frequences == frequences.max()].index.max())
 
 
 def _can_be_numeric(series: pd.Series) -> bool:
@@ -240,7 +276,8 @@ def _can_be_numeric(series: pd.Series) -> bool:
     # Si on est là, tous les échantillons valides sont "proches" d'un nombre.
     return True
 
-def clean_types(df: pd.DataFrame, pertes: dict = None) -> Tuple[pd.DataFrame, dict]:
+def clean_types(df: pd.DataFrame, pertes: dict = None,
+                echelles: dict = None) -> Tuple[pd.DataFrame, dict]:
     """Convertit automatiquement les colonnes textuelles en nombres ou en dates.
 
     Une conversion est retenue dès que la grande majorité des valeurs présentes
@@ -254,6 +291,9 @@ def clean_types(df: pd.DataFrame, pertes: dict = None) -> Tuple[pd.DataFrame, di
         pertes: Dictionnaire à compléter, facultatif. Pour chaque colonne où des
             valeurs présentes n'ont pu être converties, reçoit
             `{colonne: {'count': n, 'examples': [valeurs d'origine]}}`.
+        echelles: Dictionnaire à compléter, facultatif. Pour chaque colonne de
+            notes dont certaines ont été ramenées à l'échelle commune, reçoit
+            `{colonne: {'scale': échelle, 'count': n, 'examples': [...]}}`.
 
     Returns:
         Le DataFrame typé et le dictionnaire des conversions effectuées,
@@ -282,7 +322,8 @@ def clean_types(df: pd.DataFrame, pertes: dict = None) -> Tuple[pd.DataFrame, di
         # uniquement la branche numérique — la détection de date reste à tenter
         # plus bas. (Un `continue` ici rendrait le bloc date inatteignable.)
         if _can_be_numeric(df_cleaned[col]):
-            df_cleaned, conversions = _try_numeric_conversion(df_cleaned, col, conversions)
+            df_cleaned, conversions = _try_numeric_conversion(df_cleaned, col, conversions,
+                                                              echelles=echelles)
 
         # --- Tentative Date (seulement si la colonne n'a PAS été convertie en nombre) ---
         if col not in conversions:
@@ -369,13 +410,16 @@ def _valeurs_perdues(avant: pd.Series, apres: pd.Series, n_exemples: int = 5) ->
     return {'count': n, 'examples': exemples}
 
 
-def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dict) -> Tuple[pd.DataFrame, dict]:
+def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dict,
+                            echelles: dict = None) -> Tuple[pd.DataFrame, dict]:
     """Tente de convertir une colonne texte en numérique (monnaies, séparateurs).
 
     Args:
         df_cleaned: DataFrame en cours de nettoyage.
         col: Nom de la colonne à convertir.
         conversions: Dictionnaire des conversions déjà effectuées.
+        echelles: Dictionnaire à compléter, facultatif, des notes ramenées à
+            l'échelle commune de la colonne (voir `clean_types`).
 
     Returns:
         Le DataFrame et le dictionnaire de conversions, mis à jour.
@@ -383,16 +427,23 @@ def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dic
     # 3. Nettoyage spécifique NUMÉRIQUE AVANT conversion
     # On prépare les données pour que pd.to_numeric fonctionne à 100%
     cleaned_series = df_cleaned[col].copy()
+    ramenees = None
 
     # A0. Notes fractionnaires et pourcentages, normalisés avant tout le reste :
     # « 17/20 » devient « 17 », « 1,5 % » devient « 1.5 ». Les valeurs déjà
     # numériques traversent cette étape inchangées, ce qui permet à une colonne
-    # mêlant « 5 » et « 5/5 » de devenir homogène.
+    # mêlant « 5 » et « 5/5 » de devenir homogène. Une note sur une autre
+    # échelle que celle de la colonne y est ramenée : « 4/5 » parmi des notes
+    # sur 20 devient 16, et non 4.
     if cleaned_series.str.contains(r'[/%]', regex=True, na=False).any():
+        echelle = _echelle_dominante(cleaned_series)
+        originales = cleaned_series.astype('string').str.strip()
         cleaned_series = cleaned_series.map(
-            lambda v: _normaliser_valeur_numerique(str(v).strip()) if pd.notna(v) else v,
+            lambda v: _normaliser_valeur_numerique(str(v).strip(), echelle) if pd.notna(v) else v,
             na_action='ignore',
         ).astype('string')
+        if echelle is not None:
+            ramenees = _notes_ramenees(originales, cleaned_series, echelle)
 
     # A. Suppression des symboles monétaires et des séparateurs de milliers.
     # Sans le retrait des espaces, « 1 052,23 € » échoue à la conversion : sur le
@@ -458,7 +509,39 @@ def _try_numeric_conversion(df_cleaned: pd.DataFrame, col: str, conversions: dic
             df_cleaned[col] = numeric_data.astype(np.float64)
             conversions[col] = 'object -> float'
 
+        # Ramener une note à une autre échelle change sa valeur affichée : ce
+        # n'est jamais silencieux.
+        if ramenees and echelles is not None:
+            echelles[col] = ramenees
+
     return df_cleaned, conversions
+
+
+def _notes_ramenees(originales: pd.Series, normalisees: pd.Series, echelle: float,
+                    n_exemples: int = 5) -> dict:
+    """Recense les notes qu'un changement d'échelle a modifiées.
+
+    Args:
+        originales: Valeurs d'origine, en texte.
+        normalisees: Mêmes valeurs après normalisation.
+        echelle: Échelle commune retenue pour la colonne.
+        n_exemples: Nombre maximal de conversions citées en exemple.
+
+    Returns:
+        `{'scale': échelle, 'count': n, 'examples': ['4/5 → 16', ...]}` si des
+        notes ont été ramenées, sinon un dictionnaire vide.
+    """
+    ramenees = []
+    for originale, normalisee in zip(originales, normalisees):
+        if pd.isna(originale):
+            continue
+        note = _MOTIF_NOTE.match(originale)
+        if note and float(note.group(2).replace(',', '.')) not in (0, echelle):
+            ramenees.append(f"{originale} → {float(normalisee):g}".replace('.', ','))
+    if not ramenees:
+        return {}
+    exemples = list(dict.fromkeys(ramenees))[:n_exemples]
+    return {'scale': float(f"{echelle:g}"), 'count': len(ramenees), 'examples': exemples}
 
 
 # Formats de date testés explicitement, dans l'ordre de priorité.
@@ -1253,6 +1336,9 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
         # Valeurs présentes qu'une conversion de type n'a pas su lire, et qui
         # sont donc devenues manquantes. Jamais silencieux : {col: {count, examples}}.
         'values_unparsed': {},
+        # Notes ramenées à l'échelle commune de leur colonne (« 4/5 » parmi
+        # des notes sur 20 devient 16). Jamais silencieux non plus.
+        'grades_rescaled': {},
         'duplicates_removed': 0,
         'missing_filled': {},
         'outliers_corrected': {}
@@ -1286,12 +1372,14 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
             stats['types_fixed_pandas'].update(fix_stats)
 
         # 3. Conversion Types (CRITIQUE : on transforme " 45" en int/float maintenant)
-        pertes = {}
-        current_df, conversions = clean_types(current_df, pertes=pertes)
+        pertes, echelles = {}, {}
+        current_df, conversions = clean_types(current_df, pertes=pertes, echelles=echelles)
         if conversions:
             stats['types_converted'].update(conversions)
         if pertes:
             stats['values_unparsed'].update(pertes)
+        if echelles:
+            stats['grades_rescaled'].update(echelles)
 
         # 4. Nettoyage Structurel (Colonnes vides)
         current_df, n_dropped = clean_empty_columns(current_df)

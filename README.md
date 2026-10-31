@@ -234,7 +234,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 422 tests
+python -m pytest              # 430 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
@@ -261,8 +261,10 @@ La suite couvre les modules métier, mais aussi trois familles moins habituelles
   années implausibles, ce qui évite qu'une note `5/5` ne soit prise pour une date.
 * **Intelligence numérique** — `"1 200,50 €"` devient `1200.50`, `"17/20"` devient
   `17` et `"78.9875%"` devient `78.9875`, en distinguant le séparateur décimal du
-  séparateur de milliers. Pour une note fractionnaire, c'est le **numérateur** qui
-  est retenu : c'est le seul choix cohérent quand une colonne mêle `5` et `5/5`.
+  séparateur de milliers. Une note fractionnaire est exprimée sur l'**échelle
+  dominante** de sa colonne : une colonne mêlant `17/20` et `4/5` donne `17` et
+  `16`, une colonne mêlant `5` et `5/5` reste sur 5. Chaque note ramenée à une
+  autre échelle est signalée dans le rapport de nettoyage.
 * **Seuils mesurés sur les valeurs présentes** — une colonne comportant 40 % de
   valeurs manquantes est convertie si les valeurs présentes, elles, sont
   lisibles. Mesurer le taux sur la hauteur de la colonne rendait toute conversion

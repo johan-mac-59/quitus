@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 import numpy as np
 from src.cleaner_engine import (
+    _echelle_dominante,
     clean_empty_columns,
     clean_whitespace,
     clean_types,
@@ -358,3 +359,55 @@ class TestSeuilIqr:
         assert parseur.parse_args(["--seuil-iqr", "2,5"]).seuil_iqr == 2.5
         with pytest.raises(SystemExit):
             parseur.parse_args(["--seuil-iqr", "0"])
+
+
+class TestEchelleDesNotes:
+    """Une colonne de notes mêlant plusieurs échelles est ramenée à une seule.
+
+    Retenir le numérateur reste juste quand toutes les notes partagent une
+    échelle (« 5 » et « 5/5 ») ; mais « 17/20 » et « 4/5 » donnaient 17 et 4,
+    deux nombres incomparables.
+    """
+
+    @staticmethod
+    def _typer(valeurs):
+        """Type une colonne de notes et recense les notes ramenées.
+
+        Args:
+            valeurs: Notes, en texte.
+
+        Returns:
+            Le couple (valeurs typées, recensement des notes ramenées).
+        """
+        echelles = {}
+        df, _ = clean_types(pd.DataFrame({'note': valeurs}), echelles=echelles)
+        return df['note'].tolist(), echelles
+
+    def test_echelles_melees_ramenees_a_la_dominante(self):
+        valeurs, echelles = self._typer(['17/20', '4/5', '15', '12/20'])
+        assert valeurs == [17, 16, 15, 12]
+        assert echelles == {'note': {'scale': 20.0, 'count': 1,
+                                     'examples': ['4/5 → 16']}}
+
+    def test_echelle_unique_inchangee(self):
+        valeurs, echelles = self._typer(['5', '5/5', '4/5'])
+        assert valeurs == [5, 5, 4]
+        assert echelles == {}
+
+    def test_egalite_departagee_par_la_plus_grande_echelle(self):
+        valeurs, _ = self._typer(['3/4', '15/20'])
+        assert valeurs == [15, 15]
+
+    def test_virgule_decimale_et_exemples_a_la_francaise(self):
+        valeurs, echelles = self._typer(['3/4', '3/4', '4,5/5'])
+        assert valeurs == [3.0, 3.0, 3.6]
+        assert echelles['note']['examples'] == ['4,5/5 → 3,6']
+
+    def test_denominateur_nul_ignore(self):
+        assert _echelle_dominante(pd.Series(['3/0', '4/0'])) is None
+
+    def test_pipeline_consigne_les_notes_ramenees(self):
+        _, stats = run_all_cleaning_steps(
+            pd.DataFrame({'note': ['17/20', '4/5', '18/20', '10/20']}),
+            correct_outliers=False, fill_missing=False)
+        assert stats['grades_rescaled']['note']['count'] == 1

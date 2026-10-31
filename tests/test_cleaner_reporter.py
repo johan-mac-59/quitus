@@ -247,3 +247,15 @@ class TestSeuilDansLeRapport:
         assert "| Seuil IQR |" in operations
         assert "| prix | 3 corrigés | 3 |" in operations
         assert "| poids | 1 corrigés | 1,5 |" in operations
+
+
+class TestNotesRameneesDansLeRapport:
+    """Le rapport signale chaque colonne de notes ramenée à une échelle commune."""
+
+    def test_section_des_notes_ramenees(self, mock_profiler, mock_logger):
+        stats = {'types_converted': {'note': ['object -> int']},
+                 'grades_rescaled': {'note': {'scale': 20.0, 'count': 2,
+                                              'examples': ['4/5 → 16', '3/5 → 12']}}}
+        operations = CleanerReporter(mock_profiler, mock_logger)._get_operations_table(stats)
+        assert "Notes ramenées à une échelle commune" in operations
+        assert "| note | sur 20 | 2 | `4/5 → 16`, `3/5 → 12` |" in operations

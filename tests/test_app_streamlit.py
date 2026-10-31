@@ -613,6 +613,15 @@ class TestParcoursComplet:
         assert 120 not in propre["b"].tolist()
         assert app.session_state["stats"]["outlier_thresholds"] == {"a": 5.0, "b": 1.5}
 
+    def test_notes_ramenees_signalees(self, app):
+        """Des notes sur plusieurs échelles sont ramenées, et l'onglet le dit."""
+        notes = ["17/20", "4/5", "12/20", "15/20", "3/5", "18/20"]
+        contenu = ("id;note\n" + "\n".join(f"{i};{n}" for i, n in enumerate(notes))).encode("utf-8")
+        app = _apres_nettoyage(app, contenu, ecreter=False, combler=False)
+        assert not app.exception
+        assert app.session_state["df_propre"]["note"].tolist() == [17, 16, 12, 15, 12, 18]
+        assert any("échelle commune" in i.value for i in app.info)
+
     def test_seules_les_colonnes_choisies_sont_traitees(self, app):
         """Une colonne non choisie garde ses extrêmes et ses absences."""
         lignes = ["a;b;c;d"]
@@ -865,7 +874,9 @@ def _choisir(liste, colonnes) -> None:
     """
     if colonnes is None:
         colonnes = [_colonne(o) for o in liste.options]
-    liste.set_value(list(colonnes))
+    # Une liste sans colonne à proposer est désactivée : rien à y choisir.
+    if colonnes or not liste.disabled:
+        liste.set_value(list(colonnes))
 
 
 def _apres_nettoyage(app, contenu: bytes, *, ecreter, combler):

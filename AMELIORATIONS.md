@@ -5,11 +5,10 @@ livrées suivent, dans l'ordre chronologique. Le détail de chaque livraison se
 trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
 
 ## 🎯 À faire — par ordre d'importance
-1. **Normalisation des notes sur une échelle commune** : `17/20` est converti en `17`, le numérateur, seul choix cohérent quand une colonne mêle `5` et `5/5`. Une colonne mêlant `17/20` et `4/5` resterait toutefois incohérente : une détection de l'échelle dominante serait utile.
-2. **Documentation API** : rédaction d'un document technique détaillé décrivant l'interface et les paramètres de chaque fonction. *À moitié fait : toutes les fonctions publiques ont une docstring, et un test l'impose. Reste à assembler le document.*
-3. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs).
-4. **Support du format Parquet** : CSV, Excel, JSON et JSON Lines sont pris en charge, Parquet non. *Issu de la liste de l'Étape 6.*
-5. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
+1. **Documentation API** : rédaction d'un document technique détaillé décrivant l'interface et les paramètres de chaque fonction. *À moitié fait : toutes les fonctions publiques ont une docstring, et un test l'impose. Reste à assembler le document.*
+2. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs).
+3. **Support du format Parquet** : CSV, Excel, JSON et JSON Lines sont pris en charge, Parquet non. *Issu de la liste de l'Étape 6.*
+4. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
 
 ## ✅ Livré
 - ~~**un vrai rapport de nettoyage**~~ : chaque exécution produit un rapport qui indique la source et l'horodatage, compare l'avant et l'après, et détaille colonne par colonne chaque opération effectuée. Le journal de nettoyage est couvert par des tests. *Étapes 16 et 17.*
@@ -29,3 +28,4 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - ~~**rapport HTML lisible en mode sombre**~~ : le rapport fixe son propre fond clair et sa couleur de texte ; il reste lisible dans l'application quel que soit le thème choisi. *Étape 47.*
 - ~~**traitement colonne par colonne**~~ : dans l'interface web, l'utilisateur choisit les colonnes à écrêter et celles à combler, au lieu de deux décisions globales. *Étape 48.*
 - ~~**seuil des valeurs aberrantes paramétrable**~~ : chaque colonne écrêtée reçoit son seuil IQR, dont l'interface web montre l'effet en direct ; la ligne de commande accepte un seuil commun (`--seuil-iqr`). *Étape 49.*
+- ~~**normalisation des notes sur une échelle commune**~~ : une colonne mêlant plusieurs échelles de notation est ramenée à son échelle dominante, et chaque note ramenée est signalée. *Étape 50.*

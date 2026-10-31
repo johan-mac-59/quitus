@@ -151,6 +151,24 @@ class CleanerReporter:
                     exemples = ', '.join(f"`{e}`" for e in perte.get('examples', []))
                     table_content += f"| {col_name} | {perte.get('count', 0)} | {exemples} |\n"
                 table_content += "\n"
+
+            # Notes ramenées à l'échelle de leur colonne : leur valeur affichée
+            # a changé, l'utilisateur doit pouvoir le constater.
+            echelles = stats.get('grades_rescaled') or {}
+            if echelles:
+                table_content += "#### Notes ramenées à une échelle commune\n\n"
+                table_content += ("Ces colonnes mêlaient plusieurs échelles de notation. Chaque note "
+                                  "a été exprimée sur l'échelle la plus fréquente de sa colonne.\n\n")
+                table_content += "| Colonne | Échelle | Notes ramenées | Exemples |\n"
+                table_content += "| :--- | :---: | :---: | :--- |\n"
+                for col_name, info in echelles.items():
+                    if not isinstance(info, dict):
+                        continue
+                    echelle = f"{info.get('scale', 0):g}".replace('.', ',')
+                    exemples = ', '.join(f"`{e}`" for e in info.get('examples', []))
+                    table_content += (f"| {col_name} | sur {echelle} | {info.get('count', 0)} "
+                                      f"| {exemples} |\n")
+                table_content += "\n"
             has_operations = True
             
         # --- Valeurs manquantes comblées (Missing Values) ---
