@@ -485,9 +485,6 @@ class TestParcoursComplet:
         for liste in app.sidebar.multiselect:
             _choisir(liste, None)
         boutons = [b for b in app.sidebar.button if "Nettoyer" in b.label]
-        if not boutons:
-            # Le bouton de soumission d'un formulaire est exposé séparément.
-            boutons = [b for b in app.button if "Nettoyer" in b.label]
         assert boutons, "Le bouton de nettoyage devrait être proposé"
         app = boutons[0].click().run()
 
@@ -581,6 +578,40 @@ class TestParcoursComplet:
         assert combler.options[0] == "note (6)"
         # Rien n'est choisi d'office.
         assert ecreter.value == [] and combler.value == []
+
+    def test_un_seuil_par_colonne_choisie(self, app, csv_sale):
+        """Chaque colonne choisie reçoit son curseur de seuil et son décompte."""
+        app.run()
+        app = _deposer(app, csv_sale, "sale.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        assert len(app.sidebar.slider) == 0
+
+        ecreter, _ = _listes(app)
+        _choisir(ecreter, ["montant"])
+        app = app.run()
+        assert [s.label for s in app.sidebar.slider] == ["Seuil IQR · montant"]
+        assert app.sidebar.slider[0].value == 1.5
+        assert any("hors bornes à ce seuil" in c.value for c in app.sidebar.caption)
+
+    def test_le_seuil_choisi_est_applique(self, app):
+        """Un seuil tolérant épargne un extrême modéré, pas un extrême massif."""
+        valeurs = [100, 101, 102, 103, 104, 105, 106, 102, 103, 120, 900]
+        contenu = ("a;b\n" + "\n".join(f"{v};{v}" for v in valeurs)).encode("utf-8")
+        app.run()
+        app = _deposer(app, contenu, "seuils.csv")
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        ecreter, _ = _listes(app)
+        _choisir(ecreter, ["a", "b"])
+        app = app.run()
+        [s for s in app.sidebar.slider if s.label.endswith("· a")][0].set_value(5.0)
+        app = app.run()
+        app = [b for b in app.sidebar.button if "Nettoyer" in b.label][0].click().run()
+        assert not app.exception
+
+        propre = app.session_state["df_propre"]
+        assert 120 in propre["a"].tolist() and propre["a"].max() < 900
+        assert 120 not in propre["b"].tolist()
+        assert app.session_state["stats"]["outlier_thresholds"] == {"a": 5.0, "b": 1.5}
 
     def test_seules_les_colonnes_choisies_sont_traitees(self, app):
         """Une colonne non choisie garde ses extrêmes et ses absences."""
@@ -860,8 +891,6 @@ def _apres_nettoyage(app, contenu: bytes, *, ecreter, combler):
         _choisir(liste, None if choix is True else (choix or []))
 
     nettoyer = [b for b in app.sidebar.button if "Nettoyer" in b.label]
-    if not nettoyer:
-        nettoyer = [b for b in app.button if "Nettoyer" in b.label]
     return nettoyer[0].click().run()
 
 

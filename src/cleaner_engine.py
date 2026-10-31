@@ -742,13 +742,91 @@ def clean_missing_values(df: pd.DataFrame, columns: list = None) -> Tuple[pd.Dat
 
     return df_cleaned, actions
 
-def clip_outliers(df: pd.DataFrame, columns: list = None) -> Tuple[pd.DataFrame, dict]:
+# Seuil IQR par défaut, celui de Tukey : une valeur est aberrante au-delà de
+# 1,5 écart interquartile sous le premier quartile ou au-dessus du troisième.
+SEUIL_IQR = 1.5
+
+
+def iqr_bounds(series: pd.Series, threshold: float = SEUIL_IQR):
+    """Calcule les bornes IQR d'une série numérique.
+
+    Args:
+        series: Valeurs numériques ; les valeurs manquantes sont ignorées.
+        threshold: Nombre d'écarts interquartiles tolérés au-delà des quartiles.
+            Plus il est grand, plus l'écrêtage est tolérant.
+
+    Returns:
+        Le couple (borne basse, borne haute), ou None si les valeurs sont trop
+        peu nombreuses ou toutes identiques pour qu'une borne ait un sens.
+    """
+    valeurs = series.dropna()
+    if len(valeurs) < 2:
+        return None
+    q1, q3 = valeurs.quantile(0.25), valeurs.quantile(0.75)
+    iqr = q3 - q1
+    if iqr == 0:
+        return None
+    return q1 - threshold * iqr, q3 + threshold * iqr
+
+
+def count_outliers(series: pd.Series, threshold: float = SEUIL_IQR) -> int:
+    """Compte les valeurs hors des bornes IQR, pour un seuil donné.
+
+    Sert à l'interface web, qui affiche l'effet d'un seuil avant le nettoyage.
+    Une colonne encore textuelle mais convertible (« 1 200,50 € ») est estimée
+    après une conversion simplifiée : c'est `clip_outliers` qui tranchera, sur
+    des types définitivement corrigés.
+
+    Args:
+        series: Colonne brute, numérique ou textuelle.
+        threshold: Seuil IQR.
+
+    Returns:
+        Le nombre de valeurs hors bornes ; 0 si la colonne n'est pas numérique.
+    """
+    if pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series):
+        valeurs = series
+    elif _can_be_numeric(series):
+        valeurs = _estimation_numerique(series)
+    else:
+        return 0
+    bornes = iqr_bounds(valeurs, threshold)
+    if bornes is None:
+        return 0
+    return int(((valeurs < bornes[0]) | (valeurs > bornes[1])).sum())
+
+
+def _estimation_numerique(series: pd.Series) -> pd.Series:
+    """Convertit sommairement une colonne textuelle en nombres.
+
+    Même normalisation que `clean_types`, en version condensée : on veut une
+    estimation, pas une conversion définitive.
+
+    Args:
+        series: Colonne textuelle.
+
+    Returns:
+        Les valeurs numériques lisibles, sans les valeurs manquantes.
+    """
+    serie = series.astype('string')
+    for symbole in _SYMBOLES_MONETAIRES + _ESPACES_MILLIERS:
+        serie = serie.str.replace(symbole, '', regex=False)
+    serie = serie.str.replace(',', '.', regex=False)
+    return pd.to_numeric(serie, errors='coerce').dropna()
+
+
+def clip_outliers(df: pd.DataFrame, columns: list = None,
+                  thresholds: dict = None) -> Tuple[pd.DataFrame, dict]:
     """Écrête les valeurs aberrantes des colonnes numériques (méthode IQR).
 
     Args:
         df: DataFrame à traiter.
         columns: Colonnes à écrêter ; None pour toutes les colonnes numériques.
             Une colonne absente ou non numérique est ignorée.
+        thresholds: Seuil IQR par colonne ; une colonne absente du
+            dictionnaire prend `SEUIL_IQR`. Un seuil plus grand tolère une
+            dispersion plus forte (des montants), un seuil plus petit resserre
+            les bornes (des mesures stables).
 
     Returns:
         Le DataFrame écrêté et le nombre de valeurs ramenées dans les bornes,
@@ -765,23 +843,14 @@ def clip_outliers(df: pd.DataFrame, columns: list = None) -> Tuple[pd.DataFrame,
     # On s'assure de prendre uniquement les colonnes numériques actives
     numeric_cols = df.select_dtypes(include=[np.number]).columns
 
-    for col in _colonnes_retenues(df, numeric_cols, columns):
-        non_null_data = df[col].dropna()
-        
-        # Cas limite : si on a trop peu de données, l'IQR n'est pas fiable
-        if non_null_data.empty or len(non_null_data) < 2: 
-            continue
-            
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-        
-        # Si l'IQR est 0 (toutes les valeurs sont identiques), on ne peut pas calculer de borne standard
-        if IQR == 0:
-            continue
+    thresholds = thresholds or {}
 
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
+    for col in _colonnes_retenues(df, numeric_cols, columns):
+        # Trop peu de valeurs, ou toutes identiques : aucune borne n'a de sens.
+        bornes = iqr_bounds(df[col], thresholds.get(col, SEUIL_IQR))
+        if bornes is None:
+            continue
+        lower_bound, upper_bound = bornes
 
         n_outliers = ((df[col] < lower_bound) | (df[col] > upper_bound)).sum()
 
@@ -909,24 +978,11 @@ def _outliers_apres_typage(df: pd.DataFrame, deja_vues: set = None) -> dict:
         if col in deja_vues or not _can_be_numeric(df[col]):
             continue
 
-        # Même normalisation que clean_types, en version condensée : on veut une
-        # estimation, pas une conversion définitive.
-        serie = (
-            df[col].astype('string')
-            .str.replace('€', '', regex=False)
-            .str.replace('$', '', regex=False)
-            .str.replace(',', '.', regex=False)
-        )
-        numerique = pd.to_numeric(serie, errors='coerce').dropna()
+        numerique = _estimation_numerique(df[col])
         if len(numerique) < 4:
             continue
 
-        q1, q3 = numerique.quantile(0.25), numerique.quantile(0.75)
-        iqr = q3 - q1
-        if iqr == 0:
-            continue
-
-        n = int(((numerique < q1 - 1.5 * iqr) | (numerique > q3 + 1.5 * iqr)).sum())
+        n = count_outliers(numerique)
         if n > 0:
             resultats[col] = n
 
@@ -1163,7 +1219,8 @@ def get_user_decisions(initial_df: pd.DataFrame, profiler_results: dict, *,
 def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iterations: int = 5,
                            correct_outliers: bool = True, fill_missing: bool = True,
                            outlier_columns: list = None,
-                           missing_columns: list = None) -> Tuple[pd.DataFrame, dict]:
+                           missing_columns: list = None,
+                           outlier_thresholds: dict = None) -> Tuple[pd.DataFrame, dict]:
     """
     Applique les nettoyages de manière itérative et ordonnée.
     
@@ -1177,6 +1234,8 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
             choix fait colonne par colonne.
         missing_columns: Colonnes à combler, si `fill_missing` est vrai ;
             None pour toutes.
+        outlier_thresholds: Seuil IQR par colonne ; `SEUIL_IQR` pour une
+            colonne non mentionnée.
     
     Ordre stratégique pour éviter les erreurs en cascade :
     1. Forme (espaces) -> Pour préparer la conversion de types
@@ -1288,10 +1347,14 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
 
     # 9. Outliers IQR (En dernier, sur données numérées et propres) 
     if correct_outliers:
-        current_df, outliers = clip_outliers(current_df, columns=outlier_columns)
+        current_df, outliers = clip_outliers(current_df, columns=outlier_columns,
+                                             thresholds=outlier_thresholds)
         if outliers:
             for col, count in outliers.items():
                 stats['outliers_corrected'][col] = stats['outliers_corrected'].get(col, 0) + count
+            # Le seuil appliqué fait partie de la preuve : le rapport le cite.
+            seuils = outlier_thresholds or {}
+            stats['outlier_thresholds'] = {col: seuils.get(col, SEUIL_IQR) for col in outliers}
     else:
         print("🧐 Correction des outliers ignorée par l'utilisateur.")
         # On indique simplement dans les stats que c'est ignoré avec un format cohérent

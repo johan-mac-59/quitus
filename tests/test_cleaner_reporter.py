@@ -236,3 +236,14 @@ class TestEdgeCases:
         
         assert "Détail des Opérations" in operations
         # Doit fonctionner sans erreur même avec des stats incomplètes
+
+class TestSeuilDansLeRapport:
+    """Le rapport cite le seuil IQR appliqué à chaque colonne écrêtée."""
+
+    def test_seuil_choisi_et_seuil_par_defaut(self, mock_profiler, mock_logger):
+        stats = {'outliers_corrected': {'prix': 3, 'poids': 1},
+                 'outlier_thresholds': {'prix': 3.0}}
+        operations = CleanerReporter(mock_profiler, mock_logger)._get_operations_table(stats)
+        assert "| Seuil IQR |" in operations
+        assert "| prix | 3 corrigés | 3 |" in operations
+        assert "| poids | 1 corrigés | 1,5 |" in operations

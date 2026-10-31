@@ -31,6 +31,8 @@ import streamlit as st
 from src import marque
 from src import plot_factory as pf
 from src.cleaner_engine import (
+    SEUIL_IQR,
+    count_outliers,
     find_mistyped_columns,
     run_all_cleaning_steps,
     summarize_missing_values,
@@ -916,14 +918,17 @@ def formulaire_options(df: pd.DataFrame) -> dict:
         df: DataFrame brut, pour calculer les diagnostics affichés en aide.
 
     Returns:
-        Les colonnes choisies pour chaque traitement et un drapeau indiquant
-        si le nettoyage est demandé.
+        Les colonnes choisies pour chaque traitement, le seuil IQR de chaque
+        colonne à écrêter et un drapeau indiquant si le nettoyage est demandé.
     """
     profil = st.session_state["profil"]
     res_out = summarize_outliers(df, {}, profil)
     res_manq = summarize_missing_values(df)
 
-    with st.sidebar.form("options"):
+    # Un conteneur et non un formulaire : chaque seuil affiche aussitôt le
+    # nombre de valeurs qu'il écrêterait, ce qu'un formulaire, figé jusqu'à
+    # sa soumission, ne permettrait pas.
+    with st.sidebar.container(border=True):
         st.markdown("**Options de nettoyage**")
         st.caption("Doublons, espaces, casse et types sont corrigés d'office. "
                    "Les deux traitements ci-dessous modifient les valeurs : "
@@ -940,9 +945,25 @@ def formulaire_options(df: pd.DataFrame) -> dict:
             else "Aucune valeur aberrante",
             help="Méthode IQR. Ramène les valeurs extrêmes dans les bornes "
                  "statistiques, dans les seules colonnes choisies. Modifie "
-                 "les distributions.\n\nUn extrême peut être réel : un gros "
-                 "montant n'est pas forcément une erreur de saisie.",
+                 "les distributions. Le nombre indiqué est celui du seuil "
+                 f"standard, {SEUIL_IQR:g}.\n\nUn extrême peut être réel : un "
+                 "gros montant n'est pas forcément une erreur de saisie.",
         )
+
+        # Un seuil par colonne choisie : des montants très dispersés appellent
+        # plus de tolérance que des mesures stables.
+        seuils = {}
+        for col in ecreter:
+            seuils[col] = st.slider(
+                f"Seuil IQR · {col}",
+                min_value=0.5, max_value=5.0, value=SEUIL_IQR, step=0.5,
+                key=f"seuil_{col}",
+                help="Nombre d'écarts interquartiles tolérés au-delà des "
+                     f"quartiles. {SEUIL_IQR:g} est le seuil standard ; 3 ne "
+                     "retient que les valeurs très extrêmes.",
+            )
+            n = count_outliers(df[col], seuils[col])
+            st.caption(f"{formater(n)} valeur(s) hors bornes à ce seuil.")
 
         manquantes = res_manq["by_column"]
         combler = st.multiselect(
@@ -959,10 +980,10 @@ def formulaire_options(df: pd.DataFrame) -> dict:
                  "combler invente une valeur.",
         )
 
-        lancer = st.form_submit_button("🧹 Nettoyer", width="stretch",
-                                       type="primary")
+        lancer = st.button("🧹 Nettoyer", width="stretch", type="primary")
 
-    return {"ecreter": ecreter, "combler": combler, "lancer": lancer}
+    return {"ecreter": ecreter, "seuils": seuils, "combler": combler,
+            "lancer": lancer}
 
 
 # ==========================================================================
@@ -1462,6 +1483,7 @@ def lancer_nettoyage(options: dict) -> None:
             fill_missing=bool(options["combler"]),
             outlier_columns=options["ecreter"],
             missing_columns=options["combler"],
+            outlier_thresholds=options["seuils"],
         )
     except Exception as e:
         st.error(f"Le nettoyage a échoué : {e}")

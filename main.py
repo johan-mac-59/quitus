@@ -10,6 +10,7 @@ Usage :
     python main.py --input data/samples/exemple.csv
     python main.py --input mon.csv --output propre.csv --reports rapports/
     python main.py --input mon.csv --oui-a-tout        # aucune question posée
+    python main.py --input mon.csv --seuil-iqr 3       # écrêtage plus tolérant
 """
 
 import argparse
@@ -17,7 +18,7 @@ import logging
 import sys
 from pathlib import Path
 
-from src.cleaner_engine import get_user_decisions, run_all_cleaning_steps
+from src.cleaner_engine import SEUIL_IQR, get_user_decisions, run_all_cleaning_steps
 from src.cleaner_logger import generate_and_print_report
 from src.cleaner_reporter import generate_enhanced_report
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
@@ -91,7 +92,34 @@ def construire_parseur() -> argparse.ArgumentParser:
         help="Ne pose aucune question et refuse les traitements lourds "
              "(outliers, valeurs manquantes).",
     )
+    parseur.add_argument(
+        "--seuil-iqr", type=_seuil_positif, default=SEUIL_IQR,
+        help=f"Seuil de l'écrêtage, en écarts interquartiles (défaut : {SEUIL_IQR:g}). "
+             "Plus grand, il tolère une dispersion plus forte ; 3 ne retient "
+             "que les valeurs très extrêmes.",
+    )
     return parseur
+
+
+def _seuil_positif(valeur: str) -> float:
+    """Valide le seuil IQR passé en ligne de commande.
+
+    Args:
+        valeur: Texte saisi ; la virgule décimale est acceptée.
+
+    Returns:
+        Le seuil, strictement positif.
+
+    Raises:
+        argparse.ArgumentTypeError: Si la valeur n'est pas un nombre positif.
+    """
+    try:
+        seuil = float(valeur.replace(",", "."))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"seuil invalide : {valeur}")
+    if seuil <= 0:
+        raise argparse.ArgumentTypeError("le seuil doit être strictement positif")
+    return seuil
 
 
 def resoudre_chemins(args: argparse.Namespace, horodatage: str) -> tuple[Path, Path, Path]:
@@ -209,6 +237,8 @@ def main(argv: list[str] = None) -> int:
             profile_info=profiler_results,
             correct_outliers=correct_outliers,
             fill_missing=fill_missing,
+            # La ligne de commande applique le même seuil à toutes les colonnes.
+            outlier_thresholds={col: args.seuil_iqr for col in initial_df.columns},
         )
         print("\n✅ Nettoyage terminé.")
     except Exception as e:

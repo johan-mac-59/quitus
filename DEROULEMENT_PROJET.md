@@ -1880,4 +1880,37 @@ Les tests du moteur vérifient qu'une colonne non choisie reste intacte. Ceux de
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 412 tests.*
+## Étape 49 : Un Seuil à la Mesure de Chaque Colonne 📏⚖️
+
+### 1. La limite qui restait
+L'Étape 48 permet de choisir les colonnes à écrêter. Mais une colonne choisie était toujours écrêtée au même seuil : **1,5 écart interquartile** au-delà des quartiles, la règle de Tukey, figée dans le code depuis l'Étape 6.
+
+Ce seuil standard convient à des mesures stables. Il est trop sévère pour des montants à forte dispersion, où une grosse commande est rare sans être fausse : à 1,5, elle était ramenée à la borne comme une faute de frappe. L'utilisateur ne pouvait que renoncer à écrêter la colonne, et laisser passer avec elle les vraies erreurs.
+
+### 2. Un seuil par colonne, dans le moteur
+Le calcul des bornes, jusque-là écrit deux fois avec son `1.5` en dur, devient une fonction unique, `iqr_bounds`, qui prend le seuil en paramètre. Le seuil standard devient une constante nommée, `SEUIL_IQR`. `clip_outliers` reçoit un seuil par colonne, et `run_all_cleaning_steps` le lui transmet ; une colonne sans seuil précisé garde 1,5. Une nouvelle fonction, `count_outliers`, compte les valeurs hors bornes pour un seuil donné, y compris dans une colonne de montants encore stockée en texte, dont elle estime la valeur numérique.
+
+Au passage, cette estimation retire désormais tous les symboles monétaires et séparateurs de milliers reconnus par la conversion, et non plus seulement `€` et `$` : une colonne en livres sterling ou à espaces de milliers était sous-estimée.
+
+Le profilage, lui, garde le seuil standard. C'est un diagnostic : il doit rester comparable d'un fichier à l'autre et d'un nettoyage à l'autre. Après un écrêtage à 3, le profil de contrôle peut donc encore signaler des valeurs entre 1,5 et 3 écarts : elles ont été conservées volontairement.
+
+### 3. Voir l'effet avant de décider
+Dans l'interface web, chaque colonne choisie pour l'écrêtage reçoit un curseur de seuil, de 0,5 à 5. Sous le curseur, le nombre de valeurs hors bornes **se met à jour à chaque déplacement** : l'utilisateur voit ce que son seuil épargne avant de lancer le nettoyage.
+
+Cette réactivité a demandé un changement de structure. Les options vivaient dans un formulaire Streamlit, qui fige ses widgets jusqu'à sa soumission : un curseur n'y aurait rien pu afficher en direct. Le formulaire devient un simple conteneur encadré, au rendu identique, et son bouton de soumission un bouton ordinaire.
+
+### 4. La preuve cite le seuil
+Un écrêtage à 3 écarts ne dit pas la même chose qu'un écrêtage à 1,5. Le seuil appliqué est donc consigné dans les statistiques du nettoyage, et le rapport de nettoyage l'affiche dans une nouvelle colonne de son tableau des valeurs aberrantes.
+
+### 5. Et en ligne de commande
+La ligne de commande, qui décide pour toutes les colonnes à la fois, reçoit une option `--seuil-iqr` : un seuil commun, 1,5 par défaut, virgule décimale acceptée, valeur nulle ou négative refusée.
+
+### 6. Vérifié dans le navigateur
+Sur l'application locale, avec une colonne de montants comportant un extrême massif et un extrême modéré : au seuil 1,5, le curseur annonce deux valeurs hors bornes ; monté à 4, il n'en annonce plus qu'une. Après nettoyage, l'extrême modéré est conservé, l'extrême massif écrêté, et le rapport indique le seuil 4. En ligne de commande, l'échantillon versionné donne trois valeurs écrêtées au seuil 1,5 et aucune au seuil 3.
+
+### 7. Résultat
+Les tests couvrent les bornes, le décompte, l'écrêtage colonne par colonne selon des seuils différents, la mention du seuil dans le rapport, l'option de la ligne de commande et, dans l'interface, le curseur de chaque colonne choisie et le seuil effectivement appliqué. **422 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 422 tests.*

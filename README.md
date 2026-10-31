@@ -118,8 +118,9 @@ python main.py --input brut.csv --format-rapport html
 | `--format-rapport` | `md` ou `html` ; sans cette option, la question est posée |
 | `--oui-a-tout` | Accepte écrêtage, remplissage et rapports sans rien demander |
 | `--non-interactif` | Ne demande rien et refuse les traitements lourds |
+| `--seuil-iqr` | Seuil de l'écrêtage, en écarts interquartiles (1,5 par défaut ; 3 ne retient que les valeurs très extrêmes) |
 
-Les deux derniers modes rendent le pipeline utilisable dans un script ou une
+Les modes `--oui-a-tout` et `--non-interactif` rendent le pipeline utilisable dans un script ou une
 chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 sinon.
 
 ---
@@ -140,7 +141,7 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 
 1. **Chargement** — détection du format, de l'encodage et du séparateur.
 2. **Audit initial** — inspection des données brutes.
-3. **Décisions** — l'utilisateur choisit d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Ces deux traitements modifient les distributions : ils ne sont jamais appliqués sans accord explicite. Dans l'interface web, ils se décident colonne par colonne ; la ligne de commande les applique à toutes les colonnes ou à aucune.
+3. **Décisions** — l'utilisateur choisit d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Ces deux traitements modifient les distributions : ils ne sont jamais appliqués sans accord explicite. Dans l'interface web, ils se décident colonne par colonne, et chaque colonne écrêtée reçoit son propre seuil IQR ; la ligne de commande les applique à toutes les colonnes ou à aucune, avec un seuil commun (`--seuil-iqr`).
 4. **Nettoyage** — corrections automatiques, puis traitements choisis.
 5. **Validation** — second profilage, sur les données nettoyées.
 6. **Livraison** — CSV propre et rapports.
@@ -233,7 +234,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 412 tests
+python -m pytest              # 422 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 

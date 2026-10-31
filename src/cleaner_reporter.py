@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
+from src.cleaner_engine import SEUIL_IQR
 from src.horodatage import horodater
 from src.marque import en_tete_markdown
 
@@ -241,15 +242,19 @@ class CleanerReporter:
                 
                 table_content += f"### Valeurs aberrantes corrigées\n\n"
                 table_content += f"**Total de valeurs aberrantes traitées :** {total_outliers}\n\n"
-                table_content += "| Colonne | Nb outliers / Statut |\n"
-                table_content += "| :--- | :---: |\n"
-                
+                table_content += "| Colonne | Nb outliers / Statut | Seuil IQR |\n"
+                table_content += "| :--- | :---: | :---: |\n"
+
+                # Le seuil fait partie de la décision : un écrêtage à 3 IQR
+                # ne dit pas la même chose qu'un écrêtage à 1,5.
+                seuils = stats.get('outlier_thresholds') or {}
                 for col, count in outliers_corr.items():
+                    seuil = f"{seuils.get(col, SEUIL_IQR):g}".replace('.', ',')
                     try:
                         val = int(count)
-                        table_content += f"| {col} | {val} corrigés |\n"
+                        table_content += f"| {col} | {val} corrigés | {seuil} |\n"
                     except (ValueError, TypeError):
-                        table_content += f"| {col} | Données non valides |\n"
+                        table_content += f"| {col} | Données non valides | {seuil} |\n"
                 table_content += "\n"
             has_operations = True
 

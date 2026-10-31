@@ -8,8 +8,11 @@ from src.cleaner_engine import (
     clean_duplicates,
     clean_missing_values,
     clip_outliers,
+    count_outliers,
     fix_numeric_types,
-    run_all_cleaning_steps
+    iqr_bounds,
+    run_all_cleaning_steps,
+    SEUIL_IQR,
 )
 
 
@@ -297,3 +300,61 @@ class TestTraitementColonneParColonne:
         assert set(stats['missing_filled']) == {'d'}
         assert df['a'].max() == 500
         assert df['c'].isna().sum() == 2
+
+
+class TestSeuilIqr:
+    """Le seuil IQR s'adapte à chaque colonne.
+
+    Des montants très dispersés appellent plus de tolérance que des mesures
+    stables : un seuil unique à 1,5 écrêtait des valeurs réelles.
+    """
+
+    @pytest.fixture
+    def df_seuils(self):
+        """Une valeur modérément extrême (120) et une très extrême (900).
+
+        Q1 = 102 et Q3 = 105,5 : la borne haute vaut 110,75 au seuil 1,5,
+        123 au seuil 5.
+        """
+        valeurs = [100, 101, 102, 103, 104, 105, 106, 102, 103, 120, 900]
+        return pd.DataFrame({'a': valeurs, 'b': valeurs})
+
+    def test_bornes_selon_le_seuil(self):
+        serie = pd.Series([1, 2, 3, 4, 5])  # Q1 = 2, Q3 = 4, IQR = 2
+        assert iqr_bounds(serie) == (2 - 1.5 * 2, 4 + 1.5 * 2)
+        assert iqr_bounds(serie, 3) == (2 - 3 * 2, 4 + 3 * 2)
+
+    def test_bornes_sans_dispersion(self):
+        assert iqr_bounds(pd.Series([5, 5, 5])) is None
+        assert iqr_bounds(pd.Series([5])) is None
+
+    def test_comptage_selon_le_seuil(self, df_seuils):
+        assert count_outliers(df_seuils['a']) == 2
+        assert count_outliers(df_seuils['a'], 5) == 1
+
+    def test_comptage_d_une_colonne_textuelle(self):
+        serie = pd.Series(['100 €', '101 €', '102 €', '103 €', '104 €', '9 000 €'])
+        assert count_outliers(serie) == 1
+        assert count_outliers(pd.Series(['a', 'b', 'c'])) == 0
+
+    def test_ecretage_selon_le_seuil_de_chaque_colonne(self, df_seuils):
+        df, corrections = clip_outliers(df_seuils, thresholds={'a': 5})
+        assert corrections == {'a': 1, 'b': 2}
+        assert 120 in df['a'].tolist() and df['a'].max() < 900
+        assert 120 not in df['b'].tolist()
+
+    def test_pipeline_consigne_le_seuil(self, df_seuils):
+        _, stats = run_all_cleaning_steps(
+            df_seuils, correct_outliers=True, fill_missing=False,
+            outlier_columns=['a', 'b'], outlier_thresholds={'a': 3.0})
+        assert stats['outlier_thresholds'] == {'a': 3.0, 'b': SEUIL_IQR}
+
+    def test_option_de_la_ligne_de_commande(self):
+        """`--seuil-iqr` accepte la virgule décimale et refuse un seuil nul."""
+        import main
+
+        parseur = main.construire_parseur()
+        assert parseur.parse_args([]).seuil_iqr == SEUIL_IQR
+        assert parseur.parse_args(["--seuil-iqr", "2,5"]).seuil_iqr == 2.5
+        with pytest.raises(SystemExit):
+            parseur.parse_args(["--seuil-iqr", "0"])
