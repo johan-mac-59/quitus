@@ -135,6 +135,8 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 | **`cleaner_reporter`** | **Audit.** Rapport Markdown structuré, avec indicateurs de transformation. |
 | **`console_capture`** | **Passerelle.** Détourne la sortie console vers l'interface web, pour que la traçabilité du terminal reste visible dans le navigateur. |
 
+Le détail de chaque fonction publique — signature, paramètres, retour, exceptions — se trouve dans la [documentation API](docs/API.md). Elle est générée depuis le code par `python docs/generer_api.py`, et un test échoue dès qu'elle n'est plus à jour.
+
 ### Ordonnancement
 
 1. **Chargement** — détection du format, de l'encodage et du séparateur.
@@ -162,7 +164,8 @@ quitus/
 │   ├── console_capture.py      # Sortie console vers l'interface web
 │   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
 │   └── marque.py               # Nom, devise et logo pour l'application et les rapports
-├── tests/                      # 381 tests, un fichier par module et par garantie
+├── tests/                      # 444 tests, un fichier par module et par garantie
+├── docs/                       # Documentation API, générée depuis le code
 ├── assets/                     # Logos clair et sombre, icône
 ├── data/
 │   ├── samples/                # Échantillon de démonstration (versionné)
@@ -232,7 +235,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 440 tests
+python -m pytest              # 444 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
@@ -289,8 +292,7 @@ Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans un
 
 ## 📈 Évolutions prévues
 
-Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Les priorités :
-préserver les numéros de téléphone (le `0` initial est aujourd'hui perdu), rendre le rapport HTML lisible en mode sombre, et choisir le traitement colonne par colonne dans l'interface web.
+Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Restent à venir un module de validation des contraintes (types, formats, plages de valeurs) et une détection assistée par IA.
 
 Le journal technique détaillé du projet, étape par étape, se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 

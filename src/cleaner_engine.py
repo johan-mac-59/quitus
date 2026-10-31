@@ -7,7 +7,14 @@ import numpy as np
 from typing import Tuple
 
 def clean_empty_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
-    """Supprime les colonnes avec >95% de valeurs manquantes."""
+    """Supprime les colonnes dont au moins 95 % des valeurs sont manquantes.
+
+    Args:
+        df: DataFrame à nettoyer.
+
+    Returns:
+        Le DataFrame sans ces colonnes et le nombre de colonnes supprimées.
+    """
     if df.empty:
         return df, 0
     # On compte les NA (NaN, None, etc.)
@@ -23,7 +30,17 @@ def clean_empty_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     return df_cleaned, n_dropped
 
 def clean_whitespace(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
-    """Nettoie les espaces superflus dans les colonnes de type string."""
+    """Retire les espaces de bordure et réduit les espaces multiples à un seul.
+
+    Seules les colonnes textuelles sont traitées, et les valeurs manquantes le
+    restent.
+
+    Args:
+        df: DataFrame à nettoyer.
+
+    Returns:
+        Le DataFrame nettoyé et le nombre de valeurs modifiées.
+    """
     if df.empty:
         return df, 0
     
@@ -59,9 +76,18 @@ def clean_whitespace(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     return df_cleaned, n_modified
 
 def fix_numeric_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
-    """
-    Corrige les colonnes que Pandas a chargées en float à tort (ex: '1.0' au lieu de 1)
-    pour les passer en entier nullable si possible.
+    """Repasse en entiers les colonnes que pandas a chargées en flottants à tort.
+
+    Une colonne d'entiers comportant une valeur manquante est lue en `float64`
+    (« 1.0 » au lieu de 1). Si toutes ses valeurs présentes sont entières, elle
+    passe en entier nullable `Int64`, qui accepte les valeurs manquantes.
+
+    Args:
+        df: DataFrame à corriger.
+
+    Returns:
+        Le DataFrame corrigé et, par colonne convertie, la description de la
+        conversion.
     """
     conversions = {}
     df_cleaned = df.copy()
@@ -674,7 +700,14 @@ def _try_datetime_conversion(df_cleaned: pd.DataFrame, col: str, conversions: di
 
 
 def clean_duplicates(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
-    """Supprime les doublons exacts."""
+    """Supprime les lignes en double exact, en gardant la première occurrence.
+
+    Args:
+        df: DataFrame à nettoyer.
+
+    Returns:
+        Le DataFrame dédoublonné et le nombre de lignes supprimées.
+    """
     if df.empty:
         return df, 0
     
@@ -709,11 +742,15 @@ def prepare_target_columns_for_case_cleaning(profiler_results: dict) -> list:
 def clean_case_sensitivity(df: pd.DataFrame, target_columns: list = None) -> Tuple[pd.DataFrame, dict]:
     """
     Unifie la casse des colonnes catégorielles en minuscules.
-    
+
     Args:
         df: DataFrame à nettoyer
         target_columns: Liste optionnelle de colonnes spécifiques à traiter.
                         Si None, analyse toutes les colonnes string (comportement par défaut).
+
+    Returns:
+        Le DataFrame nettoyé et, par colonne traitée, le nombre de valeurs
+        dont la casse a changé.
     """
     if df.empty:
         return df.copy(), {}
@@ -1306,9 +1343,23 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
                            outlier_thresholds: dict = None) -> Tuple[pd.DataFrame, dict]:
     """
     Applique les nettoyages de manière itérative et ordonnée.
-    
+
+    Ordre stratégique pour éviter les erreurs en cascade :
+
+    1. Forme (espaces) -> Pour préparer la conversion de types
+    2. Types fixes (Pandas Trap) -> Pour corriger les float64 -> Int64 si possible
+    3. Conversion Types stricte -> Pour pouvoir faire des calculs statistiques
+    4. Structure (doublons/vides) -> Une fois qu'on connaît les vrais types
+    5. Stats (Missing/Outliers) -> En dernier, sur des données propres
+
+    Les quatre premières étapes sont répétées tant qu'elles modifient encore
+    les données, `max_iterations` fois au plus.
+
     Args:
         df: DataFrame à nettoyer
+        profile_info: Résultats du profilage avant nettoyage ; ils désignent
+            les colonnes dont la casse est à uniformiser. None pour les traiter
+            toutes.
         max_iterations: Nombre maximum d'itérations
         correct_outliers: Booléen pour décider si on corrige les outliers
         fill_missing: Booléen pour décider si on remplit les valeurs manquantes
@@ -1319,13 +1370,11 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
             None pour toutes.
         outlier_thresholds: Seuil IQR par colonne ; `SEUIL_IQR` pour une
             colonne non mentionnée.
-    
-    Ordre stratégique pour éviter les erreurs en cascade :
-    1. Forme (espaces) -> Pour préparer la conversion de types
-    2. Types fixes (Pandas Trap) -> Pour corriger les float64 -> Int64 si possible
-    3. Conversion Types stricte -> Pour pouvoir faire des calculs statistiques
-    4. Structure (doublons/vides) -> Une fois qu'on connaît les vrais types
-    5. Stats (Missing/Outliers) -> En dernier, sur des données propres
+
+    Returns:
+        Le DataFrame nettoyé et les statistiques de chaque opération : colonnes
+        supprimées, espaces, casse, types convertis, valeurs illisibles vidées,
+        notes ramenées, doublons, valeurs comblées, valeurs écrêtées et seuils.
     """
     stats = {
         'empty_cols_dropped': 0,

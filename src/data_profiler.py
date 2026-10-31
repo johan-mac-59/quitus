@@ -75,7 +75,17 @@ class DataProfiler:
         self.profile_results: Dict[str, Any] = {}
 
     def run_analysis(self) -> Dict[str, Any]:
-        """Orchestre toutes les analyses."""
+        """Orchestre toutes les analyses.
+
+        Returns:
+            Les résultats du profilage, également rangés dans
+            `profile_results` : dimensions, types, valeurs manquantes,
+            doublons, statistiques numériques et catégorielles, valeurs
+            aberrantes.
+
+        Raises:
+            ValueError: Si le DataFrame est vide.
+        """
         if len(self.df) == 0:
             raise ValueError("Impossible de profiler un DataFrame vide.")
 

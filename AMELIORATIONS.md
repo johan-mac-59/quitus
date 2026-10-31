@@ -5,9 +5,8 @@ livrées suivent, dans l'ordre chronologique. Le détail de chaque livraison se
 trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
 
 ## 🎯 À faire — par ordre d'importance
-1. **Documentation API** : rédaction d'un document technique détaillé décrivant l'interface et les paramètres de chaque fonction. *À moitié fait : toutes les fonctions publiques ont une docstring, et un test l'impose. Reste à assembler le document.*
-2. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs).
-3. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
+1. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs).
+2. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
 
 ## ✅ Livré
 - ~~**un vrai rapport de nettoyage**~~ : chaque exécution produit un rapport qui indique la source et l'horodatage, compare l'avant et l'après, et détaille colonne par colonne chaque opération effectuée. Le journal de nettoyage est couvert par des tests. *Étapes 16 et 17.*
@@ -29,3 +28,4 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 - ~~**seuil des valeurs aberrantes paramétrable**~~ : chaque colonne écrêtée reçoit son seuil IQR, dont l'interface web montre l'effet en direct ; la ligne de commande accepte un seuil commun (`--seuil-iqr`). *Étape 49.*
 - ~~**normalisation des notes sur une échelle commune**~~ : une colonne mêlant plusieurs échelles de notation est ramenée à son échelle dominante, et chaque note ramenée est signalée. *Étape 50.*
 - ~~**support du format Parquet**~~ : les fichiers `.parquet` sont chargés, y compris sans extension ; les cellules structurées d'un JSON ou d'un Parquet sont écrites en texte JSON, ce qui répare au passage le profilage des JSON imbriqués. *Étape 51.*
+- ~~**documentation API**~~ : [`docs/API.md`](docs/API.md) décrit chaque fonction publique ; il est généré depuis le code, et un test interdit qu'il se périme. *Étape 52.*

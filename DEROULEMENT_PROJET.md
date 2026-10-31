@@ -1977,4 +1977,34 @@ Les tests couvrent les types conservés, la catégorie rendue modifiable, les ce
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 440 tests.*
+## Étape 52 : Une Documentation API qui ne Peut pas Mentir 📚🔒
+
+### 1. Ce qui restait à faire
+La feuille de route demandait un document technique décrivant l'interface et les paramètres de chaque fonction. Elle le disait à moitié fait : toutes les fonctions publiques avaient une docstring, et un test l'imposait. Restait à assembler le document.
+
+### 2. Générer plutôt qu'écrire
+Un document écrit à la main aurait été périmé au premier changement de signature. Les étapes précédentes en donnaient la preuve : en quelques heures, `run_all_cleaning_steps` avait reçu trois paramètres, `clip_outliers` deux, `clean_types` un.
+
+Le document, `docs/API.md`, est donc **généré depuis le code** par un script, `docs/generer_api.py`. Pour chacun des neuf modules de `src/`, dans l'ordre du parcours d'un fichier (chargement, profilage, nettoyage, rapports, utilitaires), il reprend la présentation du module, puis chaque fonction, classe et méthode publique : sa signature, telle qu'écrite dans le code, et sa docstring. Les sections au format Google (`Args`, `Returns`, `Raises`) deviennent des listes titrées en français : paramètres, retour, exceptions. Un sommaire relie le tout.
+
+Trois détails de mise en œuvre :
+
+* les annotations sont lues **comme texte**, grâce au module `annotationlib` de Python 3.14 : la signature affiche `pd.DataFrame`, comme le code, et non `pandas.core.frame.DataFrame` ;
+* deux fonctions du module `marque` sont enveloppées par un cache (`lru_cache`), qui les masque à un inventaire naïf : le générateur remonte à la fonction d'origine ;
+* `self` est omis des méthodes, et les classes n'affichent pas de type de retour.
+
+### 3. Un test qui interdit la dérive
+`tests/test_documentation_api.py` vérifie que le fichier versionné est **identique** à ce que produirait le générateur. Une docstring modifiée sans régénérer le document fait échouer la suite, avec la commande à lancer. Le test vérifie aussi que chaque élément public a sa section, et qu'un nouveau module de `src/` ne peut pas être oublié.
+
+### 4. Les docstrings complétées
+Assembler le document a rendu visibles les docstrings les plus anciennes, réduites à une ligne. Une docstring existait partout, comme l'imposait le test, mais elle ne disait pas toujours tout. Onze ont été complétées, fidèlement au code : paramètres et retour de `clean_empty_columns`, `clean_whitespace`, `fix_numeric_types`, `clean_duplicates`, retour de `clean_case_sensitivity` et de `DataProfiler.run_analysis`, méthodes de `CleanLogger` et `generate_and_print_report`. Celle de `run_all_cleaning_steps` ne mentionnait ni `profile_info` ni ce que la fonction renvoie ; elle décrit désormais l'un et l'autre, ainsi que la répétition des premières étapes jusqu'à stabilisation.
+
+### 5. Le README à jour
+Le README renvoie à la documentation API sous le tableau des modules, et son arborescence fait apparaître le dossier `docs/`. Sa section « Évolutions prévues » citait encore comme priorités les trois défauts corrigés aux Étapes 46 à 48 ; elle annonce désormais ce qui reste à venir.
+
+### 6. Résultat
+**444 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 444 tests.*

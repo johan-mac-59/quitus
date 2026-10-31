@@ -12,12 +12,21 @@ class CleanLogger:
         self.final_columns = None
 
     def update_final_state(self, final_df: pd.DataFrame):
-        """Met à jour les statistiques finales."""
+        """Enregistre les dimensions et les colonnes du DataFrame nettoyé.
+
+        Args:
+            final_df: DataFrame après nettoyage.
+        """
         self.final_shape = final_df.shape
         self.final_columns = list(final_df.columns)
 
     def get_summary(self) -> str:
-        """Génère un résumé des opérations effectuées."""
+        """Génère un résumé des opérations effectuées.
+
+        Returns:
+            Le résumé, en texte, prêt à afficher en console ; un avertissement
+            si `update_final_state` n'a pas encore été appelée.
+        """
         if self.final_shape is None or self.final_columns is None:
             return "⚠️ Rapport non finalisé. Veuillez exécuter update_final_state().\n"
         
@@ -87,7 +96,16 @@ class CleanLogger:
         return summary
 
     def get_detailed_table(self, final_df: pd.DataFrame = None) -> pd.DataFrame:
-        """Retourne un DataFrame résumé des changements (optionnel, pour affichage tabulaire)."""
+        """Retourne un DataFrame résumé des changements (optionnel, pour affichage tabulaire).
+
+        Args:
+            final_df: DataFrame nettoyé ; s'il est fourni, les changements de
+                type de chaque colonne sont recensés.
+
+        Returns:
+            Un tableau des changements de type, une ligne par colonne dont le
+            type a changé ; vide si `final_df` n'est pas fourni.
+        """
         
         # On compare les types avant/après si le DataFrame final est fourni
         type_changes = []
@@ -117,7 +135,13 @@ class CleanLogger:
 
 
 def generate_and_print_report(initial_df: pd.DataFrame, stats: Dict, final_df: pd.DataFrame):
-    """Fonction utilitaire rapide pour générer et afficher."""
+    """Affiche en console le résumé comparatif d'un nettoyage.
+
+    Args:
+        initial_df: DataFrame avant nettoyage.
+        stats: Statistiques renvoyées par `run_all_cleaning_steps`.
+        final_df: DataFrame après nettoyage.
+    """
     reporter = CleanLogger(initial_df, stats)
     reporter.update_final_state(final_df)
     print(reporter.get_summary())
