@@ -1948,4 +1948,33 @@ Les tests couvrent les échelles mêlées, l'échelle unique inchangée, l'égal
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 430 tests.*
+## Étape 51 : Parquet Rejoint les Formats Acceptés 🗃️📦
+
+### 1. Le cinquième format
+CSV, Excel, JSON et JSON Lines étaient pris en charge ; Parquet, demandé dès la liste de l'Étape 6, ne l'était pas. C'est pourtant le format d'échange courant des outils de données modernes : colonnes typées, compression, lecture rapide.
+
+Le chargement suit le modèle des autres formats : une fonction orientée octets, `_parquet_from_bytes`, que l'interface web appelle directement, et une enveloppe orientée chemin pour la ligne de commande. Un fichier sans extension est reconnu à sa signature, `PAR1`, qui l'ouvre et le ferme. Un fichier corrompu lève une erreur explicite plutôt qu'un message de bas niveau.
+
+Parquet stocke ses types : un nombre y est déjà un nombre, une date une date. Le nettoyage n'a donc à corriger que ce qui y est resté du texte, comme des montants écrits `1 200,50 €`, et la protection des codes à zéro initial de l'Étape 46 s'applique à ses colonnes textuelles comme aux autres.
+
+Une seule conversion est faite d'office : une colonne **catégorielle** devient une colonne ordinaire. Une catégorie n'accepte que ses modalités d'origine ; la casse uniformisée ou une valeur comblée y auraient été refusées.
+
+La lecture repose sur `pyarrow`. Il était déjà installé, comme dépendance de Streamlit, mais le projet s'en sert désormais directement : il est donc déclaré dans `pyproject.toml`, `requirements.txt` et le verrou `uv.lock`.
+
+### 2. Un défaut plus ancien, révélé en chemin
+Parquet, comme JSON, peut porter dans une cellule une liste ou un objet. En testant ce cas, un défaut antérieur est apparu : **un JSON imbriqué se chargeait, mais son profilage échouait**, sur une erreur `unhashable type: 'list'`. Le profilage compte et compare des valeurs, ce qu'une liste ne permet pas. L'Étape 25 avait annoncé la prise en charge des JSON imbriqués : elle tenait pour le chargement, pas pour la suite du parcours.
+
+La correction est faite une fois, à la sortie du chargement, pour tous les formats : une cellule structurée (liste, objet, tableau) est écrite en **texte JSON**. Son contenu est entièrement conservé, il reste lisible, et il devient comparable : deux lignes identiques sont reconnues comme des doublons.
+
+### 3. Partout où les formats sont cités
+La zone de dépôt accepte l'extension `.parquet`, et son aide, la page d'accueil, la description de la ligne de commande, celle du paquet et le README citent le nouveau format. Le tableau de robustesse du README indique le sort des cellules structurées.
+
+### 4. Vérifié dans le navigateur
+Sur l'application locale, un fichier Parquet de clients est déposé, analysé puis nettoyé. Les montants en texte deviennent des nombres, les téléphones gardent leur zéro initial, les listes d'étiquettes s'affichent en texte JSON, la date garde son type, et le doublon révélé par l'uniformisation de la casse est supprimé.
+
+### 5. Résultat
+Les tests couvrent les types conservés, la catégorie rendue modifiable, les cellules structurées, la détection sans extension, le chargement par chemin, le fichier corrompu ou vide, le profilage d'un JSON imbriqué et, dans l'interface, le dépôt puis l'analyse d'un fichier Parquet. **440 tests passent.**
+
+---
+
+*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 440 tests.*

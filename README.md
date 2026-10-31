@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/uv-DE5FE9?style=for-the-badge&logo=uv&logoColor=white" alt="uv">
 </p>
 
-**Outil de profilage et de nettoyage de fichiers CSV, Excel et JSON**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
+**Outil de profilage et de nettoyage de fichiers CSV, Excel, JSON et Parquet**, utilisable en ligne de commande ou par une interface web. Il inspecte un fichier dont vous ne connaissez ni la structure, ni l'encodage, ni le séparateur, vous montre ses défauts, puis les corrige sous votre contrôle et vous rend un rapport d'audit.
 
 **Version 1.0.0** · 🌐 **Essayer en ligne : [quitus.streamlit.app](https://quitus.streamlit.app/)**
 
@@ -66,8 +66,7 @@ Un échantillon de démonstration est versionné dans `data/samples/` : les deux
 
 ## 🖥️ Les deux modes d'utilisation
 
-Le projet a **une seule logique métier** (`src/`) et **deux façades**. Un
-correctif profite donc aux deux, par construction.
+Le projet a **une seule logique métier** (`src/`) et **deux façades**. Un correctif profite donc aux deux, par construction.
 
 ### Interface web
 
@@ -75,8 +74,7 @@ correctif profite donc aux deux, par construction.
 streamlit run streamlit_app.py
 ```
 
-Déposez un fichier — ou essayez directement avec l'exemple fourni —, lancez
-l'analyse, choisissez les deux traitements optionnels, nettoyez. Sept onglets :
+Déposez un fichier — ou essayez directement avec l'exemple fourni —, lancez l'analyse, choisissez les deux traitements optionnels, nettoyez. Sept onglets :
 
 | Onglet | Contenu |
 |---|---|
@@ -129,7 +127,7 @@ chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 s
 
 | Module | Rôle |
 |---|---|
-| **`file_loader`** | **Lecture intelligente.** Détecte le format (CSV, Excel, JSON, JSON Lines), l'encodage (UTF-8, Latin1, CP1252) et le séparateur (`,` `;` `\t` `\|`). Accepte un chemin ou des octets en mémoire, ce qui permet à l'interface web de consommer un fichier déposé sans fichier temporaire. |
+| **`file_loader`** | **Lecture intelligente.** Détecte le format (CSV, Excel, JSON, JSON Lines, Parquet), l'encodage (UTF-8, Latin1, CP1252) et le séparateur (`,` `;` `\t` `\|`). Accepte un chemin ou des octets en mémoire, ce qui permet à l'interface web de consommer un fichier déposé sans fichier temporaire. |
 | **`data_profiler`** | **Double audit.** `PreCleaningProfiler` diagnostique les anomalies avant nettoyage ; `ExploratoryProfiler` valide le résultat après, en ajoutant matrice de dispersion et corrélations. Produit des rapports Markdown et HTML autonomes. |
 | **`cleaner_engine`** | **Moteur de transformation.** Doublons, espaces superflus, casse incohérente, types mal détectés, formats monétaires (`"1 200,50 €"` → `1200.50`), entiers nullables `Int64`, valeurs manquantes, valeurs aberrantes (IQR). Nettoyage itératif, qui s'arrête dès que plus rien ne change. |
 | **`plot_factory`** | **Fabrique de graphiques.** Cinq graphiques, exposés comme objets réutilisables : un même code alimente les rapports HTML et l'interface web. |
@@ -234,7 +232,7 @@ L'échantillon versionné dans `data/samples/` est **entièrement synthétique**
 ## 🧪 Tests
 
 ```bash
-python -m pytest              # 430 tests
+python -m pytest              # 440 tests
 python -m pytest -q tests/test_app_streamlit.py    # interface web (sans navigateur)
 ```
 
@@ -282,6 +280,7 @@ La suite couvre les modules métier, mais aussi trois familles moins habituelles
 | Extension inconnue | Tentative de détection du format, puis `ValueError` explicite |
 | Fichier vide | DataFrame vide retourné sans erreur ; le profilage, lui, signale l'impossibilité |
 | Ligne JSON corrompue | Signalée et ignorée : un enregistrement invalide ne fait pas perdre le fichier |
+| Cellule structurée (liste, objet) d'un JSON ou d'un Parquet | Écrite en texte JSON : son contenu est conservé et reste comparable |
 | Absence de terminal | Les invites retiennent leur valeur par défaut documentée, sans lever ni bloquer |
 
 Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans une chaîne d'intégration continue, ou depuis un serveur web.

@@ -59,7 +59,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     """
     parseur = argparse.ArgumentParser(
         prog="main.py",
-        description="Profile et nettoie un fichier CSV, Excel ou JSON, "
+        description="Profile et nettoie un fichier CSV, Excel, JSON ou Parquet, "
                     "puis produit des rapports d'audit.",
         epilog="Interface web équivalente : streamlit run streamlit_app.py",
     )

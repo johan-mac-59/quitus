@@ -50,7 +50,7 @@ from src.horodatage import horodater
 # passer aucune donnée de paiement.
 LIEN_DON = "https://buymeacoffee.com/johan_mac"
 
-EXTENSIONS = ["csv", "xlsx", "xls", "json", "jsonl"]
+EXTENSIONS = ["csv", "xlsx", "xls", "json", "jsonl", "parquet"]
 
 # Échantillon synthétique versionné avec le dépôt : il permet d'essayer l'outil
 # sans avoir de fichier sous la main. Aucune donnée personnelle.
@@ -706,7 +706,7 @@ def page_accueil(accueil: bool = True) -> None:
                     st.rerun()
         with droite:
             st.caption("… ou déposez votre propre fichier dans la barre latérale : "
-                       "CSV, Excel, JSON ou JSON Lines, 20 Mo au plus.")
+                       "CSV, Excel, JSON, JSON Lines ou Parquet, 20 Mo au plus.")
     else:
         st.caption(f"Fichier en cours : « {st.session_state['nom_source']} ». "
                    "Suivez les onglets de gauche à droite : aperçu, diagnostic, "
@@ -861,7 +861,7 @@ def barre_laterale() -> dict:
         "Déposez un fichier",
         type=EXTENSIONS,
         key=f"envoi_{st.session_state['generation_envoi']}",
-        help="CSV, Excel, JSON ou JSON Lines. Le séparateur et l'encodage sont "
+        help="CSV, Excel, JSON, JSON Lines ou Parquet. Le séparateur et l'encodage sont "
              "détectés automatiquement.",
     )
 

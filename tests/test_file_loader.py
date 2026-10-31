@@ -455,3 +455,73 @@ class TestLoadDataframeFromBytes:
         avant = set(tmp.glob("*"))
         load_dataframe(b"a,b\n1,2\n", "ephemere.csv")
         assert set(tmp.glob("*")) == avant
+
+
+class TestParquet:
+    """Le format Parquet est chargé comme les autres, octets ou chemin."""
+
+    @pytest.fixture
+    def octets_parquet(self):
+        """Un fichier Parquet typé, avec une catégorie et des cellules structurées."""
+        import io
+        tampon = io.BytesIO()
+        pd.DataFrame({
+            'n': [1, 2],
+            'd': pd.to_datetime(['2024-01-01', '2024-02-01']),
+            'cat': pd.Categorical(['a', 'b']),
+            'tags': [['x', 'y'], []],
+            'meta': [{'k': 1}, {'k': 2}],
+        }).to_parquet(tampon)
+        return tampon.getvalue()
+
+    def test_types_conserves(self, octets_parquet):
+        from src.file_loader import load_dataframe
+        df = load_dataframe(octets_parquet, 'f.parquet')
+        assert pd.api.types.is_integer_dtype(df['n'])
+        assert pd.api.types.is_datetime64_any_dtype(df['d'])
+
+    def test_categorie_rendue_modifiable(self, octets_parquet):
+        """Une catégorie refuserait la casse uniformisée ou une valeur comblée."""
+        from src.file_loader import load_dataframe
+        df = load_dataframe(octets_parquet, 'f.parquet')
+        assert not isinstance(df['cat'].dtype, pd.CategoricalDtype)
+
+    def test_cellules_structurees_en_texte_json(self, octets_parquet):
+        from src.file_loader import load_dataframe
+        df = load_dataframe(octets_parquet, 'f.parquet')
+        assert df['tags'].tolist() == ['["x", "y"]', '[]']
+        assert df['meta'].tolist() == ['{"k": 1}', '{"k": 2}']
+
+    def test_detecte_sans_extension(self, octets_parquet):
+        from src.file_loader import load_dataframe
+        df = load_dataframe(octets_parquet, 'export_sans_extension')
+        assert len(df) == 2
+
+    def test_par_chemin(self, octets_parquet, tmp_path):
+        chemin = tmp_path / 'f.parquet'
+        chemin.write_bytes(octets_parquet)
+        assert len(load_file(str(chemin))) == 2
+
+    def test_fichier_corrompu(self):
+        from src.file_loader import load_dataframe
+        with pytest.raises(ValueError, match="Parquet"):
+            load_dataframe(b'PAR1 pas vraiment PAR1', 'f.parquet')
+
+    def test_vide(self):
+        from src.file_loader import load_dataframe
+        assert load_dataframe(b'', 'f.parquet').empty
+
+
+class TestJsonImbrique:
+    """Un JSON imbriqué se profile : ses listes et objets deviennent du texte."""
+
+    def test_profilage_d_un_json_imbrique(self):
+        from src.data_profiler import PreCleaningProfiler
+        from src.file_loader import load_dataframe
+        contenu = json.dumps([{'id': 1, 'tags': ['a', 'b'], 'meta': {'x': 1}},
+                              {'id': 2, 'tags': ['c'], 'meta': {'x': 2}}]).encode('utf-8')
+        df = load_dataframe(contenu, 'f.json')
+        assert df['tags'].tolist() == ['["a", "b"]', '["c"]']
+        profileur = PreCleaningProfiler(df)
+        profileur.run_analysis()
+        assert profileur.profile_results

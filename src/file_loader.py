@@ -17,6 +17,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, Union
 
+import numpy as np
 import pandas as pd
 
 from src.cleaner_engine import has_leading_zero
@@ -46,15 +47,63 @@ def load_dataframe(source: Union[bytes, bytearray, BinaryIO], filename: str) -> 
     print(f"📂 Chargement du fichier : {filename}")
 
     if ext == '.csv':
-        return _csv_from_bytes(data)
-    if ext in ('.xlsx', '.xls'):
+        df = _csv_from_bytes(data)
+    elif ext in ('.xlsx', '.xls'):
         print("   -> Format Excel détecté.")
-        return _excel_from_bytes(data)
-    if ext == '.json':
-        return _json_from_bytes(data)
-    if ext == '.jsonl':
-        return _jsonl_from_bytes(data)
-    return _sniff_from_bytes(data, ext)
+        df = _excel_from_bytes(data)
+    elif ext == '.json':
+        df = _json_from_bytes(data)
+    elif ext == '.jsonl':
+        df = _jsonl_from_bytes(data)
+    elif ext == '.parquet':
+        df = _parquet_from_bytes(data)
+    else:
+        df = _sniff_from_bytes(data, ext)
+    return _serialiser_cellules_imbriquees(df)
+
+
+def _serialiser_cellules_imbriquees(df: pd.DataFrame) -> pd.DataFrame:
+    """Écrit en texte JSON les cellules qui contiennent une structure.
+
+    Un JSON imbriqué ou un fichier Parquet peut porter, dans une cellule, une
+    liste ou un objet. Le profilage et le nettoyage comparent et comptent des
+    valeurs : une liste n'est pas comparable, et le profilage échouait. Écrite
+    en texte JSON, la cellule garde tout son contenu, lisible et comparable.
+
+    Args:
+        df: DataFrame chargé.
+
+    Returns:
+        Le même DataFrame, cellules structurées écrites en texte JSON.
+    """
+    for col in df.columns:
+        if df[col].dtype != object:
+            continue
+        structurees = df[col].map(lambda v: isinstance(v, (list, tuple, dict, np.ndarray)))
+        if not structurees.any():
+            continue
+        df[col] = df[col].map(lambda v: json.dumps(_vers_python(v), ensure_ascii=False, default=str)
+                              if isinstance(v, (list, tuple, dict, np.ndarray)) else v)
+        print(f"   -> Colonne « {col} » : contenu structuré écrit en texte JSON.")
+    return df
+
+
+def _vers_python(valeur):
+    """Convertit récursivement une structure en types Python sérialisables.
+
+    Args:
+        valeur: Cellule ou élément de cellule.
+
+    Returns:
+        La même donnée, tableaux NumPy convertis en listes.
+    """
+    if isinstance(valeur, np.ndarray):
+        valeur = valeur.tolist()
+    if isinstance(valeur, (list, tuple)):
+        return [_vers_python(v) for v in valeur]
+    if isinstance(valeur, dict):
+        return {str(k): _vers_python(v) for k, v in valeur.items()}
+    return valeur
 
 
 def load_file(file_path: str) -> pd.DataFrame:
@@ -268,6 +317,40 @@ def _parse_json_text(content: str) -> pd.DataFrame:
         raise ValueError(f"Format JSON invalide : {e}")
 
 
+# Signature d'un fichier Parquet : ces quatre octets l'ouvrent et le ferment.
+_SIGNATURE_PARQUET = b'PAR1'
+
+
+def _parquet_from_bytes(data: bytes) -> pd.DataFrame:
+    """Charge un fichier Parquet depuis des octets.
+
+    Parquet stocke ses types : un nombre y est déjà un nombre, une date une
+    date. Le nettoyage n'a donc à corriger que ce qui est resté du texte.
+
+    Args:
+        data: Contenu brut du fichier.
+
+    Returns:
+        Le DataFrame chargé, vide si le contenu l'est.
+
+    Raises:
+        ValueError: Si le contenu n'est pas un fichier Parquet valide.
+    """
+    if not data:
+        print("   -> ⚠️ Fichier Parquet vide détecté")
+        return pd.DataFrame()
+    try:
+        df = pd.read_parquet(BytesIO(data))
+    except Exception as e:
+        raise ValueError(f"Fichier Parquet illisible : {e}")
+    print("   -> Format Parquet détecté et chargé avec succès.")
+    # Une colonne catégorielle n'accepte que ses modalités d'origine : la
+    # casse uniformisée ou une valeur comblée y seraient refusées.
+    for col in df.select_dtypes(include='category').columns:
+        df[col] = df[col].astype(object)
+    return df
+
+
 def _sniff_from_bytes(data: bytes, ext: str) -> pd.DataFrame:
     """Tente de détecter le format quand l'extension n'est pas reconnue.
 
@@ -283,6 +366,11 @@ def _sniff_from_bytes(data: bytes, ext: str) -> pd.DataFrame:
     """
     if not data:
         raise ValueError("Impossible de déterminer le format du fichier")
+
+    # Parquet se reconnaît à sa signature, en tête comme en fin de fichier.
+    if data[:4] == _SIGNATURE_PARQUET and data[-4:] == _SIGNATURE_PARQUET:
+        print("   -> Format Parquet détecté automatiquement.")
+        return _parquet_from_bytes(data)
 
     encoding = _detect_encoding_bytes(data)
     sample = data[:1024].decode(encoding, errors='replace').strip()
@@ -395,6 +483,18 @@ def _load_jsonl(file_path: str) -> pd.DataFrame:
         Le DataFrame chargé.
     """
     return _jsonl_from_bytes(Path(file_path).read_bytes())
+
+
+def _load_parquet(file_path: str) -> pd.DataFrame:
+    """Charge un fichier Parquet depuis un chemin.
+
+    Args:
+        file_path: Chemin du fichier.
+
+    Returns:
+        Le DataFrame chargé.
+    """
+    return _parquet_from_bytes(Path(file_path).read_bytes())
 
 
 def _load_json_manual(file_path: str) -> pd.DataFrame:

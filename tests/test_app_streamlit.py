@@ -731,7 +731,7 @@ class TestParcoursComplet:
 
 
 class TestFormats:
-    """Les quatre formats annoncés doivent tous fonctionner via l'interface."""
+    """Tous les formats annoncés doivent fonctionner via l'interface."""
 
     def test_json(self, app):
         """Un JSON déposé est chargé."""
@@ -755,6 +755,29 @@ class TestFormats:
         app = _deposer(app, tampon.getvalue(), "classeur.xlsx")
         assert not app.exception
         assert list(app.session_state["df_brut"].columns) == ["x", "y"]
+
+    def test_parquet(self, app):
+        """Un fichier Parquet déposé est chargé, puis profilé sans erreur.
+
+        Ses cellules structurées (liste, objet) sont écrites en texte JSON : le
+        profilage, qui compare des valeurs, échouait sur une liste.
+        """
+        tampon = io.BytesIO()
+        pd.DataFrame({"x": [1, 2, 3], "tags": [["a"], ["b", "c"], []],
+                      "tel": ["0612345678", "0798765432", "0601020304"]}).to_parquet(tampon)
+        app.run()
+        app = _deposer(app, tampon.getvalue(), "donnees.parquet")
+        assert not app.exception
+        df = app.session_state["df_brut"]
+        assert df["tags"].tolist() == ['["a"]', '["b", "c"]', "[]"]
+        app = [b for b in app.sidebar.button if "Analyser" in b.label][0].click().run()
+        assert not app.exception
+        assert app.session_state["profil"] is not None
+
+    def test_extension_parquet_acceptee(self, app):
+        """Le composant de dépôt accepte l'extension .parquet."""
+        app.run()
+        assert "parquet" in app.file_uploader[0].proto.type or             ".parquet" in app.file_uploader[0].proto.type
 
     @pytest.mark.skipif(not ECHANTILLON.exists(),
                         reason="échantillon versionné absent")
