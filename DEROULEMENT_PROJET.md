@@ -186,10 +186,6 @@ Un fichier CSV nettoyé automatiquement avec un rapport détaillé des transform
 
 ---
 
-*Projet en cours de développement - Bootcamp Data Analyst Wild Code School*
-
----
-
 ## Étape 7 : Refactoring et Architecture Modulaire (En cours)
 
 Dans une version plus avancée et professionnelle, nous avons refactorisé le projet pour le rendre plus robuste et maintenable. 
@@ -341,8 +337,6 @@ La fonction `load_file` ne plante plus. Si le fichier est vide, elle retourne ca
 
 ---
 
-## Récapitulatif final (V1.0 - Stable)
-
 ## Étape 10 : Stabilisation du Moteur de Nettoyage et Passage aux Tests Unitaires
 
 Cette étape est cruciale car elle marque le passage d'un "script qui fonctionne" à un "programme robuste et testé".
@@ -366,10 +360,7 @@ Nous avons commencé à intégrer des tests automatisés pour garantir qu'un cha
 Grâce aux tests, nous pouvons désormais refactoriser le code en toute sécurité. 
 Le fichier `DEROULEMENT_PROJET.md` devient notre source de vérité technique, documentant chaque erreur rencontrée et sa solution.
 
----
-
 ### 4. Résolution des derniers bugs critiques dans cleaner_engine.py
- ⚠️
 Le pipeline fonctionnait globalement mais restait bloqué par 3 erreurs de type ("TypeErrors" ou "Logique"). Voici comment elles ont été résolues pour garantir la compatibilité avec les versions récentes de pandas (2.x et 3.x) :
 
 Erreur sur les Types (
@@ -391,7 +382,7 @@ clean_outliers
 Problème : Tentative d'écriture de valeurs à virgule (la borne IQR) dans des colonnes entières (int64), ce qui provoque une erreur LossySetitemError.
 Solution : On convertit systématiquement les colonnes numériques en Float64 (qui accepte les NaN et les virgules) avant d'appliquer la logique IQR.
 
-### 5. Stabilisation du Pipeline et Passage aux Tests Unitaires 🛡️
+### 5. Stabilisation du Pipeline et Passage aux Tests Unitaires
 Nous avons maintenant un ensemble de tests automatisés qui s'assurent que chaque brique du nettoyage fonctionne individuellement :
 
 clean_empty_columns
@@ -422,7 +413,7 @@ Au lieu d'appliquer les bornes une seule fois (One-pass), nous implémentons une
 
 **État actuel :** En cours d'intégration avec des tests unitaires spécifiques (`test_iqr_multi_pass`).
 
- ---
+---
 
 ## Étape 11 : Analyse de Régression et Tests Unitaires (`pytest`)
 
@@ -451,7 +442,9 @@ En lançant les tests unitaires (`pytest`) pour valider l'architecture modulaire
 ### Résultat final de l'étape
 Le pipeline global (`test_pipeline_complet`) valide que si l'orchestrateur fait bien son travail, les données finales sont propres. Cependant, pour garantir la robustesse du moteur (`cleaner_engine`), il faut corriger ces 3 points dans les tests unitaires.
 
-## Étape 12 : Correction des Tests Unitaires et Résolution des "Fausses" Négatives 🐛🛠️
+---
+
+## Étape 12 : Correction des Tests Unitaires et Résolution des "Fausses" Négatives
 
 Dans cette étape critique, nous avons identifié pourquoi certains tests échouaient malgré un pipeline fonctionnel en production. Les erreurs provenaient de la rigidité des fixtures de test et du comportement mathématique de pandas sur de petits échantillons.
 
@@ -495,7 +488,7 @@ Le projet est passé d'un script de nettoyage expérimentale à un **systle de p
 
 ---
 
-## Étape 14 : Développement du module de Profilage (`data_profiler`) 📊
+## Étape 14 : Développement du module de Profilage (`data_profiler`)
 
 Dans cette étape, nous avons ajouté une brique essentielle au pipeline : **la phase d'inspection**. Avant même de penser à nettoyer, il est impératif de comprendre la structure et la qualité des données brutes.
 
@@ -545,7 +538,7 @@ La classe `DataProfiler` inclut désormais une méthode预留 (`detect_quality_i
 
 ---
 
-## Étape 15 : Renforcement de la Robustesse et Fiabilisation par les Tests Unitaires 🛡️🛠️
+## Étape 15 : Renforcement de la Robustesse et Fiabilisation par les Tests Unitaires
 
 Dans cette phase, l'objectif est passé de "faire fonctionner le code" à "garantir qu'il ne cassera jamais lors d'une mise à jour". Nous avons affronté des problèmes complexes liés aux types de données et à la structure même du projet.
 
@@ -565,7 +558,7 @@ Les tests unitaires ont révélé que notre `CleanLogger` était trop "optimiste
 
 ---
 
-## Étape 16 : Professionnalisation du Reporting et Sécurisation de l'Audit via `CleanerReporter` 📝🚀
+## Étape 16 : Professionnalisation du Reporting et Sécurisation de l'Audit via `CleanerReporter`
 
 Après avoir stabilisé le moteur de nettoyage (`cleaner_engine`) et les tests unitaires, l'objectif est passé de la simple transformation de données à la **création d'une preuve d'audit**. Un pipeline performant ne sert à rien si l'utilisateur final (le Data Analyst ou le métier) ne peut pas auditer les transformations effectuées.
 
@@ -625,7 +618,7 @@ Le pipeline suit désormais un flux de données unidirectionnel et structuré :
 
 ---
 
-## Étape 18 : Optimisation de l'auditabilité et intelligence du moteur numérique 🛠️🔍
+## Étape 18 : Optimisation de l'auditabilité et intelligence du moteur numérique
 
 Cette étape cruciale a transformé le pipeline d'un outil de nettoyage simple en un système d'audit professionnel, capable de traiter des formats complexes (monétaires) et de corriger les erreurs structurelles introduites par le chargement initial.
 
@@ -654,7 +647,7 @@ L'objectif était de passer d'une statistique brute à une documentation qualita
     * **Après :** `{'colonne': {'count': 15, 'method': 'fill_mode_valeur'}}` (permet un audit précis des volumes traités).
 * **Évolution du reporting (`cleaner_reporter.py`)** : Le rapport Markdown affiche désormais un véritable journal d'audit avec le nom de la colonne, le nombre de cellules traitées (**Combien**) et la méthode utilisée (**Comment**).
 
-### ✅ Résultats
+### 4. Résultats
 * **Intelligence métier** : Capacité à traiter des formats monétaires complexes sans intervention manuelle.
 * **Intégrité sémantique restaurée** : Les colonnes de comptage retrouvent leur nature d'entiers, même avec des valeurs vides.
 * **Auditabilité totale** : Le rapport devient un document de traçabilité permettant de vérifier chaque transformation effectuée sur le dataset.
@@ -689,7 +682,7 @@ Après correction des tests pour les mettre en adéquation avec la nouvelle stru
 
 ---
 
-## Étape 20 : Profilage Multidimensionnel : De l'Analyse de Colonnes à l'Audit de Structure 📊🔍
+## Étape 20 : Profilage Multidimensionnel : De l'Analyse de Colonnes à l'Audit de Structure
 
 Dans cette phase d'évolution majeure, nous avons transcendé le rôle du `DataProfiler` (simple lecteur de structure) pour en faire un véritable outil d'audit de qualité de données complet, capable d'inspecter la santé des colonnes **et** la complétude des lignes.
 
@@ -719,9 +712,7 @@ Le `DataProfiler` ne se contente plus de décrire ce qui est là ; il prévient 
 
 ---
 
----
-
-## Étape 21 : Évolution vers l'Exploration Multimodale : Rapport HTML Autonome & Visual Analytics 📊🚀
+## Étape 21 : Évolution vers l'Exploration Multimodale : Rapport HTML Autonome & Visual Analytics
 
 Dans cette phase d'évolution majeure, le projet a franchi un nouveau palier en passant d'un pipeline purement textuel à une interface de pilotage interactive et visuelle. L'objectif était de doter l'utilisateur final d'un outil capable de présenter des analyses riches sans aucune contrainte de dépendance de fichiers.
 
@@ -756,7 +747,7 @@ Le projet quitte définitivement le stade de "script de nettoyage" pour devenir 
 
 ---
 
-## Étape 22 : Vers un Nettoyage Piloté par l'Expert (Human-in-the-loop) 🧠👤
+## Étape 22 : Vers un Nettoyage Piloté par l'Expert (Human-in-the-loop)
 
 Dans cette phase, le projet a connu une mutation philosophique majeure. Nous sommes passés d'un automate de nettoyage "boîte noire" à un **assistant décisionnel interactif**. L'objectif n'est plus que la machine décide seule, mais qu'elle fournisse l'intelligence nécessaire pour que l'analyste valide ou rejette chaque transformation critique.
 
@@ -784,7 +775,7 @@ L'introduction de ces validations manuelles a renforcé la **résilience** du pr
 
 ---
 
-## Étape 23 : Uniformisation de la Casse et Standardisation Textuelle 🔡🔍
+## Étape 23 : Uniformisation de la Casse et Standardisation Textuelle
 
 Dans cette phase, nous avons intégré une nouvelle brique de nettoyage stratégique pour traiter l'une des sources de bruit les plus insidieuses dans les données catégorielles : l'incohérence de casse (ex: "Paris", "PARIS", "paris").
 
@@ -812,7 +803,7 @@ Cette améliation transforme radicalement la fiabilité de l'analyse :
 
 ---
 
-## Étape 24 : Résolution de la Fragilité du Reporting et Sécurisation des Types (Bug Fix & Robustness) 🛠️⚠️
+## Étape 24 : Résolution de la Fragilité du Reporting et Sécurisation des Types (Bug Fix & Robustness)
 
 Cette étape a marqué un tournant critique dans le projet : le passage d'un système qui "fonctionne sous conditions" à un système capable de gérer l'incertitude et les choix de l'utilisateur sans interruption brutale.
 
@@ -849,7 +840,7 @@ Cette étape a apporté trois bénéfices majeurs :
 
 ---
 
-## Étape 25 : Extension de l'Intelligence de Lecture : Support Multi-Format & Détection de Structure (JSON/JSONL) 📂🚀
+## Étape 25 : Extension de l'Intelligence de Lecture : Support Multi-Format & Détection de Structure (JSON/JSONL)
 
 Dans cette phase d'évolution, le pipeline a franchi une étape majeure en brisant la barrière du format CSV. L'objectif était d'augmenter la polyvalence du `file_loader` pour qu'il puisse absorber des flux de données modernes (APIs, logs, NoSQL) sans intervention humaine.
 
@@ -879,7 +870,7 @@ Le pipeline est passé d'un outil de **nettoyage de fichiers** à un outil de **
 
 ---
 
-## Étape 26 : Optimisation de l'Efficacité par le Nettoyage Ciblé et l'Intelligence Contextuelle 🎯🧠
+## Étape 26 : Optimisation de l'Efficacité par le Nettoyage Ciblé et l'Intelligence Contextuelle
 
 Dans cette phase, le pipeline a évolué d'un mode de traitement "aveugle" vers un mode de traitement "piloté par la donnée". L'objectif était de réduire la charge computationnelle et de limiter les risques de transformations inutiles en utilisant les connaissances du module de profilage.
 
@@ -908,7 +899,7 @@ Le pipeline est devenu **"context-aware"** (conscient de son contexte). Il ne se
 
 ---
 
-## Étape 27 : Refactoring de l'Orchestrateur : Vers une Modularité Totale et une Haute Maintenabilité 🏗️🚀
+## Étape 27 : Refactoring de l'Orchestrateur : Vers une Modularité Totale et une Haute Maintenabilité
 
 Dans cette phase, l'objectif était de transformer le point d'entrée du projet pour atteindre un niveau de maturité logicielle professionnelle, en appliquant les principes de séparation des responsabilités.
 
@@ -931,9 +922,7 @@ L'architecture est désormais capable d'absorber de nouvelles étapes (comme une
 
 ---
 
----
-
-## Étape 28 : Évolution vers l'Analyse Comparative : Programmation Orientée Objet (POO) et Profilage Dual 🧬🔍
+## Étape 28 : Évolution vers l'Analyse Comparative : Programmation Orientée Objet (POO) et Profilage Dual
 
 Dans cette phase, le projet a franchi un nouveau palier de maturité architecturale en passant d'un outil de profilage générique à un système de **double audit contextuel**. L'enjeu était de distinguer l'analyse de l'état "brut" (erreurs, bruit, anomalies) de l'analyse de l'état "nettoyé" (performance, complétude, intégrité).
 
@@ -970,9 +959,7 @@ Bien que l'architecture soit désormais robuste et capable de gérer deux phases
 
 ---
 
----
-
-## Étape 29 : Expansion de l'Analyse Multivariée et Optimisation du Dashboarding HTML 📊🚀
+## Étape 29 : Expansion de l'Analyse Multivariée et Optimisation du Dashboarding HTML
 
 Dans cette phase majeure, le projet a franchi un nouveau cap : le passage d'un simple outil d'inspection de colonnes à un véritable système d'**analyse exploratoire multidimensionnelle**. L'objectif était d'ajouter de la profondeur statistique tout en optimisant la lisibilité du rapport final.
 
@@ -1000,7 +987,7 @@ L'ajout de nouveaux graphiques risquait de créer un rapport trop long et illisi
 
 ---
 
-## Étape 30 : Assainissement du Socle : Remise au Vert de la Suite de Tests et Correction de Bugs Silencieux 🧪🩺
+## Étape 30 : Assainissement du Socle : Remise au Vert de la Suite de Tests et Correction de Bugs Silencieux
 
 Avant d'engager le chantier de l'interface web, une vérification de routine a révélé que la suite de tests comptait **17 échecs préexistants**. Ce constat, inconfortable, était en réalité une chance : un harnais de tests rouge ne peut détecter aucune régression. Impossible de refondre les modules en confiance sans d'abord rétablir ce filet de sécurité.
 
@@ -1034,7 +1021,7 @@ Cette approche répond à un point inscrit à la roadmap (« être plus explicit
 
 ---
 
-## Étape 31 : Industrialisation de la Couche Graphique : Sortie de PyPlot et Figures Réutilisables 🎨🔧
+## Étape 31 : Industrialisation de la Couche Graphique : Sortie de PyPlot et Figures Réutilisables
 
 Cette étape prépare l'interface web en réglant un obstacle structurel : dans l'architecture précédente, **les graphiques n'existaient nulle part en tant qu'objets**. Ils étaient créés, encodés en base64 et détruits à l'intérieur même de la fonction de génération HTML. Impossible d'en afficher un ailleurs que dans un rapport téléchargeable.
 
@@ -1080,7 +1067,7 @@ La couche graphique est devenue un **service réutilisable** plutôt qu'un effet
 
 ---
 
-## Étape 32 : Découplage Interface / Logique Métier : Vers une Architecture Bi-Façade 🔌🖥️
+## Étape 32 : Découplage Interface / Logique Métier : Vers une Architecture Bi-Façade
 
 Cette étape est le pivot du chantier. Jusqu'ici, les modules de `src/` **posaient** des questions ; désormais ils **reçoivent** des réponses. Ce renversement est ce qui rend possible une interface web sans dupliquer une ligne de logique métier.
 
@@ -1170,7 +1157,7 @@ Cette dernière ligne mérite d'être soulignée : sur le jeu de référence, l'
 
 ---
 
-## Étape 33 : Naissance de l'Interface Web : de l'Outil de Terminal à l'Application 🌐🖱️
+## Étape 33 : Naissance de l'Interface Web : de l'Outil de Terminal à l'Application
 
 Les trois étapes précédentes avaient préparé le terrain. Celle-ci construit l'application elle-même — et le résultat mérite d'être souligné : `app.py` ne contient **pas une seule ligne de logique de nettoyage**. Il dépose des widgets, transmet leur valeur, affiche ce qui revient.
 
@@ -1251,7 +1238,7 @@ Le serveur a par ailleurs été lancé pour de vrai et répond correctement sur 
 
 ---
 
-## Étape 34 : Conformité, Documentation et Passage en Version 1.0 📋🏁
+## Étape 34 : Conformité, Documentation et Passage en Version 1.0
 
 Dernière étape du chantier. Elle ne touche presque pas au code : elle rend le projet **utilisable par quelqu'un d'autre**, et assume les obligations qui naissent dès lors qu'une application accepte des fichiers.
 
@@ -1321,7 +1308,7 @@ Ce qui n'est pas prétendu : l'outil n'est pas déployé publiquement, et la feu
 
 ---
 
-## Étape 35 : L'Invariant du Double Profilage : Tenir la Promesse du Pipeline 🎯🔬
+## Étape 35 : L'Invariant du Double Profilage : Tenir la Promesse du Pipeline
 
 Cette étape naît d'une remarque déterminante : **le rapport pré-nettoyage doit contenir des éléments incorrects — c'est tout le but du pipeline — mais le profilage post-nettoyage ne doit plus, en théorie, comporter de colonne mal typée.**
 
@@ -1418,7 +1405,7 @@ La progression des valeurs aberrantes n'est pas un effet de bord mais la conséq
 
 ---
 
-## Étape 36 : L'Épreuve de l'Utilisateur : Six Retours, une Perte Silencieuse et une Faille de Sécurité 🧪🛡️
+## Étape 36 : L'Épreuve de l'Utilisateur : Six Retours, une Perte Silencieuse et une Faille de Sécurité
 
 Jusqu'ici, l'application avait été testée par ceux qui l'avaient construite. Cette étape commence au moment où elle a été confiée à un utilisateur réel, sur un fichier qu'aucun test n'avait anticipé : un export de prix de carburants, `prix.csv`, 57 073 lignes. Six retours en sont sortis. Chacun a mené plus loin que prévu.
 
@@ -1492,7 +1479,7 @@ La leçon de l'étape tient en une phrase : **un utilisateur réel, sur un fichi
 
 ---
 
-## Étape 37 : Le Retour de l'Onglet Téléchargements et la Question de la Nouvelle Fenêtre 🪟⬇️
+## Étape 37 : Le Retour de l'Onglet Téléchargements et la Question de la Nouvelle Fenêtre
 
 Une étape courte, mais qui illustre deux réflexes utiles : savoir revenir sur une décision quand l'usage la contredit, et vérifier ce qu'une technologie permet réellement avant de promettre une fonctionnalité.
 
@@ -1521,7 +1508,7 @@ L'équivalent sûr retenu est une **fenêtre modale large** (`st.dialog`, jusqu'
 
 ---
 
-## Étape 38 : Horodatage des Fichiers, Présentation Permanente et Source Unique 🕒📚
+## Étape 38 : Horodatage des Fichiers, Présentation Permanente et Source Unique
 
 Trois changements de nature différente, réunis par un même souci : que l'utilisateur ne perde rien — ni un essai écrasé par le suivant, ni la présentation du projet au premier fichier déposé, ni l'historique du projet dispersé entre deux documents.
 
@@ -1580,7 +1567,7 @@ La feuille de route est désormais rangée par **état réel** — livré, prêt
 
 ---
 
-## Étape 39 : Le Bouton de Soutien : Choisir un Prestataire, Vérifier Avant de Brancher ☕🔎
+## Étape 39 : Le Bouton de Soutien : Choisir un Prestataire, Vérifier Avant de Brancher
 
 Le bouton de soutien était codé depuis l'Étape 33, mais restait invisible faute d'adresse. Cette étape l'active. Elle est courte, mais deux choix y méritent d'être expliqués.
 
@@ -1608,7 +1595,7 @@ Trois tests verrouillent le branchement : le bouton apparaît avec l'adresse exa
 
 ---
 
-## Étape 40 : Ouvrir le Dialogue : Retours, Soutien, et des Onglets Toujours Visibles 💬🧭
+## Étape 40 : Ouvrir le Dialogue : Retours, Soutien, et des Onglets Toujours Visibles
 
 Cette étape tourne l'application vers ses utilisateurs : leur donner les moyens de signaler un problème, de remercier s'ils le souhaitent, et de ne jamais se perdre dans l'interface.
 
@@ -1638,7 +1625,7 @@ La correction supprime la cause de la confusion plutôt que de l'expliquer : **l
 
 ---
 
-## Étape 41 : Le Projet Prend un Nom : Quitus 🏷️✅
+## Étape 41 : Le Projet Prend un Nom : Quitus
 
 Quarante étapes durant, le projet s'est appelé par ce qu'il faisait : « nettoyage automatique ». Il porte désormais un nom : **Quitus**.
 
@@ -1677,7 +1664,7 @@ Quelques finitions ont suivi :
 
 ---
 
-## Étape 42 : Mesurer la Charge Avant d'Ouvrir la Porte 📏🚪
+## Étape 42 : Mesurer la Charge Avant d'Ouvrir la Porte
 
 Avant la mise en ligne, une question simple : combien de personnes l'application peut-elle servir en même temps ? Plutôt que de deviner, la consommation mémoire d'une session complète — dépôt, analyse, nettoyage — a été mesurée sur des fichiers de taille croissante.
 
@@ -1713,7 +1700,7 @@ Un test le démontre en comptant les calculs : après l'effacement, les données
 
 ---
 
-## Étape 43 : Premiers Pas en Ligne 🌐🌗
+## Étape 43 : Premiers Pas en Ligne
 
 ### 1. D'abord, le dépôt prend le nom du projet
 Depuis l'Étape 41, le projet s'appelle Quitus, mais son dépôt GitHub portait encore son nom de travail, `PROJET_NETTOYAGE_AUTO`. Il devient **`johan-mac-59/quitus`**, et le renommage a été fait **avant** la mise en ligne : Streamlit Community Cloud se branche sur le nom du dépôt, et renommer après coup aurait obligé à reconfigurer l'application.
@@ -1752,7 +1739,7 @@ Le texte courant passe de 16 à 17 pixels, les libellés et légendes de 14 à 1
 
 ---
 
-## Étape 44 : La Feuille de Route Retrouve sa Mémoire 🗂️🔁
+## Étape 44 : La Feuille de Route Retrouve sa Mémoire
 
 ### 1. Ce que l'historique révélait
 Relue à la lumière de ses 23 versions successives dans git, la feuille de route avait perdu la trace de la moitié de ses réussites : **huit améliorations livrées en avaient été retirées sans jamais être inscrites comme livrées**. Le rapport de nettoyage (Étapes 16-17), l'enrichissement du profilage et son rapport HTML autonome (20, 21, 29), l'écrêtage optionnel (22), la casse ciblée (23, 26), le support JSON (25), le profilage après nettoyage (28) et la question du profilage conscient des types (35) avaient simplement disparu une fois faits. Quant au déploiement public, effectif depuis l'Étape 43, il figurait encore comme « prêt, reste à activer ».
@@ -1773,7 +1760,7 @@ La configuration de conteneur de développement (`.devcontainer/`) est retirée 
 
 ---
 
-## Étape 45 : Version 1.0.0, et Premières Retouches 🏁
+## Étape 45 : Version 1.0.0, et Premières Retouches
 
 ### 1. Le jalon est atteint
 L'Étape 38 avait fixé la règle : **la version 1.0 marque une application déployée et validée**, et l'étiquette `v1.0.0` ne serait posée qu'à ce moment-là. L'application est en ligne depuis l'Étape 43 ; les vérifications faites, le porteur du projet valide la version 1.0.0.
@@ -1794,7 +1781,7 @@ Quelques finitions ont suivi l'étiquette :
 
 ---
 
-## Étape 46 : Le Zéro qui Disparaissait 📞0️⃣
+## Étape 46 : Le Zéro qui Disparaissait
 
 ### 1. Le défaut
 Le premier défaut inscrit dans la feuille de route après la mise en ligne : une colonne de numéros de téléphone ressortait du nettoyage en entiers. `0612345678` devenait `612345678`. Les codes postaux de l'Ain (`01000`) et les matricules (`00042`) subissaient le même sort.
@@ -1828,7 +1815,7 @@ Un nouveau fichier de tests, `test_zero_initial.py`, couvre la règle, chacun de
 
 ---
 
-## Étape 47 : Un Rapport qui Garde sa Feuille Blanche 📄🌗
+## Étape 47 : Un Rapport qui Garde sa Feuille Blanche
 
 ### 1. Le défaut
 Deuxième défaut relevé après la mise en ligne : affiché dans l'application en thème sombre, le rapport HTML devenait illisible. Il a d'abord été reproduit dans Chrome, sur l'application lancée en local, avec un petit fichier déposé : titres, tableau et logo du rapport se fondaient dans le fond sombre de la page.
@@ -1850,7 +1837,7 @@ Un test vérifie que le document fixe son fond, sa couleur de texte et son sché
 
 ---
 
-## Étape 48 : Décider Colonne par Colonne 🎚️📋
+## Étape 48 : Décider Colonne par Colonne
 
 ### 1. Le défaut de conception
 Depuis l'Étape 22, l'utilisateur décide d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Mais il en décidait **pour tout le fichier à la fois** : deux cases à cocher, tout ou rien.
@@ -1877,7 +1864,7 @@ Les tests du moteur vérifient qu'une colonne non choisie reste intacte. Ceux de
 
 ---
 
-## Étape 49 : Un Seuil à la Mesure de Chaque Colonne 📏⚖️
+## Étape 49 : Un Seuil à la Mesure de Chaque Colonne
 
 ### 1. La limite qui restait
 L'Étape 48 permet de choisir les colonnes à écrêter. Mais une colonne choisie était toujours écrêtée au même seuil : **1,5 écart interquartile** au-delà des quartiles, la règle de Tukey, figée dans le code depuis l'Étape 6.
@@ -1910,7 +1897,7 @@ Les tests couvrent les bornes, le décompte, l'écrêtage colonne par colonne se
 
 ---
 
-## Étape 50 : Toutes les Notes sur la Même Échelle 🎯📐
+## Étape 50 : Toutes les Notes sur la Même Échelle
 
 ### 1. La limite de l'Étape 35
 Depuis l'Étape 35, une note fractionnaire est convertie en son **numérateur** : `17/20` devient `17`. Ce choix avait une bonne raison, toujours valable : une colonne qui mêle `5` et `5/5` doit donner deux fois 5, et non 5 et 1.
@@ -1945,7 +1932,7 @@ Les tests couvrent les échelles mêlées, l'échelle unique inchangée, l'égal
 
 ---
 
-## Étape 51 : Parquet Rejoint les Formats Acceptés 🗃️📦
+## Étape 51 : Parquet Rejoint les Formats Acceptés
 
 ### 1. Le cinquième format
 CSV, Excel, JSON et JSON Lines étaient pris en charge ; Parquet, demandé dès la liste de l'Étape 6, ne l'était pas. C'est pourtant le format d'échange courant des outils de données modernes : colonnes typées, compression, lecture rapide.
@@ -1974,7 +1961,7 @@ Les tests couvrent les types conservés, la catégorie rendue modifiable, les ce
 
 ---
 
-## Étape 52 : Une Documentation API qui ne Peut pas Mentir 📚🔒
+## Étape 52 : Une Documentation API qui ne Peut pas Mentir
 
 ### 1. Ce qui restait à faire
 La feuille de route demandait un document technique décrivant l'interface et les paramètres de chaque fonction. Elle le disait à moitié fait : toutes les fonctions publiques avaient une docstring, et un test l'imposait. Restait à assembler le document.
