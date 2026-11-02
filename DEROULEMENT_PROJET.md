@@ -253,11 +253,8 @@ python src/main.py
 
 ### Commande pour tester :
 ```bash
-# Dans le dossier PROJET_NETTOYAGE_AUTO
 python src/main.py
 ```
-
-*Projet en cours de développement - Bootcamp Data Analyst Wild Code School*
 
 ---
 

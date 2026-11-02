@@ -275,5 +275,4 @@ Le journal technique détaillé du projet, étape par étape, se trouve dans [`D
 ## 🛠️ Technologies
 
 Python · pandas · NumPy · Matplotlib · Seaborn · Streamlit · pytest
-
-commit le READMEProgrammation orientée objet, architecture modulaire, tests unitaires et d'intégration.
+Programmation orientée objet, architecture modulaire, tests unitaires et d'intégration.
