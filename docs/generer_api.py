@@ -31,6 +31,7 @@ MODULES = (
     "cleaner_reporter",
     "plot_factory",
     "validator",
+    "saisie_regles",
     "horodatage",
     "marque",
     "console_capture",

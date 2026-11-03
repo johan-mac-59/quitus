@@ -1957,4 +1957,22 @@ L'onglet de l'interface web, puis les pistes de la feuille de route : contrainte
 
 ---
 
+## Étape 48 : Créer des règles, une fois, pour deux façades
+
+Suite de l'Étape 47. Le validateur existe et se rejoue par fichier ; il reste à permettre de créer les règles sans écrire de JSON, dans l'interface web et, à la demande, dans le terminal, sans écrire deux fois la même chose.
+
+### 1. Ce qui se partage, et ce qui ne se partage pas
+Streamlit et un terminal ne partagent pas leurs widgets. Ils partagent en revanche **ce qu'on demande** : quels champs chaque type de règle exige, comment lire ce qui est saisi (un nombre, une date, une liste séparée par des points-virgules), comment construire la règle et la contrôler. `src/saisie_regles.py` décrit cela une fois ; chaque façade n'a plus qu'à l'afficher à sa manière. Il ne connaît aucune interface et ne pose aucune question.
+
+* **`TYPES_DE_REGLE`** décrit, pour chacun des sept types, un libellé lisible, le nombre de colonnes attendu (une, deux, ou autant qu'on veut pour « valeurs toutes différentes ») et ses champs. Un champ a un nom, un libellé, un genre (borne, entier, texte, liste, choix), un caractère obligatoire ou non, ses choix éventuels et une phrase d'aide avec un exemple.
+* **`construire_regle`** convertit les textes saisis, appelle `nouvelle_regle` puis `verifier_regle`, et renvoie des messages en français plutôt qu'une exception : l'interface les affiche et laisse corriger. Tous les problèmes sont rapportés d'un coup, pas un à la fois. Un champ vide signifie « aucun » (aucun minimum, par exemple), jamais une erreur.
+* **`regles_vers_texte`**, dans le validateur, produit le JSON en mémoire. L'interface web en a besoin pour proposer l'export au téléchargement sans rien écrire sur le serveur ; `sauver_regles` s'en sert à son tour, si bien que le fichier et le téléchargement sont identiques.
+
+Un test garde la description alignée sur le moteur : un type de règle ajouté au validateur sans formulaire fait échouer la suite, de même que des choix de formats ou d'opérateurs qui divergeraient.
+
+### 2. Résultat
+`src/saisie_regles.py` et `regles_vers_texte` sont livrés avec leurs tests, et la documentation API les couvre. La suite se poursuit par le terminal facultatif (`--creer-regles`), puis par l'onglet « Contraintes » de l'interface web.
+
+---
+
 *Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 545 tests.*

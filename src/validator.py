@@ -285,6 +285,22 @@ def decrire_regle(regle: dict) -> str:
     return f"règle {regle.get('id', '?')}"
 
 
+def regles_vers_texte(regles: list[dict]) -> str:
+    """Met des règles en forme de texte JSON, sans rien écrire sur le disque.
+
+    C'est ce que consomme l'interface web pour proposer l'export des règles au
+    téléchargement : le fichier n'existe jamais sur le serveur.
+
+    Args:
+        regles: Règles à exporter.
+
+    Returns:
+        Le texte JSON, relisible par `regles_depuis_texte` et `charger_regles`.
+    """
+    contenu = {"version": _VERSION_FORMAT_FICHIER, "regles": list(regles)}
+    return json.dumps(contenu, ensure_ascii=False, indent=2)
+
+
 def sauver_regles(regles: list[dict], chemin: str | Path) -> Path:
     """Enregistre des règles dans un fichier JSON, pour les rejouer plus tard.
 
@@ -297,8 +313,7 @@ def sauver_regles(regles: list[dict], chemin: str | Path) -> Path:
     """
     chemin = Path(chemin)
     chemin.parent.mkdir(parents=True, exist_ok=True)
-    contenu = {"version": _VERSION_FORMAT_FICHIER, "regles": list(regles)}
-    chemin.write_text(json.dumps(contenu, ensure_ascii=False, indent=2), encoding="utf-8")
+    chemin.write_text(regles_vers_texte(regles), encoding="utf-8")
     return chemin
 
 

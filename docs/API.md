@@ -65,11 +65,18 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`nouvelle_regle`](#nouvelle_regle) — fonction
   - [`verifier_regle`](#verifier_regle) — fonction
   - [`decrire_regle`](#decrire_regle) — fonction
+  - [`regles_vers_texte`](#regles_vers_texte) — fonction
   - [`sauver_regles`](#sauver_regles) — fonction
   - [`regles_depuis_texte`](#regles_depuis_texte) — fonction
   - [`charger_regles`](#charger_regles) — fonction
   - [`valider`](#valider) — fonction
   - [`formater_bilan`](#formater_bilan) — fonction
+- [`src/saisie_regles.py`](#srcsaisie_reglespy)
+  - [`types_disponibles`](#types_disponibles) — fonction
+  - [`champs_du_type`](#champs_du_type) — fonction
+  - [`colonnes_attendues`](#colonnes_attendues) — fonction
+  - [`lire_borne`](#lire_borne) — fonction
+  - [`construire_regle`](#construire_regle) — fonction
 - [`src/horodatage.py`](#srchorodatagepy)
   - [`horodater`](#horodater) — fonction
 - [`src/marque.py`](#srcmarquepy)
@@ -1251,6 +1258,23 @@ Décrit une règle en une phrase française.
 
 **Retour** — Le libellé de la règle s'il existe, sinon une description déduite de son type et de ses paramètres.
 
+### `regles_vers_texte`
+
+```python
+regles_vers_texte(regles: list[dict]) -> str
+```
+
+Met des règles en forme de texte JSON, sans rien écrire sur le disque.
+
+C'est ce que consomme l'interface web pour proposer l'export des règles au
+téléchargement : le fichier n'existe jamais sur le serveur.
+
+**Paramètres**
+
+- `regles` — Règles à exporter.
+
+**Retour** — Le texte JSON, relisible par `regles_depuis_texte` et `charger_regles`.
+
 ### `sauver_regles`
 
 ```python
@@ -1337,6 +1361,113 @@ Met en forme le résultat de `valider` pour la console ou un rapport texte.
 - `titre` — Intitulé du bilan.
 
 **Retour** — Un texte multiligne. Vide si aucune règle n'a été évaluée.
+
+## `src/saisie_regles.py`
+
+Description du formulaire de création de règles, partagée par les deux façades.
+
+Créer une règle demande toujours les mêmes choses, qu'on soit dans le navigateur
+ou dans un terminal : choisir un type, lui donner ses colonnes, remplir quelques
+champs, puis contrôler le résultat. Seule la manière d'afficher ces champs
+change. Ce module décrit donc **ce qu'on demande**, une fois pour toutes, et
+construit la règle à partir de ce qui a été saisi ; chaque interface se borne à
+afficher les champs à sa manière (widgets Streamlit, questions en terminal).
+
+Il ne connaît aucune interface et ne pose aucune question. Les saisies lui
+arrivent sous forme de textes, tels que l'utilisateur les a tapés : c'est lui qui
+les lit (nombre, date, liste séparée par des points-virgules) et qui rapporte,
+en français, ce qui ne va pas.
+
+Un champ se décrit par un dictionnaire :
+
+* ``nom`` : clé du paramètre dans la règle (``min``, ``max``, ``operateur``…) ;
+* ``libelle`` : intitulé lisible ;
+* ``genre`` : ``borne`` (nombre ou date), ``entier``, ``texte``, ``liste``
+(valeurs séparées par des points-virgules) ou ``choix`` ;
+* ``obligatoire`` : vrai si la règle ne peut pas se passer du champ ;
+* ``choix`` : pour le genre ``choix``, la liste des couples (valeur, libellé) ;
+* ``aide`` : une phrase d'explication, avec un exemple.
+
+### `types_disponibles`
+
+```python
+types_disponibles() -> list[tuple[str, str]]
+```
+
+Liste les types de règle proposés, dans l'ordre où on les présente.
+
+**Retour** — Des couples (type, libellé lisible), prêts pour une liste de choix.
+
+### `champs_du_type`
+
+```python
+champs_du_type(type_regle: str) -> list[dict]
+```
+
+Donne les champs à demander pour un type de règle.
+
+**Paramètres**
+
+- `type_regle` — Un des types de `types_disponibles`.
+
+**Retour** — La liste des champs (vide pour une règle sans paramètre), en copie : l'appelant peut la modifier sans toucher à la description.
+
+**Exceptions**
+
+- `KeyError` — Si le type est inconnu.
+
+### `colonnes_attendues`
+
+```python
+colonnes_attendues(type_regle: str) -> tuple[int, int | None]
+```
+
+Donne le nombre de colonnes qu'un type de règle porte.
+
+**Paramètres**
+
+- `type_regle` — Un des types de `types_disponibles`.
+
+**Retour** — Le couple (minimum, maximum) ; le maximum est None s'il n'y en a pas.
+
+**Exceptions**
+
+- `KeyError` — Si le type est inconnu.
+
+### `lire_borne`
+
+```python
+lire_borne(texte: str) -> int | float | str
+```
+
+Lit une borne saisie : un nombre si possible, sinon le texte (une date).
+
+**Paramètres**
+
+- `texte` — Saisie de l'utilisateur ; la virgule décimale est acceptée.
+
+**Retour** — Un entier (« 120 »), un flottant (« 0,5 ») ou le texte tel quel (« 05/01/2024 »), dont la validité de date est contrôlée plus tard.
+
+### `construire_regle`
+
+```python
+construire_regle(type_regle: str, colonnes: list[str] | str, saisies: dict | None = None, libelle: str | None = None) -> tuple[dict | None, list[str]]
+```
+
+Construit une règle à partir de ce que l'utilisateur a saisi.
+
+Les champs vides sont ignorés (« aucun minimum »). Les problèmes sont
+rapportés en français plutôt que levés : l'interface les affiche et laisse
+l'utilisateur corriger.
+
+**Paramètres**
+
+- `type_regle` — Un des types de `types_disponibles`.
+- `colonnes` — Nom de colonne, ou liste de noms.
+- `saisies` — Textes saisis, par nom de champ (voir `champs_du_type`).
+- `libelle` — Nom lisible facultatif de la règle.
+
+**Retour** — Le couple (règle, problèmes). La règle est None si les problèmes ne sont pas vides ; sinon elle est valide (`verifier_regle`) et prête pour `valider`.
 
 ## `src/horodatage.py`
 
