@@ -1854,4 +1854,51 @@ Le README renvoie à la documentation API sous le tableau des modules, et son ar
 
 ---
 
-*Version 1.0.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 444 tests.*
+## Étape 46 : Ce que les tests ne voient pas
+
+Une étape en deux temps : un allègement du journal et de la documentation, puis un essai de l'application en local, avant d'en pousser les dernières étapes en ligne. Le second a produit quatre corrections, et une leçon.
+
+### 1. Un journal plus court, une mémoire mieux gardée
+Le journal avait grossi par accumulation : cinquante et une étapes, dont plusieurs ne traitaient ni un choix technique, ni une innovation, ni une modification du projet. Une passe a été faite étape par étape, avec ce seul critère.
+
+* **Supprimé** : un glossaire pédagogique, une liste de limitations déjà couverte par la feuille de route, deux récapitulatifs finaux, et un audit de présentation qui parlait de communication et non du projet.
+* **Fondu** : les étapes qui racontaient la même chose en deux temps. Deux étapes de tests unitaires consécutives, le constat d'échecs de tests et sa correction, puis les corrections du moteur numérique et leurs tests de non-régression forment désormais trois étapes au lieu de six.
+* **Renuméroté** : le journal compte quarante-cinq étapes avant celle-ci, sans trou, et chaque renvoi à une étape a été recalculé, dans le journal comme dans `AMELIORATIONS.md` et la configuration. Les titres suivent une règle unique : seule la première lettre est en majuscule, hormis sigles et noms propres.
+
+Rien de ce qui était supprimé ne devait se perdre. Les pistes qui y figuraient et que la feuille de route ignorait y ont été reportées, qu'elles soient faites ou non : validation après nettoyage et mode multi-passes (livrés), règles métier d'alerte, seuils d'alerte propres à chaque profil, stabilité statistique après nettoyage, contrat commun aux deux profileurs, méthode alternative sur les très petits échantillons, sources et destinations SQL. Une idée oubliée est une idée perdue : la feuille de route est l'endroit où elle reste visible.
+
+### 2. Un glossaire à part
+Le contenu pédagogique retiré du journal (typage, DataFrame, encodages, quartiles) a trouvé sa place : `docs/GLOSSAIRE.md`, un aide-mémoire à l'usage d'un lecteur novice, ou du porteur du projet quand il veut se rappeler à quoi sert une notion. Il couvre les données, les statistiques, le nettoyage propre à Quitus et l'outillage, et renvoie à `docs/API.md` pour la description exacte des fonctions. Le journal raconte des décisions ; le glossaire explique des mots : ce ne sont pas les mêmes lecteurs.
+
+### 3. L'essai local, et ce qu'il a révélé
+Avant de pousser les étapes 39 à 45 en ligne, l'application a été lancée en local par le porteur du projet, sur l'échantillon synthétique. Quatre anomalies en sont sorties. **Aucun des 444 tests ne les avait vues.**
+
+**a) Des graphiques qui montraient le désordre après le nettoyage.** Dans l'onglet Graphiques, la répartition de `date_reservation` affichait plusieurs formats de dates, ce qui n'était « pas normal » : le nettoyage convertit bien cette colonne en vraies dates. Vérification faite sur l'échantillon, la colonne passe de texte à `datetime64`. Le graphique montrait en réalité les **données brutes** : le sélecteur « Jeu de données », qui propose les brutes et les nettoyées, s'ouvrait toujours sur les premières, même après un nettoyage. Il s'ouvre désormais sur le fichier nettoyé quand il existe. Aucune erreur de calcul, seulement une présentation qui induisait en erreur, et c'est précisément ce qu'un test fonctionnel ne regarde pas.
+
+**b) Des identifiants tracés comme des catégories.** Les dates ont disparu de la liste des colonnes à représenter une fois converties ; les identifiants, eux, y restaient. Une barre par identifiant, chacun une seule fois : un graphique sans la moindre information. Une colonne dont au moins 90 % des valeurs sont distinctes est désormais écartée des graphiques, avec une ligne qui nomme les colonnes écartées. La règle vit dans `plot_factory`, si bien que l'interface et le rapport HTML la partagent. En deçà de vingt valeurs, elle ne s'applique pas : sur un petit fichier, le jugement serait trop fragile. Effet de bord assumé : une colonne de noms ou de courriels, elle aussi presque toute distincte, est écartée de la même façon.
+
+**c) Un identifiant plus présent que les autres.** En regardant les barres, le porteur du projet a remarqué qu'un identifiant revenait deux fois. L'enquête a montré que ce n'était pas un défaut du graphique : `R37331` figure bien deux fois après nettoyage, sur des lignes **différentes** (autre date, autre ville, autre montant). Le nettoyage ne retire que les doublons exacts, et ne peut pas deviner laquelle des deux lignes est la bonne. C'est une anomalie réelle des données, que Quitus ne signale pas encore. Elle est inscrite à la feuille de route : détecter les identifiants répétés sur des lignes différentes et les déclarer dans le profil, avec les lignes concernées. Même principe qu'à l'Étape 30 : ce que l'outil ne peut pas trancher, il doit au moins le dire.
+
+**d) Un bouton qui ne répondait à rien.** Dernière remarque : on pouvait cliquer sur « Nettoyer » à l'infini, sans que rien n'indique qu'il s'était passé quoi que ce soit. Le nettoyage avait bien lieu, mais le résultat se lisait dans un autre onglet, et rien ne le disait. Deux changements :
+
+* une notification confirme la fin du nettoyage et renvoie à l'onglet du résultat ;
+* le bouton s'éteint tant que les choix de colonnes et de seuils sont ceux du dernier nettoyage, et un encadré vert le dit. Il se rallume dès qu'un choix change, ou qu'un nouveau fichier est déposé. Relancer le même nettoyage ne produirait rien de nouveau : le bouton n'a plus à l'offrir.
+
+Le bouton ayant déjà été dessiné quand le nettoyage s'exécute, le script est relancé une fois terminé pour qu'il s'éteigne aussitôt. En cas d'échec, il reste actif, et l'erreur s'affiche comme avant.
+
+### 4. Le rôle de l'humain
+Ces anomalies ont une chose en commun : le code faisait exactement ce qu'on lui avait demandé. Le nettoyage convertissait bien les dates ; le sélecteur proposait bien les deux jeux ; le graphique des identifiants était correct ; le bouton nettoyait. Les tests le confirmaient tous, et passaient. Ce qui clochait, c'était l'**usage** : ce qu'une personne comprend en regardant l'écran, et ce qu'elle attend après un clic.
+
+Un test vérifie ce qu'on a pensé à vérifier. Il ne peut pas se demander si un graphique est trompeur, si un message manque, si une barre unique a un sens. C'est la leçon de l'Étape 30, où un utilisateur réel avait trouvé en une séance ce que 279 tests n'avaient pas vu ; elle se confirme ici avec 444. Les tests protègent contre le retour d'un défaut connu ; le regard humain découvre les défauts qu'on ne savait pas chercher. Les deux sont nécessaires, et le second reste primordial.
+
+Chaque anomalie, une fois repérée par l'humain, est devenue un test : le jeu affiché par défaut, l'exclusion des identifiants, l'extinction et le rallumage du bouton. Le porteur du projet détecte, les tests mémorisent.
+
+### 5. Version 1.1.0
+Le porteur du projet fait de cette série la **version 1.1.0** : une mise en production qui reprend tout ce qui a changé depuis la 1.0.0, soit les Étapes 39 à 46. La 1.0.0 reste celle de l'Étape 38 et de son étiquette git `v1.0.0`, qui désigne le code déployé à ce moment-là, et n'est pas modifiée. Comme à l'Étape 32, l'étiquette `v1.1.0` ne sera posée qu'une fois l'application mise en ligne et validée : le numéro est inscrit dans `pyproject.toml`, `uv.lock` et le README, l'étiquette attend le déploiement.
+
+### 6. Résultat
+**451 tests passent**, contre 444. Rien n'est encore poussé en ligne : l'essai local se poursuit avant la mise en production.
+
+---
+
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 451 tests.*
