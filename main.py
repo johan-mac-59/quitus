@@ -16,7 +16,8 @@ Usage :
 Les contraintes (valeur minimale ou maximale, longueur, format, comparaison
 entre deux colonnes…) sont signalées avant et après nettoyage, jamais corrigées.
 Sans `--regles`, le mode interactif propose de les définir par quelques
-questions, puis d'enregistrer le fichier de règles pour le rejouer.
+questions, au vu d'un aperçu du fichier nettoyé, puis de rouvrir la saisie après
+le nettoyage final, et d'enregistrer le fichier de règles pour le rejouer.
 """
 
 import argparse
@@ -27,6 +28,7 @@ from pathlib import Path
 from src.cleaner_engine import SEUIL_IQR, get_user_decisions, run_all_cleaning_steps
 from src.cleaner_logger import generate_and_print_report
 from src.cleaner_reporter import generate_enhanced_report
+from src.console_capture import capture_output
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
 from src.horodatage import horodater
@@ -259,7 +261,8 @@ def _saisir_une_regle(colonnes: list[str], saisir) -> dict | None:
     return regle
 
 
-def demander_regles(colonnes: list[str], saisir=input) -> list[dict]:
+def demander_regles(colonnes: list[str], saisir=input, *, invite: str | None = None,
+                    apres_ajout=None) -> list[dict]:
     """Propose, par quelques questions, de définir des contraintes à vérifier.
 
     Facultatif : une réponse vide, ou l'absence de terminal, termine sans rien
@@ -269,25 +272,47 @@ def demander_regles(colonnes: list[str], saisir=input) -> list[dict]:
         colonnes: Colonnes du fichier chargé.
         saisir: Fonction de saisie (`input` en usage normal), injectable pour
             les tests.
+        invite: Première question, pour la reformuler selon le moment du
+            pipeline ; la question habituelle par défaut.
+        apres_ajout: Fonction appelée avec chaque règle ajoutée, pour montrer
+            tout de suite ce qu'elle donne sur les données.
 
     Returns:
         Les règles définies, éventuellement vides.
     """
     regles = []
+    premiere = invite or ("⏳ Ajouter une contrainte à vérifier (valeur minimale, "
+                          "longueur, format…) ? [o/N] : ")
     try:
         while True:
-            invite = ("⏳ Ajouter une contrainte à vérifier (valeur minimale, longueur, "
-                      "format…) ? [o/N] : " if not regles else
-                      "⏳ Ajouter une autre contrainte ? [o/N] : ")
-            if saisir(invite).strip().lower() not in ("o", "oui", "y", "yes"):
+            question = premiere if not regles else "⏳ Ajouter une autre contrainte ? [o/N] : "
+            if saisir(question).strip().lower() not in ("o", "oui", "y", "yes"):
                 break
             regle = _saisir_une_regle(colonnes, saisir)
             if regle is not None:
                 regles.append(regle)
                 print(f"   ✅ Contrainte ajoutée : {decrire_regle(regle)}")
+                if apres_ajout is not None:
+                    apres_ajout(regle)
     except (EOFError, KeyboardInterrupt):
         print("\n(saisie interrompue : les contraintes déjà définies sont conservées)")
     return regles
+
+
+def _retour_immediat(df, titre: str):
+    """Fabrique le retour affiché après chaque contrainte ajoutée.
+
+    Args:
+        df: Données sur lesquelles la contrainte est essayée.
+        titre: Intitulé du bilan.
+
+    Returns:
+        Une fonction qui évalue une règle sur `df` et en affiche le résultat.
+    """
+    def afficher(regle: dict) -> None:
+        """Évalue la règle sur les données et affiche son résultat."""
+        print(formater_bilan(valider(df, [regle]), titre))
+    return afficher
 
 
 def resoudre_chemins(args: argparse.Namespace, horodatage: str) -> tuple[Path, Path, Path]:
@@ -429,8 +454,21 @@ def main(argv: list[str] = None) -> int:
 
     print(f"✅ Fichier chargé ({initial_df.shape[0]} lignes, {initial_df.shape[1]} colonnes)\n")
 
-    # 2b. Contraintes à vérifier : fichier de règles, sinon questions facultatives.
+    # 3. Profilage pré-nettoyage
+    profiler = PreCleaningProfiler(initial_df, input_file)
+    profiler_results = profiler.run_profiling_workflow(
+        input_file, reports_dir, report_format=format_rapport, horodatage=horodatage
+    )
+
+    # 3b. Contraintes : on les énonce au vu du diagnostic, donc après lui. Le
+    # fichier de règles n'est lu qu'ici, au moment de la validation. Sans
+    # fichier, le mode interactif propose de les définir par questions, sur un
+    # aperçu du fichier après un nettoyage automatique léger (ni écrêtage ni
+    # remplissage) : une règle comme « âge entre 0 et 120 » s'écrit alors sur de
+    # vrais nombres. Les contraintes ne limitent jamais le nettoyage, et la
+    # saisie se rouvre après le nettoyage final (7b).
     regles = []
+    saisies = False
     if args.regles:
         try:
             regles = charger_regles(_resoudre_chemin_regles(args.regles))
@@ -439,19 +477,25 @@ def main(argv: list[str] = None) -> int:
             return 1
         print(f"📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}\n")
     elif interactive:
-        regles = demander_regles(list(initial_df.columns))
-        if regles:
-            _proposer_enregistrement(regles, reports_dir, input_file, horodatage)
+        print("🧹 Nettoyage automatique léger, pour vous montrer les données propres...")
+        try:
+            with capture_output():
+                apercu_df, _ = run_all_cleaning_steps(
+                    initial_df.copy(), profile_info=profiler_results,
+                    correct_outliers=False, fill_missing=False,
+                )
+        except Exception as e:
+            print(f"⚠️ Aperçu indisponible ({e}) : les contraintes seront essayées sur le fichier brut.")
+            apercu_df = initial_df
+        regles = demander_regles(
+            list(apercu_df.columns),
+            apres_ajout=_retour_immediat(apercu_df, "Aperçu après nettoyage automatique"),
+        )
+        saisies = bool(regles)
     contraintes = {}
     if regles:
         contraintes["avant"] = valider(initial_df, regles)
         print(formater_bilan(contraintes["avant"], "Contraintes avant nettoyage") + "\n")
-
-    # 3. Profilage pré-nettoyage
-    profiler = PreCleaningProfiler(initial_df, input_file)
-    profiler_results = profiler.run_profiling_workflow(
-        input_file, reports_dir, report_format=format_rapport, horodatage=horodatage
-    )
 
     # 4. Décisions de nettoyage avancé
     correct_outliers, fill_missing = get_user_decisions(
@@ -489,10 +533,26 @@ def main(argv: list[str] = None) -> int:
     except Exception as e:
         print(f"⚠️ Erreur lors de la génération du rapport console : {e}")
 
-    # 7b. Contraintes après nettoyage : signalées, jamais corrigées.
+    # 7b. Contraintes après nettoyage : signalées, jamais corrigées. La saisie
+    # se rouvre ici : le nettoyage peut laisser passer des anomalies, ou en
+    # révéler d'autres, et l'utilisateur doit pouvoir en ajouter.
     if regles:
         contraintes["apres"] = valider(cleaned_df, regles)
         print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
+    if interactive:
+        nouvelles = demander_regles(
+            list(cleaned_df.columns),
+            invite="⏳ Une anomalie vous a échappé ? Ajouter une contrainte sur le fichier "
+                   "nettoyé ? [o/N] : ",
+            apres_ajout=_retour_immediat(cleaned_df, "Fichier nettoyé"),
+        )
+        if nouvelles:
+            regles = regles + nouvelles
+            saisies = True
+            contraintes["avant"] = valider(initial_df, regles)
+            contraintes["apres"] = valider(cleaned_df, regles)
+    if saisies:
+        _proposer_enregistrement(regles, reports_dir, input_file, horodatage)
 
     # 8. Rapport de nettoyage Markdown
     try:
