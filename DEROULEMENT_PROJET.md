@@ -2015,6 +2015,8 @@ Les contraintes sont saisies par l'utilisateur, et un fichier de règles peut ve
 ### 7. Ce qui reste
 L'essai par le porteur du projet, dans un navigateur : les tests pilotent les widgets, ils ne disent pas si le formulaire est agréable. Puis la fusion dans `main` et le déploiement, qui ne se font qu'après cet essai. Les pistes de la feuille de route restent à venir, dont celles que cet audit a fait apparaître : télécharger les lignes en anomalie, règles conditionnelles, formats supplémentaires, dates relatives.
 
+**Un choix : pas de contrôle dédié aux données très sensibles.** Des contrôles de somme de contrôle pour l'IBAN ou le numéro de sécurité sociale avaient été envisagés comme suite logique du SIRET. Le porteur du projet les écarte : ces données sont trop sensibles pour qu'un outil de nettoyage en ligne les mette en avant, et l'on ne veut pas inciter à y déposer des fichiers de santé ou de paie. Le motif personnalisé permet à l'utilisateur qui en a besoin d'écrire lui-même sa règle ; Quitus ne la lui suggère pas.
+
 ### 8. Résultat
 **687 tests passent**, contre 451 avant l'Étape 47. `docs/API.md` couvre `validator` et `saisie_regles`.
 
