@@ -112,6 +112,44 @@ def figure_boxplot(df: pd.DataFrame, col: str, *,
     return fig
 
 
+SEUIL_IDENTIFIANT = 0.9
+MIN_VALEURS_IDENTIFIANT = 20
+
+
+def is_identifier_column(series: pd.Series) -> bool:
+    """Indique si une colonne se comporte comme un identifiant.
+
+    Une colonne dont presque chaque valeur est distincte (identifiant, courriel,
+    nom propre) n'a pas de répartition à montrer : son diagramme en barres
+    n'aligne que des modalités à une occurrence. Sous 20 valeurs, le jugement
+    serait trop fragile : la colonne n'est alors jamais écartée.
+
+    Args:
+        series: La colonne à examiner.
+
+    Returns:
+        True si au moins 90 % des valeurs présentes sont distinctes.
+    """
+    presentes = series.dropna()
+    if len(presentes) < MIN_VALEURS_IDENTIFIANT:
+        return False
+    return presentes.nunique() / len(presentes) >= SEUIL_IDENTIFIANT
+
+
+def split_categorical_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """Sépare les colonnes catégorielles à tracer de celles qui sont des identifiants.
+
+    Args:
+        df: Source des données.
+
+    Returns:
+        Un couple (colonnes à tracer, colonnes écartées comme identifiants).
+    """
+    colonnes = df.select_dtypes(include=["str", "object", "string", "category"]).columns
+    ecartees = [c for c in colonnes if is_identifier_column(df[c])]
+    return [c for c in colonnes if c not in ecartees], ecartees
+
+
 def figure_barplot_top(df: pd.DataFrame, col: str, *, top_n: int = 10,
                        figsize: tuple[float, float] = (10, 4),
                        dpi: int = 120) -> Figure:

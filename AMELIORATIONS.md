@@ -7,11 +7,12 @@ trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiqu
 ## 🎯 À faire — par ordre d'importance
 1. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs). Il accueillerait aussi des règles métier d'alerte, par exemple signaler une colonne d'âge dont des valeurs sont négatives, idée d'une méthode `detect_quality_issues` prévue à l'Étape 9 et jamais écrite.
 2. **Détection assistée par IA** : introduction d'un LLM pour aider à détecter les anomalies orthographiques et les types de colonnes complexes.
-3. **Seuils d'alerte propres à chaque profil** : adapter les seuils de criticité du profil avant nettoyage, distincts de ceux du profil de contrôle (perspective de l'Étape 22).
-4. **Stabilité statistique après nettoyage** : comparer les distributions avant et après pour vérifier que le nettoyage n'a pas déformé les données (perspective de l'Étape 22). Les corrélations, elles, sont livrées (Étape 23).
-5. **Interface commune aux deux profileurs** : s'assurer que `PreCleaningProfiler` et `ExploratoryProfiler` partagent le même contrat, pour les manipuler de la même façon dans l'orchestrateur (perspective de l'Étape 22).
-6. **Méthode alternative sur les très petits échantillons** : l'écrêtage par IQR est peu fiable avec trois ou quatre valeurs, où les quartiles sont eux-mêmes décalés par l'extrême (piste de l'Étape 8 : détection par écart-type).
-7. **Autres sources et destinations** : lire depuis une base SQL, exporter vers une base ou valider un schéma (ouvertures citées aux Étapes 5 et 21).
+3. **Doublons d'identifiant** : signaler dans le profil un identifiant répété sur des lignes différentes (autre date, autre montant), que la suppression des doublons exacts laisse passer. Constaté sur l'échantillon, où `R37331` figure deux fois après nettoyage. Quitus ne peut pas choisir quelle ligne garder : il doit le déclarer, avec les lignes concernées.
+4. **Seuils d'alerte propres à chaque profil** : adapter les seuils de criticité du profil avant nettoyage, distincts de ceux du profil de contrôle (perspective de l'Étape 22).
+5. **Stabilité statistique après nettoyage** : comparer les distributions avant et après pour vérifier que le nettoyage n'a pas déformé les données (perspective de l'Étape 22). Les corrélations, elles, sont livrées (Étape 23).
+6. **Interface commune aux deux profileurs** : s'assurer que `PreCleaningProfiler` et `ExploratoryProfiler` partagent le même contrat, pour les manipuler de la même façon dans l'orchestrateur (perspective de l'Étape 22).
+7. **Méthode alternative sur les très petits échantillons** : l'écrêtage par IQR est peu fiable avec trois ou quatre valeurs, où les quartiles sont eux-mêmes décalés par l'extrême (piste de l'Étape 8 : détection par écart-type).
+8. **Autres sources et destinations** : lire depuis une base SQL, exporter vers une base ou valider un schéma (ouvertures citées aux Étapes 5 et 21).
 
 ## ✅ Livré
 - ~~**mode multi-passes**~~ : les premières étapes de nettoyage sont répétées jusqu'à stabilisation, le moteur s'arrêtant de lui-même dès que plus rien ne change. *Étapes 7 et 30.*

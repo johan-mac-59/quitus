@@ -54,6 +54,8 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`new_figure`](#new_figure) — fonction
   - [`figure_histogram`](#figure_histogram) — fonction
   - [`figure_boxplot`](#figure_boxplot) — fonction
+  - [`is_identifier_column`](#is_identifier_column) — fonction
+  - [`split_categorical_columns`](#split_categorical_columns) — fonction
   - [`figure_barplot_top`](#figure_barplot_top) — fonction
   - [`figure_scatter_matrix`](#figure_scatter_matrix) — fonction
   - [`figure_correlation_heatmap`](#figure_correlation_heatmap) — fonction
@@ -1017,6 +1019,39 @@ Boîte à moustaches verticale pour une colonne numérique.
 - `dpi` — Résolution.
 
 **Retour** — La figure construite.
+
+### `is_identifier_column`
+
+```python
+is_identifier_column(series: pd.Series) -> bool
+```
+
+Indique si une colonne se comporte comme un identifiant.
+
+Une colonne dont presque chaque valeur est distincte (identifiant, courriel,
+nom propre) n'a pas de répartition à montrer : son diagramme en barres
+n'aligne que des modalités à une occurrence. Sous 20 valeurs, le jugement
+serait trop fragile : la colonne n'est alors jamais écartée.
+
+**Paramètres**
+
+- `series` — La colonne à examiner.
+
+**Retour** — True si au moins 90 % des valeurs présentes sont distinctes.
+
+### `split_categorical_columns`
+
+```python
+split_categorical_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]
+```
+
+Sépare les colonnes catégorielles à tracer de celles qui sont des identifiants.
+
+**Paramètres**
+
+- `df` — Source des données.
+
+**Retour** — Un couple (colonnes à tracer, colonnes écartées comme identifiants).
 
 ### `figure_barplot_top`
 

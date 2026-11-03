@@ -716,9 +716,13 @@ class DataProfiler:
                 html += '</div>'  # Fermeture du conteneur flex unique
 
         # Graphiques catégoriels
-        categorical_cols = self.df.select_dtypes(include=['str','object', 'category']).columns
+        categorical_cols, identifier_cols = pf.split_categorical_columns(self.df)
         if len(categorical_cols) > 0:
             html += "<h2>📊 Graphiques Catégoriels</h2>"
+            if identifier_cols:
+                html += ("<p>Colonnes non tracées, car presque toutes leurs valeurs sont "
+                         "distinctes (identifiants) : "
+                         + ", ".join(_esc(c) for c in identifier_cols) + ".</p>")
             for col in categorical_cols:
                 html += f"<h3>{_esc(col)}</h3>"
                 try:

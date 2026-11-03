@@ -501,6 +501,12 @@ class TestParcoursComplet:
         assert len(propre) < len(brut), "Les doublons devaient disparaître"
         assert app.session_state["stats"]["duplicates_removed"] >= 2
 
+    def test_les_graphiques_montrent_d_abord_le_fichier_nettoye(self, app, csv_sale):
+        """Une fois nettoyé, le jeu affiché par défaut est le fichier nettoyé."""
+        app = _apres_nettoyage(app, csv_sale, ecreter=False, combler=False)
+        jeu = [r for r in app.radio if r.label == "Jeu de données"]
+        assert jeu and jeu[0].value == "Données nettoyées"
+
     def test_le_nettoyage_uniformise_la_casse(self, app, csv_sale):
         """Les variations de casse et les espaces sont corrigés."""
         app = _apres_nettoyage(app, csv_sale, ecreter=False, combler=False)
@@ -1014,3 +1020,22 @@ class TestGuideTelechargements:
         assert boutons
         for bouton in boutons:
             assert bouton.proto.help, f"sans infobulle : {bouton.proto.label}"
+
+
+class TestRelanceDuNettoyage:
+    """Relancer un nettoyage identique est inutile : le bouton s'éteint et le dit."""
+
+    def test_bouton_eteint_apres_nettoyage_avec_confirmation(self, app, csv_sale):
+        app = _apres_nettoyage(app, csv_sale, ecreter=False, combler=False)
+        bouton = [b for b in app.sidebar.button if "Nettoyer" in b.label][0]
+        assert bouton.disabled
+        assert any("Nettoyage effectué" in s.value for s in app.sidebar.success)
+
+    def test_bouton_rallume_quand_les_choix_changent(self, app, csv_sale):
+        app = _apres_nettoyage(app, csv_sale, ecreter=False, combler=False)
+        liste = next(m for m in app.sidebar.multiselect
+                     if m.label.startswith("Combler"))
+        _choisir(liste, None)
+        app = app.run()
+        bouton = [b for b in app.sidebar.button if "Nettoyer" in b.label][0]
+        assert not bouton.disabled

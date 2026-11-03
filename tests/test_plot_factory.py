@@ -182,3 +182,24 @@ class TestHygieneMemoire:
             f"Ces modules importent pyplot et risquent de fuiter : {fautifs}. "
             "Passer par src/plot_factory.py."
         )
+
+
+class TestColonnesIdentifiants:
+    """Une colonne presque entièrement distincte n'a pas de répartition à tracer."""
+
+    def test_colonne_d_identifiants_ecartee(self):
+        df = pd.DataFrame({"id": [f"R{i}" for i in range(50)],
+                           "ville": ["Lille", "Nice"] * 25})
+        a_tracer, ecartees = pf.split_categorical_columns(df)
+        assert a_tracer == ["ville"]
+        assert ecartees == ["id"]
+
+    def test_identifiant_avec_quelques_doublons_ecarte(self):
+        valeurs = [f"R{i}" for i in range(48)] + ["R0", "R1"]
+        assert pf.is_identifier_column(pd.Series(valeurs))
+
+    def test_petite_colonne_jamais_ecartee(self):
+        assert not pf.is_identifier_column(pd.Series(list("abcdefghij")))
+
+    def test_categorie_repetee_conservee(self):
+        assert not pf.is_identifier_column(pd.Series(["a", "b", "c"] * 20))

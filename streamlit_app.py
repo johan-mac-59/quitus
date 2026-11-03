@@ -93,6 +93,8 @@ ETAT_INITIAL = {
     "df_propre": None,
     "stats": None,
     "profil_post": None,   # profil APRÈS nettoyage, pour contrôler le résultat
+    "choix_nettoye": None,  # choix du dernier nettoyage : relancer à l'identique est inutile
+    "annonce_nettoyage": False,  # un nettoyage vient de finir, à confirmer par un toast
     # Suffixes des noms de fichiers téléchargés. Un par analyse, un par
     # nettoyage : tester avec puis sans écrêtage produit deux jeux de fichiers
     # distincts, et tous les fichiers d'un même essai portent la même marque.
@@ -982,7 +984,17 @@ def formulaire_options(df: pd.DataFrame) -> dict:
                  "combler invente une valeur.",
         )
 
-        lancer = st.button("🧹 Nettoyer", width="stretch", type="primary")
+        # Relancer le même nettoyage ne produirait rien de nouveau : le bouton
+        # reste éteint tant que les choix n'ont pas changé depuis le dernier.
+        deja = (st.session_state["df_propre"] is not None
+                and st.session_state["choix_nettoye"]
+                == signature_choix(ecreter, seuils, combler))
+        lancer = st.button("🧹 Nettoyer", width="stretch", type="primary",
+                           disabled=deja)
+        if deja:
+            st.success("Nettoyage effectué avec ces choix. Résultat dans les "
+                       "onglets Nettoyage et Après nettoyage. Modifiez les choix "
+                       "pour relancer.", icon="✅")
 
     return {"ecreter": ecreter, "seuils": seuils, "combler": combler,
             "lancer": lancer}
@@ -1431,11 +1443,13 @@ def onglet_graphiques() -> None:
     if st.session_state["df_propre"] is not None:
         sources["Données nettoyées"] = st.session_state["df_propre"]
 
-    choix = st.radio("Jeu de données", list(sources), horizontal=True)
+    # Une fois le nettoyage fait, c'est le fichier nettoyé qu'on veut voir d'abord.
+    choix = st.radio("Jeu de données", list(sources), index=len(sources) - 1,
+                     horizontal=True)
     df = sources[choix]
 
     numeriques = list(df.select_dtypes(include="number").columns)
-    categorielles = list(df.select_dtypes(include=["object", "string", "category"]).columns)
+    categorielles, identifiants = pf.split_categorical_columns(df)
 
     if not numeriques and not categorielles:
         st.info("Aucune colonne représentable dans ce jeu de données.")
@@ -1462,6 +1476,10 @@ def onglet_graphiques() -> None:
         for col in selection:
             afficher_figure(pf.figure_barplot_top(df, col))
 
+    if identifiants:
+        st.caption("Colonnes non tracées, car presque toutes leurs valeurs sont "
+                   "distinctes (identifiants) : " + ", ".join(identifiants) + ".")
+
     if len(numeriques) > 1:
         st.divider()
         st.markdown("**Analyses multivariées**")
@@ -1484,6 +1502,21 @@ def onglet_graphiques() -> None:
 # ==========================================================================
 # Orchestration
 # ==========================================================================
+
+def signature_choix(ecreter, seuils: dict, combler) -> tuple:
+    """Résume les choix de nettoyage, pour savoir s'ils ont changé.
+
+    Args:
+        ecreter: Colonnes choisies pour l'écrêtage.
+        seuils: Seuil IQR de chaque colonne choisie.
+        combler: Colonnes choisies pour le remplissage.
+
+    Returns:
+        Un tuple comparable, insensible à l'ordre de sélection.
+    """
+    return (tuple(sorted(ecreter)), tuple(sorted(seuils.items())),
+            tuple(sorted(combler)))
+
 
 def lancer_nettoyage(options: dict) -> None:
     """Exécute le nettoyage, puis le profil de contrôle, et range tout en session.
@@ -1517,6 +1550,9 @@ def lancer_nettoyage(options: dict) -> None:
     st.session_state["stats"] = stats
     st.session_state["etape"] = "nettoye"
     st.session_state["horodatage_nettoyage"] = horodater()
+    st.session_state["choix_nettoye"] = signature_choix(
+        options["ecreter"], options["seuils"], options["combler"])
+    st.session_state["annonce_nettoyage"] = True
 
     # Rapport console comparatif, capté pour affichage.
     def _bilan():
@@ -1611,6 +1647,13 @@ def main() -> None:
 
     if options.get("lancer"):
         lancer_nettoyage(options)
+        if st.session_state["annonce_nettoyage"]:
+            # Relance le script pour que le bouton, déjà dessiné, s'éteigne.
+            st.rerun()
+
+    if st.session_state["annonce_nettoyage"]:
+        st.session_state["annonce_nettoyage"] = False
+        st.toast("Nettoyage terminé. Résultat dans l'onglet Nettoyage.", icon="✅")
 
     # La présentation reste le premier onglet : elle ne disparaît pas au
     # premier dépôt de fichier.
