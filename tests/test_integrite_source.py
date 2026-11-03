@@ -25,7 +25,8 @@ FICHIERS_SOURCE = sorted(SRC_DIR.glob("*.py"))
 # échouer ces tests bruyamment. Filtrer sur `exists()` avait laissé l'interface
 # web hors de tout contrôle, en silence, lors du passage de app.py à
 # streamlit_app.py.
-FICHIERS_RACINE = [RACINE / "main.py", RACINE / "streamlit_app.py"]
+FICHIERS_RACINE = [RACINE / "main.py", RACINE / "streamlit_app.py",
+                   RACINE / "saisie_terminal.py"]
 
 
 def _arbre(fichier: Path) -> ast.Module:

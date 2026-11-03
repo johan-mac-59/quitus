@@ -20,7 +20,9 @@ Un champ se décrit par un dictionnaire :
   (valeurs séparées par des points-virgules) ou ``choix`` ;
 * ``obligatoire`` : vrai si la règle ne peut pas se passer du champ ;
 * ``choix`` : pour le genre ``choix``, la liste des couples (valeur, libellé) ;
-* ``aide`` : une phrase d'explication, avec un exemple.
+* ``aide`` : une phrase d'explication, avec un exemple ;
+* ``si_vide`` : nom d'un autre champ ; celui-ci ne se demande que si l'autre est
+  resté vide (pas de motif personnalisé quand on a choisi un format connu).
 """
 
 from __future__ import annotations
@@ -40,7 +42,8 @@ _AIDE_BORNE = "Un nombre (120) ou une date (05/01/2024, 2024-01-05)."
 
 
 def _champ(nom: str, libelle: str, genre: str, *, obligatoire: bool = False,
-           choix: list[tuple[str, str]] | None = None, aide: str = "") -> dict:
+           choix: list[tuple[str, str]] | None = None, aide: str = "",
+           si_vide: str | None = None) -> dict:
     """Fabrique la description d'un champ de formulaire.
 
     Args:
@@ -50,12 +53,14 @@ def _champ(nom: str, libelle: str, genre: str, *, obligatoire: bool = False,
         obligatoire: Vrai si la règle ne peut pas se passer de ce champ.
         choix: Couples (valeur, libellé), pour le genre ``choix``.
         aide: Phrase d'explication, avec un exemple.
+        si_vide: Nom d'un autre champ dont ce champ n'est demandé que s'il est
+            resté vide.
 
     Returns:
         Le dictionnaire décrivant le champ.
     """
     return {"nom": nom, "libelle": libelle, "genre": genre, "obligatoire": obligatoire,
-            "choix": list(choix or []), "aide": aide}
+            "choix": list(choix or []), "aide": aide, "si_vide": si_vide}
 
 
 # Un type de règle : libellé lisible, nombre de colonnes attendu (mini, maxi ; maxi
@@ -88,7 +93,7 @@ TYPES_DE_REGLE = {
                    aide="Choisissez un format connu, ou laissez vide pour écrire un motif."),
             _champ("motif", "Motif personnalisé", "texte",
                    aide="Expression régulière, si aucun format connu ne convient "
-                        "(par exemple [A-Z]{2}-\\d{3})."),
+                        "(par exemple [A-Z]{2}-\\d{3}).", si_vide="nom"),
         ],
     },
     "valeurs_autorisees": {

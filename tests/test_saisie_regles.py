@@ -43,6 +43,8 @@ class TestCoherenceAvecLeMoteur:
                 assert champ["genre"] in GENRES_DE_CHAMP
                 assert champ["libelle"] and champ["aide"]
                 assert (champ["genre"] == "choix") == bool(champ["choix"])
+                if champ["si_vide"]:
+                    assert champ["si_vide"] in noms and champ["si_vide"] != champ["nom"]
 
     def test_les_choix_reprennent_les_formats_et_operateurs_du_moteur(self):
         formats = {c["nom"]: c for c in champs_du_type("format")}["nom"]["choix"]
@@ -67,6 +69,21 @@ class TestCoherenceAvecLeMoteur:
         assert colonnes_attendues("plage") == (1, 1)
         assert colonnes_attendues("unique") == (1, None)
         assert colonnes_attendues("comparaison_colonnes") == (2, 2)
+
+
+class TestSiVide:
+    """Un champ « si_vide » ne se demande que si l'autre est resté vide."""
+
+    def test_le_motif_ne_se_demande_que_sans_format_connu(self):
+        champs = {c["nom"]: c for c in champs_du_type("format")}
+        assert champs["motif"]["si_vide"] == "nom"
+        assert champs["nom"]["si_vide"] is None
+
+    def test_les_autres_champs_se_demandent_toujours(self):
+        for type_regle in TYPES_DE_REGLE:
+            for champ in champs_du_type(type_regle):
+                if (type_regle, champ["nom"]) != ("format", "motif"):
+                    assert champ["si_vide"] is None
 
 
 class TestLireBorne:

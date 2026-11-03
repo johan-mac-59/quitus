@@ -100,6 +100,7 @@ python main.py --input brut.csv --oui-a-tout     # aucune question, tout accept�
 python main.py --input brut.csv --non-interactif # aucune question, traitements lourds refusés
 python main.py --input brut.csv --format-rapport html
 python main.py --input brut.csv --regles regles.json   # vérifie des contraintes
+python main.py --input brut.csv --creer-regles          # définir des contraintes par questions
 ```
 
 | Option | Rôle |
@@ -111,7 +112,8 @@ python main.py --input brut.csv --regles regles.json   # vérifie des contrainte
 | `--oui-a-tout` | Accepte écrêtage, remplissage et rapports sans rien demander |
 | `--non-interactif` | Ne demande rien et refuse les traitements lourds |
 | `--seuil-iqr` | Seuil de l'écrêtage, en écarts interquartiles (1,5 par défaut ; 3 ne retient que les valeurs très extrêmes) |
-| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Vérifiées en dernier, après le nettoyage, son rapport et le nouveau profilage ; le rapport de nettoyage en reprend le résultat. Le fichier se crée dans l'interface web, qui l'exporte |
+| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Vérifiées en dernier, après le nettoyage, son rapport et le nouveau profilage ; le rapport de nettoyage en reprend le résultat. Le fichier se crée dans l'interface web, qui l'exporte, ou par `--creer-regles` |
+| `--creer-regles` | Propose, à la fin du traitement, de définir des contraintes par questions. Elles s'ajoutent à celles de `--regles` et sont enregistrées dans le répertoire des rapports pour être rejouées. Incompatible avec `--oui-a-tout` et `--non-interactif` |
 
 Les contraintes (valeur minimale ou maximale, longueur, format, valeurs autorisées, valeur obligatoire ou unique, comparaison entre deux colonnes) sont signalées, jamais corrigées : le fichier nettoyé n'est pas modifié par leur vérification.
 

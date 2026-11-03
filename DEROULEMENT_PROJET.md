@@ -1970,8 +1970,17 @@ Streamlit et un terminal ne partagent pas leurs widgets. Ils partagent en revanc
 
 Un test garde la description alignée sur le moteur : un type de règle ajouté au validateur sans formulaire fait échouer la suite, de même que des choix de formats ou d'opérateurs qui divergeraient.
 
-### 2. Résultat
-`src/saisie_regles.py` et `regles_vers_texte` sont livrés avec leurs tests, et la documentation API les couvre. La suite se poursuit par le terminal facultatif (`--creer-regles`), puis par l'onglet « Contraintes » de l'interface web.
+### 2. Le terminal, à la demande
+`--creer-regles` propose, à la fin du traitement (après le nettoyage, son rapport et le nouveau profilage), de définir des contraintes par questions. Le dialogue vit dans un module à la racine, `saisie_terminal.py`, et non dans `main.py` : `src/` ne pose aucune question, et `main.py`, qui avait atteint 568 lignes avec un premier menu, n'a reçu que l'option, l'appel et l'enregistrement du fichier.
+
+* **Il ne décide de rien.** Le type de règle, les champs à demander, la lecture des valeurs et la construction viennent de `src/saisie_regles.py` ; le module se borne à poser les questions, avec un retour immédiat sur le fichier nettoyé après chaque règle ajoutée.
+* **Il est facultatif.** Sans l'option, aucune question n'est posée sur les contraintes ; avec `--oui-a-tout` ou `--non-interactif`, l'option est refusée par le parseur, puisqu'elle pose des questions. Un fichier de règles invalide, signalé à la fin, ne déclenche aucune question.
+* **Il s'ajoute à `--regles`.** Les règles saisies complètent celles du fichier, et l'ensemble est enregistré dans le répertoire des rapports, à rejouer avec `--regles` ; le rapport de nettoyage est réécrit avec la section « Contraintes ». Aucune règle saisie, aucun fichier enregistré.
+* **Un champ « si vide ».** En écrivant le dialogue est apparu un détail absurde : demander un motif personnalisé à quelqu'un qui vient de choisir un format connu. L'indication `si_vide` (« ne demander ce champ que si cet autre est resté vide ») a été ajoutée à la description partagée, pour que les deux façades la respectent.
+* **Un défaut de test.** La fonction de saisie par défaut était liée au vrai `input` dès la définition de la fonction : les tests qui le remplaçaient n'agissaient pas dessus et se bloquaient sur le clavier. Elle est désormais résolue à l'appel. Un garde-fou vérifie aussi que `main.py` reste léger (plus de fonction de menu, moins de 450 lignes).
+
+### 3. Résultat
+`src/saisie_regles.py`, `regles_vers_texte` et le terminal facultatif sont livrés avec leurs tests. Reste l'onglet « Contraintes » de l'interface web.
 
 ---
 

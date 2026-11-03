@@ -12,12 +12,13 @@ Usage :
     python main.py --input mon.csv --oui-a-tout        # aucune question posée
     python main.py --input mon.csv --seuil-iqr 3       # écrêtage plus tolérant
     python main.py --input mon.csv --regles regles.json  # contraintes à vérifier
+    python main.py --input mon.csv --creer-regles        # définir des contraintes par questions
 
 Les contraintes (valeur minimale ou maximale, longueur, format, comparaison
 entre deux colonnes…) sont signalées avant et après nettoyage, jamais corrigées.
 Elles viennent en dernier, après le nettoyage, son rapport et le nouveau profilage.
-Le terminal rejoue un fichier de règles ; leur création, interactive, se fait dans
-l'interface web, qui exporte le fichier.
+Le terminal rejoue un fichier de règles (`--regles`) et peut en créer par questions, à
+la demande (`--creer-regles`) ; l'interface web les crée aussi et exporte le fichier.
 """
 
 import argparse
@@ -31,7 +32,8 @@ from src.cleaner_reporter import generate_enhanced_report
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
 from src.horodatage import horodater
-from src.validator import charger_regles, formater_bilan, valider
+from saisie_terminal import demander_regles, retour_immediat
+from src.validator import charger_regles, formater_bilan, sauver_regles, valider
 
 # Chemins par défaut, relatifs à la racine du projet.
 DEFAUT_INPUT = "data/samples/reservations_exemple.csv"
@@ -111,6 +113,13 @@ def construire_parseur() -> argparse.ArgumentParser:
         help="Fichier de règles (JSON) à vérifier avant et après nettoyage, en fin "
              "de traitement. Les violations sont signalées, jamais corrigées. Le "
              "fichier se crée dans l'interface web, qui l'exporte.",
+    )
+    parseur.add_argument(
+        "--creer-regles", action="store_true",
+        help="Propose, après le nettoyage et le nouveau profilage, de définir des "
+             "contraintes par questions. Elles s'ajoutent à celles de --regles et "
+             "sont enregistrées dans le répertoire des rapports, pour être "
+             "rejouées. Incompatible avec --oui-a-tout et --non-interactif.",
     )
     return parseur
 
@@ -207,7 +216,11 @@ def main(argv: list[str] = None) -> int:
     """
     _forcer_encodage_utf8()
 
-    args = construire_parseur().parse_args(argv)
+    parseur = construire_parseur()
+    args = parseur.parse_args(argv)
+    if args.creer_regles and (args.oui_a_tout or args.non_interactif):
+        parseur.error("--creer-regles pose des questions : incompatible avec "
+                      "--oui-a-tout et --non-interactif")
 
     # Traduction des drapeaux en décisions explicites, transmises aux modules.
     if args.oui_a_tout:
@@ -316,32 +329,45 @@ def main(argv: list[str] = None) -> int:
 
     # 10. Contraintes : signalées, jamais corrigées. Elles viennent en dernier,
     # une fois le nettoyage fait, son rapport écrit et le nouveau profilage
-    # affiché. Le terminal se borne à rejouer un fichier de règles, lu ici, au
-    # moment de la validation : la création des règles, au vu des données propres,
-    # se fait dans l'interface web, dont le fichier est l'export. Les contraintes
+    # affiché : c'est sur des données propres que l'utilisateur repère les
+    # anomalies métier qu'aucune machine ne peut deviner. Le fichier de règles
+    # n'est lu qu'ici, au moment de la validation ; `--creer-regles` y ajoute des
+    # règles saisies par questions (module à part, facultatif). Les contraintes
     # ne limitent jamais le nettoyage.
+    regles = []
     erreur_regles = None
     if args.regles:
         try:
             regles = charger_regles(_resoudre_chemin_regles(args.regles))
+            print(f"\n📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}")
         except (FileNotFoundError, ValueError) as e:
             erreur_regles = e
             print(f"\n❌ {e}\n   Le nettoyage est terminé et sauvegardé ; seules les contraintes n'ont pas pu être vérifiées.")
-        else:
-            print(f"\n📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}")
-            contraintes = {"avant": valider(initial_df, regles), "apres": valider(cleaned_df, regles)}
-            print("\n" + formater_bilan(contraintes["avant"], "Contraintes avant nettoyage"))
-            print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
-            if chemin_rapport:
-                # Le rapport existe déjà : on le réécrit avec la section « Contraintes ».
-                print("\n📝 Mise à jour du rapport de nettoyage avec les contraintes...")
-                try:
-                    generate_enhanced_report(
-                        profiler, logger, reports_dir, input_file, stats,
-                        generate=True, horodatage=horodatage, contraintes=contraintes,
-                    )
-                except Exception as e:
-                    print(f"⚠️ Erreur lors de la mise à jour du rapport : {e}")
+    saisies = []
+    if args.creer_regles and erreur_regles is None:
+        saisies = demander_regles(
+            list(cleaned_df.columns),
+            apres_ajout=retour_immediat(cleaned_df, "Sur le fichier nettoyé"),
+        )
+        regles = regles + saisies
+    if regles:
+        contraintes = {"avant": valider(initial_df, regles), "apres": valider(cleaned_df, regles)}
+        print("\n" + formater_bilan(contraintes["avant"], "Contraintes avant nettoyage"))
+        print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
+        if chemin_rapport:
+            # Le rapport existe déjà : on le réécrit avec la section « Contraintes ».
+            print("\n📝 Mise à jour du rapport de nettoyage avec les contraintes...")
+            try:
+                generate_enhanced_report(
+                    profiler, logger, reports_dir, input_file, stats,
+                    generate=True, horodatage=horodatage, contraintes=contraintes,
+                )
+            except Exception as e:
+                print(f"⚠️ Erreur lors de la mise à jour du rapport : {e}")
+        if saisies:
+            fichier_regles = sauver_regles(
+                regles, reports_dir / f"regles_{input_file.stem}_{horodatage}.json")
+            print(f"📁 Contraintes enregistrées, à rejouer avec --regles : {fichier_regles}")
 
     return 1 if erreur_regles is not None else 0
 

@@ -1386,7 +1386,9 @@ Un champ se décrit par un dictionnaire :
 (valeurs séparées par des points-virgules) ou ``choix`` ;
 * ``obligatoire`` : vrai si la règle ne peut pas se passer du champ ;
 * ``choix`` : pour le genre ``choix``, la liste des couples (valeur, libellé) ;
-* ``aide`` : une phrase d'explication, avec un exemple.
+* ``aide`` : une phrase d'explication, avec un exemple ;
+* ``si_vide`` : nom d'un autre champ ; celui-ci ne se demande que si l'autre est
+resté vide (pas de motif personnalisé quand on a choisi un format connu).
 
 ### `types_disponibles`
 
