@@ -1,6 +1,6 @@
 # DEROULEMENT_PROJET.MD
 
-## Contexte du Projet
+## Contexte du projet
 
 **Objectif principal** : Créer un script Python capable de détecter automatiquement les problèmes courants dans un fichier CSV et d'y remédier sans connaître à l'avance le contenu ni la structure du fichier.
 
@@ -58,7 +58,7 @@ cleaner_auto.py
 
 ---
 
-## Étape 3 : Implémentation - Détails techniques
+## Étape 3 : Implémentation - détails techniques
 
 ### Fonction `detect_delimiter()`
 - Teste les séparateurs courants (;, ,, \t, |)
@@ -129,64 +129,7 @@ python src/cleaner_auto.py
 
 ---
 
-## Étape 5 : Concepts techniques abordés
-
-### Typing (from typing import Tuple)
-- Permet d'annoter les types des paramètres et retours
-- Améliore la lisibilité et aide à détecter les erreurs avant l'exécution
-
-### DataFrame pandas
-- Structure de données tabulaire au cœur du traitement
-- Méthodes clés : `isnull().sum()`, `drop_duplicates()`, `fillna()`, `to_numeric()`, `to_datetime()`
-
-### Gestion des encodages
-- UTF-8 : standard moderne
-- Latin1/CP1252 : courants sur fichiers Windows/Excel européens
-- Détecter automatiquement évite les caractères bizarres
-
-### Méthode IQR pour les outliers
-- Q1 = 25e percentile, Q3 = 75e percentile
-- IQR = Q3 - Q1
-- Bornes : Q1 - 1.5*IQR et Q3 + 1.5*IQR
-- Standard en statistiques pour détecter les valeurs aberrantes
-
----
-
-## Étape 6 : Limitations et améliorations futures
-
-### Limitations actuelles :
-- **One-pass** : le script ne s'exécute qu'une fois (risque de passer à côté de problèmes résiduels)
-- **Détection des dates** : heuristique simple (>80% convertis), peut échouer sur des formats rares
-- **Outliers** : méthode IQR standard (1.5x), peut être trop agressive ou pas assez selon le cas
-- **Pas de validation post-nettoyage** : on ne vérifie pas si le résultat est réellement propre
-
-### Améliorations possibles :
-1. **Validation post-nettoyage** : vérifier qu'il n'y a plus de problèmes critiques
-2. **Mode multi-passes** : exécuter plusieurs fois jusqu'à stabilisation
-3. **Détection de format de date plus robuste** (regex avancée)
-4. **Filtrage paramétrable** des outliers selon le contexte métier
-5. **Support multi-format** (JSON, Excel, Parquet...)
-
----
-
-## Récapitulatif final
-
-### Fichiers créés :
-- `src/cleaner_auto.py` → Script principal avec toutes les fonctions de nettoyage automatique
-- `DEROULEMENT_PROJET.md` → Ce fichier de documentation du projet
-
-### Commande pour tester :
-```bash
-# Dans le dossier PROJET_NETTOYAGE_AUTO
-python src/cleaner_auto.py
-```
-
-### Résultats attendus :
-Un fichier CSV nettoyé automatiquement avec un rapport détaillé des transformations effectuées. Le script est générique et fonctionne sur n'importe quel CSV sans connaissance préalable du contenu.
-
----
-
-## Étape 7 : Refactoring et Architecture Modulaire (En cours)
+## Étape 5 : Refactoring et architecture modulaire (en cours)
 
 Dans une version plus avancée et professionnelle, nous avons refactorisé le projet pour le rendre plus robuste et maintenable. 
 
@@ -239,30 +182,15 @@ python src/main.py
 
 ---
 
-## Récapitulatif final (Version Modulaire)
-
-### Fichiers créés :
-- `src/file_loader.py` → Chargement intelligent (CSV/Excel), détection encodage/séparateur.
-- `src/cleaner_engine.py` → Moteur de transformation des données (Nettoyage pur).
-- `src/report_generator.py` → Moteur d'affichage des résultats (Rapports textuels).
-- `src/main.py` → Point d'entrée qui lie le tout.
-
-### Commande pour tester :
-```bash
-python src/main.py
-```
-
----
-
-## Étape 8 : Optimisations récentes et corrections critiques
+## Étape 6 : Optimisations récentes et corrections critiques
 
 Dans les dernières itérations, nous avons corrigé des bugs structurels et optimisé l'ordre logique des opérations pour garantir la fiabilité du nettoyage.
 
-### 1. Correction de la structure du Pipeline (`run_pipeline.py`)
+### 1. Correction de la structure du pipeline (`run_pipeline.py`)
 *   **Problème :** L'indentation dans le bloc `try/except` de la sauvegarde CSV était erronée, risquant de faire planter le script.
 *   **Solution :** Structuration propre avec des chemins dynamiques via `pathlib`. Le pipeline orchestre maintenant clairement : Chargement → Nettoyage → Sauvegarde → Rapport.
 
-### 2. Révision critique de l'ordre des tâches (Le "Golden Path")
+### 2. Révision critique de l'ordre des tâches (le "golden path")
 L'ordre d'exécution a été redéfini pour éviter les faux négatifs en Data Science :
 1.  **`clean_empty_columns`** : On retire le bruit dès le début.
 2.  **`clean_whitespace`** : Crucial avant toute comparaison (ex: " Paris" vs "Paris").
@@ -281,7 +209,7 @@ Ces ajustements rendent le script "Data Analyst" beaucoup plus résilient face �
 
 ---
 
-## Étape 9 : Structuration du Projet et Début des Tests Unitaires
+## Étape 7 : Structuration du projet, tests unitaires et stabilisation du moteur de nettoyage
 
 Dans cette phase, nous avons professionnalisé l'architecture du projet et commencé à garantir sa fiabilité grâce aux tests automatisés.
 
@@ -335,20 +263,16 @@ Le test échouait car `pd.read_csv()` levait une exception `EmptyDataError` non 
 **Résultat final :** 
 La fonction `load_file` ne plante plus. Si le fichier est vide, elle retourne calmement un objet `pd.DataFrame()` vide (qui fait 0 ligne et 0 colonne). Le test passe donc avec succès.
 
----
-
-## Étape 10 : Stabilisation du Moteur de Nettoyage et Passage aux Tests Unitaires
-
 Cette étape est cruciale car elle marque le passage d'un "script qui fonctionne" à un "programme robuste et testé".
 
-### 1. Résolution des bugs dans `cleaner_engine.py`
+### 4. Résolution des bugs dans `cleaner_engine.py`
 Nous avons corrigé plusieurs erreurs logiques persistantes :
 
 *   **Bug sur la `median` (Médiane)** : Le `fillna` de la médiane pour les colonnes numériques n'était pas appliqué directement au DataFrame (`df_cleaned`). Nous avons rectifié en écrivant explicitement `df_cleaned[col] = df_cleaned[col].fillna(median_val)`.
 *   **Bug sur le `mode` (Mode)** : La variable `col_mode` était parfois mal indentée ou non définie dans la boucle. Nous avons clarifié la logique pour que les colonnes de type "texte" (comme `'email'`) soient bien détectées, calculées via `.mode()[0]`, et ensuite remplies proprement avec `fillna`.
 *   **Gestion des types (`StringDtype`)** : Une colonne contenant du texte dans un fichier moderne Pandas n'est pas toujours de type `'object'`. Nous avons ajusté la logique pour que les conversions numériques (comme `'10.5'` → `float`) se fassent correctement en utilisant `pd.to_numeric()`.
 
-### 2. Premiers Tests Unitaires (`pytest`)
+### 5. Premiers tests unitaires (`pytest`)
 Nous avons commencé à intégrer des tests automatisés pour garantir qu'un changement de code ne "casse" pas les fonctionnalités existantes (régression).
 
 **Résultats des tests sur le moteur de nettoyage (`cleaner_engine`)** :
@@ -356,11 +280,11 @@ Nous avons commencé à intégrer des tests automatisés pour garantir qu'un cha
 *   **Clean Types** ✅ : La détection automatique de colonnes à convertir (String → Numérique) est fiable.
 *   **Clean Duplicates** ✅ : Le nombre de doublons supprimés est correct.
 
-### 3. Impact sur l'architecture
+### 6. Impact sur l'architecture
 Grâce aux tests, nous pouvons désormais refactoriser le code en toute sécurité. 
 Le fichier `DEROULEMENT_PROJET.md` devient notre source de vérité technique, documentant chaque erreur rencontrée et sa solution.
 
-### 4. Résolution des derniers bugs critiques dans cleaner_engine.py
+### 7. Résolution des derniers bugs critiques dans cleaner_engine.py
 Le pipeline fonctionnait globalement mais restait bloqué par 3 erreurs de type ("TypeErrors" ou "Logique"). Voici comment elles ont été résolues pour garantir la compatibilité avec les versions récentes de pandas (2.x et 3.x) :
 
 Erreur sur les Types (
@@ -382,7 +306,7 @@ clean_outliers
 Problème : Tentative d'écriture de valeurs à virgule (la borne IQR) dans des colonnes entières (int64), ce qui provoque une erreur LossySetitemError.
 Solution : On convertit systématiquement les colonnes numériques en Float64 (qui accepte les NaN et les virgules) avant d'appliquer la logique IQR.
 
-### 5. Stabilisation du Pipeline et Passage aux Tests Unitaires
+### 8. Stabilisation du pipeline et passage aux tests unitaires
 Nous avons maintenant un ensemble de tests automatisés qui s'assurent que chaque brique du nettoyage fonctionne individuellement :
 
 clean_empty_columns
@@ -397,7 +321,7 @@ clean_missing_values
  ✅ : Remplit les trous avec la médiane (pour les chiffres) ou le mode (pour le texte).
 
 
-### 6. Tentative d'automatisation du nettoyage des Outliers (Boucle IQR itérative)
+### 9. Tentative d'automatisation du nettoyage des outliers (boucle IQR itérative)
 
 **Pourquoi cette fonctionnalité ?**
 Le test de régression (`test_correction_iqr`) a révélé une faille critique de l'algorithme IQR simple sur les petits échantillons. 
@@ -415,7 +339,7 @@ Au lieu d'appliquer les bornes une seule fois (One-pass), nous implémentons une
 
 ---
 
-## Étape 11 : Analyse de Régression et Tests Unitaires (`pytest`)
+## Étape 8 : Analyse de régression et correction des tests unitaires
 
 ### Contexte
 En lançant les tests unitaires (`pytest`) pour valider l'architecture modulaire, nous avons constaté une régression inattendue. Le script principal (`main.py`) fonctionne car il utilise correctement le retour des fonctions (assignation), mais les fonctions isolées dans `cleaner_engine.py` posent problème dans un contexte de test pur.
@@ -439,23 +363,16 @@ En lançant les tests unitaires (`pytest`) pour valider l'architecture modulaire
 *   **Analyse technique :** Pandas 2.x utilise par défaut le type `Int64` (int nullable avec support des NaN) plutôt que le standard NumPy `np.int64`. Les données sont correctes, mais la vérification du test est trop rigide.
 *   **Correction requise :** Utiliser `pd.api.types.is_integer_dtype()` ou vérifier que le type appartient aux types pandas (`Int64`, `Float64`) et non uniquement à NumPy.
 
-### Résultat final de l'étape
-Le pipeline global (`test_pipeline_complet`) valide que si l'orchestrateur fait bien son travail, les données finales sont propres. Cependant, pour garantir la robustesse du moteur (`cleaner_engine`), il faut corriger ces 3 points dans les tests unitaires.
-
----
-
-## Étape 12 : Correction des Tests Unitaires et Résolution des "Fausses" Négatives
-
 Dans cette étape critique, nous avons identifié pourquoi certains tests échouaient malgré un pipeline fonctionnel en production. Les erreurs provenaient de la rigidité des fixtures de test et du comportement mathématique de pandas sur de petits échantillons.
 
-### 1. Analyse de l'échec `test_doublons_exact`
+### 4. Analyse de l'échec `test_doublons_exact`
 *   **Symptôme :** Le test échouait car le DataFrame retenu contenait toujours 4 lignes.
 *   **Analyse technique :** Le DataFrame initial (`dirty_df`) contenait des lignes avec le même ID (2) mais des noms différents ("Bob" et "Alice"). `drop_duplicates()` de pandas considère que ce sont deux lignes *distinctes* car elles ne sont pas identiques caractère pour caractère.
 *   **Correctif appliqué :** 
     1. Nous avons créé une fixture dédiée (`dirty_df_with_exact_doublons`) contenant des répétitions parfaites de toutes les colonnes.
     2. Cette approche garantit que le test valide bien la logique de suppression de doublons sans être faussé par d'autres données.
 
-### 2. Analyse de l'échec `test_correction_iqr`
+### 5. Analyse de l'échec `test_correction_iqr`
 *   **Symptôme :** La valeur -999 n'était pas supprimée/correctement traitée.
 *   **Analyse technique :** 
     *   L'algorithme IQR nécessite des colonnes de type numérique pur (`np.number`). Si la présence de NaN ou d'espaces laisse pandas interpréter la colonne comme `object` (string), le calcul `quantile()` échoue silencieusement ou renvoie des valeurs par défaut incohérentes.
@@ -466,29 +383,7 @@ Dans cette étape critique, nous avons identifié pourquoi certains tests échou
 
 ---
 
-## Étape 13 : Préparation à la présentation (Audit de professionnalisme)
-
-Dans cette phase finale, l'objectif est de transformer un projet technique en un produit prêt pour une présentation professionnelle (Candidature). L'accent a été mis sur la communication, la clart_ de la documentation et la suppression des traces de travail "brouillon".
-
-### 1. Audit de cohérence structurelle
-* **Objectif** : S'assurer que le `README.md` ne promet rien que le code ne puisse réaliser (évitement du syndrome du "Feature Creep" non documenté).
-* **Action** : Vérification systématique entre les modules présents dans `src/` et les fonctionnalités annoncées au lecteur.
-* **Résultat** : Alignement total de la documentation sur les capacités réelles du pipeline (retrait des mentions de modules inexistants comme `validator`).
-
-### 2. Professionnalisation de la documentation technique
-* **Élimination des "traces de chantier"** : Suppression des commentaires de développement, des notes personnelles et des rappels d'erreurs passées à l'intérieur du code source (`src/file_loader.py`) pour ne laisser que une documentation API propre (Docstrings).
-* **Refonte de la communication des capacités** : Passage d'une liste de fonctions techniques à une présentation par "Capacités Métier" (ex: "Intelligence de lecture", "Audit & Traçabilité"). L'idée est de mettre en avant la valeur ajoutée pour un utilisateur Data.
-
-### 3. Stratégie de communication sur l'IA (AI-Augmented Engineering)
-* **Positionnement** : Transformation de la méthode de travail (utilisation d'agents LLM) en une compétence stratégique : l'orchestration d'intelligence artificielle pour accéliter le cycle de développement et la robustesse du code.
-* **Valorisation de l'expertise humaine** : Mise en avant du rôle critique de l'humain dans l'architecture, la conception des processus de convergence (itérations sur les types) et l'audit final du pipeline.
-
-### Résumé de la maturité du projet au terme de cette étape
-Le projet est passé d'un script de nettoyage expérimentale à un **systle de pipeline de données structuré, testé et prêt pour une présentation professionnelle**, capable de démontrer à la fois des compétences en Python avancé, en manipulation de données (Pandas/Numpy) et en gestion moderne du cycle de vie logiciel.
-
----
-
-## Étape 14 : Développement du module de Profilage (`data_profiler`)
+## Étape 9 : Développement du module de profilage (`data_profiler`)
 
 Dans cette étape, nous avons ajouté une brique essentielle au pipeline : **la phase d'inspection**. Avant même de penser à nettoyer, il est impératif de comprendre la structure et la qualité des données brutes.
 
@@ -515,14 +410,14 @@ Le moteur `DataProfiler` analyse le DataFrame et génère les sections suivantes
     *   Pour les colonnes texte/categ, on affiche le "Top 3" des valeurs les plus fréquentes (au lieu de tout lister, ce qui serait illisible).
 6.  **👀 Aperçu Brut** : Les 5 premières lignes formatées en tableau Markdown.
 
-### 3. Tests Pytest
+### 3. Tests pytest
 3 ok et 13 erreurs, essentiellement dues à un module absente mais nécessaire : Tabulate
 après installation de ce module, 5 KO sur 16 : un même problème car je faisais une opération sur un Tuple
 après correction de cette anomalie, une nouvelle mais unique erreur est apparue suite un correctif dans le fichier de tests
 après mise à jour du fichier de tests par l'agent testeur, tous les tests sont OK
 je corrige néanmoins les alertes de Pandas
 
-### 4. Intégration au Pipeline
+### 4. Intégration au pipeline
 Le flux de travail devient maintenant :
 1.  **Chargement** (`file_loader`)
 2.  **Profiling** (`data_profiler`) ➡️ *Nouveau* : Génère `data/processed/report_profile.md`
@@ -538,11 +433,11 @@ La classe `DataProfiler` inclut désormais une méthode预留 (`detect_quality_i
 
 ---
 
-## Étape 15 : Renforcement de la Robustesse et Fiabilisation par les Tests Unitaires
+## Étape 10 : Renforcement de la robustesse et fiabilisation par les tests unitaires
 
 Dans cette phase, l'objectif est passé de "faire fonctionner le code" à "garantir qu'il ne cassera jamais lors d'une mise à jour". Nous avons affronté des problèmes complexes liés aux types de données et à la structure même du projet.
 
-### 1. L'enjeu de la robustesse des données (Handling Edge Cases)
+### 1. L'enjeu de la robustesse des données (handling edge cases)
 Les tests unitaires ont révélé que notre `CleanLogger` était trop "optimiste". Il supposait que les statistiques fournies étaient toujours parfaites. Nous avons corrigé deux vulnérabilités majeures :
 * **Le piège du `NoneType`** : Si une statistique (ex: `empty_cols_dropped`) était absente ou `None`, le script plantait avec une `TypeError`. Nous avons implémenté l'utilisation de `.get(key, default)` pour garantir que le rapport se génère même avec des données incomplètes.
 * **L'absence de clés (`KeyError`)** : Si le dictionnaire `stats` ne contenait pas toutes les clés attendues (cas fréquent lors de nettoyages partiels), le processus s'arrêtait. Nous avons sécurisé chaque accès aux statistiques pour assurer la continuité du pipeline.
@@ -558,20 +453,20 @@ Les tests unitaires ont révélé que notre `CleanLogger` était trop "optimiste
 
 ---
 
-## Étape 16 : Professionnalisation du Reporting et Sécurisation de l'Audit via `CleanerReporter`
+## Étape 11 : Professionnalisation du reporting et sécurisation de l'audit via `CleanerReporter`
 
 Après avoir stabilisé le moteur de nettoyage (`cleaner_engine`) et les tests unitaires, l'objectif est passé de la simple transformation de données à la **création d'une preuve d'audit**. Un pipeline performant ne sert à rien si l'utilisateur final (le Data Analyst ou le métier) ne peut pas auditer les transformations effectuées.
 
-### 1. Le défi : Transformer des logs techniques en un rapport métier
+### 1. Le défi : transformer des logs techniques en un rapport métier
 Jusqu'ici, la visibilité sur le nettoyage reposait sur des sorties textuelles dans la console, volatiles et difficiles à archiver. Le défi était de créer une classe `CleanerReporter` capable de transformer des objets complexes (`DataProfiler` et `CleanLogger`) en un document Markdown structuré, persistant et lisible par des non-développeurs.
 
-### 2. Implémentation de la couche d'Audit (Audit Trail)
+### 2. Implémentation de la couche d'audit (audit trail)
 Le module a été conçu pour extraire et structurer l'information selon trois piliers critiques :
 * **Métadonnées de traçabilité** : Extraction automatique du chemin absolu du fichier source et horodatage précis pour garantir l'origine de la donnée.
 * **Indicateurs de performance (KPIs)** : Calcul des ratios de transformation (ex: perte de lignes, suppression de colonnes) sous forme de tableau comparatif "Avant vs Après".
 * **Journal d'exécution détaillé** : Transformation du log d'opérations en un tableau Markdown structuré, permettant de vérifier colonne par colonne l'action appliquée et son résultat.
 
-### 3. Ingénierie de la Robustesse (Programmation Défensive)
+### 3. Ingénierie de la robustesse (programmation défensive)
 La création de ce module a nécessité l'application de concepts avancés pour garantir que le reporting ne devienne pas un point de rupture du pipeline :
 
 * **Sécurisation des données (Protection contre l'injection Markdown)** : 
@@ -590,16 +485,16 @@ La création de ce module a nécessité l'application de concepts avancés pour 
 
 ---
 
-## Étape 17 : Intégration du module de reporting au pipeline global
+## Étape 12 : Intégration du module de reporting au pipeline global
 
 Cette étape a consisté à orchestrer les modules existants (`file_loader`, `data_profiler`, `cleaner_engine` et `cleaner_reporter`) pour former un pipeline de données complet et automatisé.
 
-### 1. Problématique : L'accès aux données éphémères
+### 1. Problématique : l'accès aux données éphémères
 Le moteur de nettoyage (`cleaner_engine`) génère des statistiques cruciales (nombre de doublons supprimés, colonnes transformées, etc.) sous forme de dictionnaires temporaires durant l'exécution du script `main.py`. Le module `cleaner_reporter`, quant à lui, est conçu pour lire des objets persistants (`DataProfiler` et `Logger`). 
 
 **Le défi :** Comment transmettre les statistiques de nettoyage (volatiles) au moteur de rapportage sans casser la séparation des responsabilités entre les modules ?
 
-### 2. Méthode de résolution : Le pattern "Adapter"
+### 2. Méthode de résolution : le pattern "adapter"
 Pour résoudre ce problème d'interface, une fonction utilitaire `generate_enhanced_report` a été implémentée au niveau du module `src/cleaner_reporter.py`. 
 
 **Fonctionnement technique :**
@@ -618,11 +513,11 @@ Le pipeline suit désormais un flux de données unidirectionnel et structuré :
 
 ---
 
-## Étape 18 : Optimisation de l'auditabilité et intelligence du moteur numérique
+## Étape 13 : Intelligence du moteur numérique, auditabilité et non-régression
 
 Cette étape cruciale a transformé le pipeline d'un outil de nettoyage simple en un système d'audit professionnel, capable de traiter des formats complexes (monétaires) et de corriger les erreurs structurelles introduites par le chargement initial.
 
-### 1. Intelligence du moteur numérique (Traitement des formats monétaires)
+### 1. Intelligence du moteur numérique (traitement des formats monétaires)
 L'un des plus grands défis était la présence de données numériques "sales" qui empêchaient toute conversion (ex: `"1 200,50 €"`). Le moteur ne reconnaissait pas ces valeurs comme des nombres à cause des symboles et des séparateurs hétérogènes.
 
 * **Détection et Nettoyage intelligent** : Mise en place d'une logique capable de :
@@ -631,7 +526,7 @@ L'un des plus grands défis était la présence de données numériques "sales" 
     * Supprimer les espaces de milliers (ex: `"1 000"` $\rightarrow$ `"1000"`) et les caractères parasites.
 * **Résultat** : Une augmentation drastique du taux de succès de la conversion `object -> float` sur des colonnes critiques comme `montant_total`.
 
-### 2. Résolution du "Pandas Type Trap" (Le problème des entiers déguisés)
+### 2. Résolution du "pandas type trap" (le problème des entiers déguisés)
 Une problématique majeure a été identifiée sur les colonnes de comptage (`nb_nuits`, `nb_personnes`).
 
 * **Le Problème** : À cause de la présence de valeurs manquantes (`NaN`) ou de formats texte (`"7.0"`), Pandas charge ces colonnes en `float64`. Cela altère l'intégrité sémantique (on traite des décimaux là où nous avons des quantités entières).
@@ -639,7 +534,7 @@ Une problématique majeure a été identifiée sur les colonnes de comptage (`nb
     * **Détection** : Le module repère les colonnes `float64` dont la partie décimale est systématiquement nulle (ex: `1.0`, `2.0`).
     * **Correction** : Conversion vers le type **`Int64` (Nullable Integer)** de Pandas. Ce type moderne conserve la nature entière de la donnée tout en supportant les valeurs manquantes (`<NA>`) sans forcer le retour à un format `float`.
 
-### 3. Amélioration de l'auditabilité du rapport (Le "Comment" et le "Combien")
+### 3. Amélioration de l'auditabilité du rapport (le "comment" et le "combien")
 L'objectif était de passer d'une statistique brute à une documentation qualitative pour la reproductibilité.
 
 * **Refonte de la structure des données (`cleaner_engine.py`)** : Passage d'une chaîne descriptive à un objet structuré pour `clean_missing_values` :
@@ -652,16 +547,12 @@ L'objectif était de passer d'une statistique brute à une documentation qualita
 * **Intégrité sémantique restaurée** : Les colonnes de comptage retrouvent leur nature d'entiers, même avec des valeurs vides.
 * **Auditabilité totale** : Le rapport devient un document de traçabilité permettant de vérifier chaque transformation effectuée sur le dataset.
 
----
-
-## Étape 19 : Tests de non-régression suite aux modifications du moteur
-
 Suite aux optimisations apportées au `cleaner_engine` (notamment sur la gestion des types et des outliers) et au `cleaner_reporter`, il était impératif de valider que ces changements n'ont pas introduit de régressions dans les modules existants.
 
-### 1. Objectif de la phase de test
+### 5. Objectif de la phase de test
 L'objectif était de s'assurer que les modifications structurelles (passage de `nb_doublons` à `duplicates_count`, refonte des types Pandas) n'aient pas cassé les assertions des tests unitaires déjà en place et que le pipeline d'intégration reste fonctionnel.
 
-### 2. Problématiques rencontrées et résolutions techniques
+### 6. Problématiques rencontrées et résolutions techniques
 
 Le passage des tests a mis en lumière trois points de friction liés aux évolutions du code :
 
@@ -677,16 +568,16 @@ Le passage des tests a mis en lumière trois points de friction liés aux évolu
   La refonte modulaire a entraîné des échecs d'importation dans `test_cleaner_engine.py` (notamment sur la fonction `clean_outliers` qui avait été renommée en `clip_outliers`).
   * **Résolution** : Réalignement des imports dans les fichiers de tests.
 
-### 3. Résultat final
+### 7. Résultat final
 Après correction des tests pour les mettre en adéquation avec la nouvelle structure du code, la suite de tests `pytest` est passée avec un score de succès total sur l'ensemble des modules (`DataProfiler`, `CleanerEngine`, `CleanerReporter`). Le pipeline est désormais stabilisé et prêt pour l'utilisation.
 
 ---
 
-## Étape 20 : Profilage Multidimensionnel : De l'Analyse de Colonnes à l'Audit de Structure
+## Étape 14 : Profilage multidimensionnel : de l'analyse de colonnes à l'audit de structure
 
 Dans cette phase d'évolution majeure, nous avons transcendé le rôle du `DataProfiler` (simple lecteur de structure) pour en faire un véritable outil d'audit de qualité de données complet, capable d'inspecter la santé des colonnes **et** la complétude des lignes.
 
-### 1. Analyse de la Qualité Structurelle des Lignes (Row Integrity)
+### 1. Analyse de la qualité structurelle des lignes (row integrity)
 Le module a acquis une nouvelle dimension : l'inspection de la densité informationnelle par enregistrement.
 * **Détection de la vacuité** : Calcul automatique du pourcentage de valeurs manquantes par ligne.
 * **Classification par criticité** : 
@@ -696,32 +587,32 @@ Le module a acquis une nouvelle dimension : l'inspection de la densité informat
     * Pour éviter l'infobésité, le module regroupe les alertes par **pourcentage exact de valeurs manquantes**, permettant de voir les motifs de structure récurrents.
     * Implémentation d'une **sécurité d'affichage** : limitation à 10 index maximum par groupe pour garantir la lisibilité du rapport Markdown, tout en indiquant le nombre total de lignes impactées.
 
-### 2. Analyse Approfondie des Colonnes (Column Intelligence)
+### 2. Analyse approfondie des colonnes (column intelligence)
 Le moteur continue d'affiner l'audit des données textuelles et numériques selon quatre piliers :
 * **Cardinalité Avancée** : Calcul de la cardinalité absolue et relative (ratio par rapport au volume total).
 * **Indicateur de Remplissage (Sparsity Ratio)** : Intégration du taux de remplissage spécifique aux colonnes catégorielles.
 * **Analyse de la Variance (Skewness de Fréquence)** : Implémentation d'un indicateur de dominance. Si une catégorie représente plus de 90% des données, le module génère une alerte visuelle (⚠️) signalant une faible variance.
 * **Audit de Conformité Syntaxique** : Détection automatique des anomalies de formatage (espaces traînants, hétérogénéité de casse).
 
-### 3. Standardisation Terminologique et Présentation
+### 3. Standardisation terminologique et présentation
 * **Approche Bilingue Professionnelle** : Pour répondre aux standards internationaux, nous avons adopté une nomenclature **"Terme Anglais | Traduction Française"** (*ex: "Sparsity Ratio | Taux de remplissage"*).
 * **Stratégie d'Affichage Dynamique** : Pour les colonnes à forte cardinalité, le module se concentre sur le **Top 5 des catégories** les plus représentatives avec leur poids relatif (%), évitant ainsi de surcharger le rapport.
 
-### 4. Impact sur la Fiabilité du Pipeline
+### 4. Impact sur la fiabilité du pipeline
 Le `DataProfiler` ne se contente plus de décrire ce qui est là ; il prévient l'analyste des risques structurels avant même que le moteur de nettoyage (`cleaner_engine`) ne soit lancé. C'est le passage d'un mode **"Nettoyage aveugle"** à un mode **"Audit & Action"**.
 
 ---
 
-## Étape 21 : Évolution vers l'Exploration Multimodale : Rapport HTML Autonome & Visual Analytics
+## Étape 15 : Évolution vers l'exploration multimodale : rapport HTML autonome & visual analytics
 
 Dans cette phase d'évolution majeure, le projet a franchi un nouveau palier en passant d'un pipeline purement textuel à une interface de pilotage interactive et visuelle. L'objectif était de doter l'utilisateur final d'un outil capable de présenter des analyses riches sans aucune contrainte de dépendance de fichiers.
 
-### 1. Introduction de l'Interactivité (Human-in-the-loop)
+### 1. Introduction de l'interactivité (human-in-the-loop)
 Le pipeline n'est plus une séquence figée. Nous avons introduit une couche d'interaction au point d'entrée (`main.py`) permettant un choix stratégique lors de l'exécution :
 * **Mode Standard (Markdown)** : Pour une documentation technique rapide, légère et optimisée pour le versioning (Git/GitHub).
 * **Mode Exploratoire (HTML)** : Pour une analyse riche, visuelle, destinée à être partagée avec des parties prenantes non-techniques.
 
-### 2. Innovation Technique : Le Rapport HTML "Self-Contained"
+### 2. Innovation technique : le rapport HTML "self-contained"
 Le plus grand défi technique de cette étape était la génération d'un rapport HTML qui soit **totalement autonome**. 
 
 **La problématique initiale** : Traditionnellement, un rapport HTML pointe vers des images stockées dans un dossier `/graphs`. Cela crée une dépendance : si l'on déplace le fichier `.html` sans son dossier d'images, le rapport devient "aveugle".
@@ -732,13 +623,13 @@ Pour garantir que le rapport soit portable et s'affiche parfaitement partout (e-
 * **Encodage Base64** : Chaque image est convertie en une chaîne de caractères textuelle (Base64) injectée directement dans la balise `<img src="data:image/png;base64,...">` du code HTML.
 * **Résultat** : Le fichier `.html` final contient l'intégralité des données et des visuels. Il suffit d'un seul fichier pour transporter toute l'analyse.
 
-### 3. Diversification de l'Analyse Visuelle
+### 3. Diversification de l'analyse visuelle
 L'intégration réussie des graphiques permet désormais une exploration multidimensionnelle :
 * **Distribution Numérique** : Utilisation de `Histplots` (avec KDE) pour visualiser la densité et les modes de distribution.
 * **Détection visuelle des Outliers** : Utilisation de `Boxplots` pour corroborer les calculs statistiques de l'algorithme IQR par une preuve visuelle immédiat.
 * **Analyse de Fréquence** : `Barplots` sur les colonnes catégorielles pour identifier instantanément les catégories dominantes et la structure du dataset.
 
-### 4. Défis d'Ingénierie rencontrés
+### 4. Défis d'ingénierie rencontrés
 * **Gestion de la charge mémoire** : L'encodage d'images dans le texte augmente la taille du fichier HTML. Nous avons dû optimener la résolution des graphiques pour maintenir un équilibre entre clarté visuelle et légèreté du document.
 * **Robustesse du pipeline de rendu** : Mise en place de blocs `try/except` autour de chaque génération de graphique pour garantir que, même si une colonne pose problème (ex: trop de données), le reste du rapport HTML est généré sans interruption.
 
@@ -747,11 +638,11 @@ Le projet quitte définitivement le stade de "script de nettoyage" pour devenir 
 
 ---
 
-## Étape 22 : Vers un Nettoyage Piloté par l'Expert (Human-in-the-loop)
+## Étape 16 : Vers un nettoyage piloté par l'expert (human-in-the-loop)
 
 Dans cette phase, le projet a connu une mutation philosophique majeure. Nous sommes passés d'un automate de nettoyage "boîte noire" à un **assistant décisionnel interactif**. L'objectif n'est plus que la machine décide seule, mais qu'elle fournisse l'intelligence nécessaire pour que l'analyste valide ou rejette chaque transformation critique.
 
-### 1. Le passage du mode "Batch" au mode "Piloté"
+### 1. Le passage du mode "batch" au mode "piloté"
 Jusqu'alors, le pipeline exécutait une séquence de tâches prédéfinies sans solliciter l'utilisateur. Si une erreur de logique survenait (ex: suppression trop agressive d'outliers), elle était définitive dans le fichier de sortie.
 
 Nous avons introduit une couche d'**interactivité décisionnelle** à deux points stratégiques du pipeline :
@@ -763,7 +654,7 @@ L'interaction n'est pas une simple boîte de dialogue ; elle est **contextualis�
 * **Aide à la décision (Decision Support)** : Au lieu d'un message générique, le script présente des faits précis (ex: *"150 valeurs manquantes détectées dans la colonne 'Prix'"*). Cela transforme l'utilisateur de simple spectateur en décideur éclairé.
 * **Gestion des options par défaut** : Pour préserver la fluidité du workflow, nous avons implémenté des réponses par défaut (ex: `[y/n, entrée par défaut 'y']`). Cela permet une exécution rapide pour les cas standards, tout en offrant un contrôle total pour les cas complexes.
 
-### 3. Transformation de la responsabilité : De la Machine à l'Analyste
+### 3. Transformation de la responsabilité : de la machine à l'analyste
 Cette évolution change radicalement la nature du projet :
 * **Ancien paradigcu** : Le script est un agent autonome qui "fait le travail". Risque de perte de traçabilité métier.
 * **Nouveau paradigme** : Le script est un **outil d'aide à la décision (Decision Support System)**. L'analyste reste le maître d'œuvre, tandis que le code s'occupe de l'exécution technique et de la surveillance des anomalies.
@@ -775,11 +666,11 @@ L'introduction de ces validations manuelles a renforcé la **résilience** du pr
 
 ---
 
-## Étape 23 : Uniformisation de la Casse et Standardisation Textuelle
+## Étape 17 : Uniformisation de la casse et standardisation textuelle
 
 Dans cette phase, nous avons intégré une nouvelle brique de nettoyage stratégique pour traiter l'une des sources de bruit les plus insidieuses dans les données catégorielles : l'incohérence de casse (ex: "Paris", "PARIS", "paris").
 
-### 1. Le défi : La fragmentation des catégories
+### 1. Le défi : la fragmentation des catégories
 Dans les jeux de données réels, les colonnes textuelles souffrent souvent d'une standardisation défaillante. Pour un analyste, cela crée deux problèmes maj :
 * **Explosion de la cardinalité** : Une même catégorie est comptée comme plusieurs entités distinctes, faussant les analyses de fréquence (Top-N).
 * **Échec des jointures et filtres** : Les recherches ou les regroupements échouent si la casse n'est pas rigoureusement identique.
@@ -803,31 +694,31 @@ Cette améliation transforme radicalement la fiabilité de l'analyse :
 
 ---
 
-## Étape 24 : Résolution de la Fragilité du Reporting et Sécurisation des Types (Bug Fix & Robustness)
+## Étape 18 : Résolution de la fragilité du reporting et sécurisation des types (bug fix & robustness)
 
 Cette étape a marqué un tournant critique dans le projet : le passage d'un système qui "fonctionne sous conditions" à un système capable de gérer l'incertitude et les choix de l'utilisateur sans interruption brutale.
 
-### 1. Analyse de la régression : Le paradoxe du "Type Error"
+### 1. Analyse de la régression : le paradoxe du "type error"
 Lors de l'introduction de l'interactivité (permettant à l'utilisateur d'ignorer certains nettoyages), une erreur fatale est apparue dans le pipeline : `unsupported operand type(s) for +: 'int' and 'str'`.
 
 * **L'origine du problème** : Dans la phase de décision, si l'utilisateur choisissait de ne pas traiter les valeurs aberrantes (outliers), le moteur stockait une chaîne descriptive (`'Corrections ignorées...'`) dans un dictionnaire censé contenir des entiers.
 * **La rupture de contrat** : Le module `CleanLogger`, qui générait le résumé textuel, tentait d'agréger (sommer) toutes les valeurs du dictionnaire pour afficher un total. L'addition d'un entier (le nombre d'outliers trouvés) et d'une chaîne de caractères (le message d'annulation) provoquait l'arrêt immédiat du programme.
 
-### 2. Stratégie de résolution : Standardisation et Programmation Défensive
+### 2. Stratégie de résolution : standardisation et programmation défensive
 Pour résoudre ce problème, nous n'avons pas seulement corrigé un bug, nous avons refondu la logique de communication entre le moteur (`Engine`) et les rapports (`Logger/Reporter`).
 
-#### A. Refonte du protocole de stockage (Contract-Based Programming)
+#### A. Refonte du protocole de stockage (contract-based programming)
 Nous avons abandonné l'utilisation de messages textuels au sein des structures numériques. Désormais, le moteur utilise un format structuré et prévisible :
 * **Pour les cas nominaux** : `{'colonne_A': 10, 'colonne_B': 5}` (uniquement des entiers).
 * **Pour les cas d'annulation** : `{'ignored': True}`.
 Cette approche garantit que la structure de donnée est toujours prévisible pour les modules suivants.
 
-#### B. Implémentation de l'Audit Sécurisé dans le Logger
+#### B. Implémentation de l'audit sécurisé dans le logger
 Le `CleanLogger` a été doté d'une logique de "vérification de type" (Type Checking) avant toute opération arithmétique :
 * **Analyse du contenu** : Avant de sommer, le logger vérifie si la clé `'ignored'` est présente ou si les valeurs sont numériques.
 * **Fallback robuste** : En cas de structure inattendue, le système utilise un bloc `try/except` pour afficher `"Données non valides"` au lieu de planter, garantant ainsi que le pipeline termine toujours son exécution et sauvegarde les données.
 
-#### C. Uniformisation du Reporting (Markdown & Terminal)
+#### C. Uniformisation du reporting (Markdown & terminal)
 Nous avons synchronisé les deux modes de rapportage :
 * **Rapport Terminal (Textuel)** : Affiche désormais clairement *"Traitement ignoré par l'utilisateur"* au lieu d'un nombre erroné ou d'une erreur système.
 * **Rapport Markdown (Audit)** : Le tableau détaillé est capable de switcher entre un mode "comptable" (affichage des quantités) et un mode "informatif" (affichage du motif d'annulation), assurant une traçabilité sans faille pour l'auditeur.
@@ -840,7 +731,7 @@ Cette étape a apporté trois bénéfices majeurs :
 
 ---
 
-## Étape 25 : Extension de l'Intelligence de Lecture : Support Multi-Format & Détection de Structure (JSON/JSONL)
+## Étape 19 : Extension de l'intelligence de lecture : support multi-format & détection de structure (JSON/JSONL)
 
 Dans cette phase d'évolution, le pipeline a franchi une étape majeure en brisant la barrière du format CSV. L'objectif était d'augmenter la polyvalence du `file_loader` pour qu'il puisse absorber des flux de données modernes (APIs, logs, NoSQL) sans intervention humaine.
 
@@ -849,7 +740,7 @@ Jusqu'alors, le pipeline était optimisé pour les structures tabulaires classiq
 * **Complexité structurelle** : Un JSON n'est pas qu'une simple liste ; il peut être un d'objet complexe où les données utiles sont cachées sous une clé spécifique (ex: `{"metadata": ..., "data": [...]}`).
 * **Détection aveugle** : Comment savoir si un fichier sans extension est un CSV mal formaté ou un flux JSONL sans changer la logique de l'utilisateur ?
 
-### 2. Implémentation de l'Intelligence de Chargement
+### 2. Implémentation de l'intelligence de chargement
 Nous avons transformé le `file_loader` en un moteur de détection multi-couches :
 
 * **L'architecture de secours (Fallback Strategy) avec analyse de signature** : 
@@ -860,7 +751,7 @@ Nous avons transformé le `file_loader` en un moteur de détection multi-couches
 * **Le module `_load_jsonl` (Stream Processing)** : 
     Implémentation d'un lecteur de lignes robuste capable de traiter des fichiers massifs (JSON Lines) en ignorant les lignes vides ou corrompues, garantant que le pipeline ne s'arrête pas à la première erreur de syntaxe rencontrée dans un flux de logs.
 
-### 3. Résilience et Robustesse (Error Containment)
+### 3. Résilience et robustesse (error containment)
 L'intégration de nouveaux formats a nécessité un renforcement des mécanismes de protection :
 * **Validation de type** : Utilisation de `isinstance(data, list)` et `isinstance(data, dict)` pour éviter les crashs lors de la transformation en DataFrame.
 * **Isolation des erreurs** : Le processus de détection automatique est encapsulé dans des blocs `try/except` pour s'assurer que si la détection échoue, le système retourne une erreur métier explicite (ValueError) plutôt qu'une exception Python obscure.
@@ -870,16 +761,16 @@ Le pipeline est passé d'un outil de **nettoyage de fichiers** à un outil de **
 
 ---
 
-## Étape 26 : Optimisation de l'Efficacité par le Nettoyage Ciblé et l'Intelligence Contextuelle
+## Étape 20 : Optimisation de l'efficacité par le nettoyage ciblé et l'intelligence contextuelle
 
 Dans cette phase, le pipeline a évolué d'un mode de traitement "aveugle" vers un mode de traitement "piloté par la donnée". L'objectif était de réduire la charge computationnelle et de limiter les risques de transformations inutiles en utilisant les connaissances du module de profilage.
 
-### 1. Le Problème : Le coût du traitement global
+### 1. Le problème : le coût du traitement global
 Jusqu'alors, le moteur de nettoyage (`clean_case_sensitivity`) analysait systématiquement toutes les colonnes de type `object` ou `string` du DataFrame. Sur des datasets massifs (millions de lignes) comportant des centaines de colonnes, ce scan global présente deux inconvénients :
 * **Surcoût computationnel** : Tester chaque colonne pour détecter des variations de casse consomme des ressources CPU et de la mémoire inutilement si la colonne est déjà propre.
 * **Risque de régression** : Appliquer des transformations textuelles sur des colonnes qui ne nécessitent aucun traitement augmente la surface d'erreur (ex: altération accidentelle de chaînes complexes).
 
-### 2. La Solution : L'utilisation du Profilage comme Guide de Nettoyage
+### 2. La solution : l'utilisation du profilage comme guide de nettoyage
 Nous avons implémenté un mécanisme de **filtrage intelligent** en utilisant les résultats du `DataProfiler` comme une "carte routière" pour le `cleaner_engine`.
 
 * **Identification des cibles (Targeting)** : 
@@ -899,11 +790,11 @@ Le pipeline est devenu **"context-aware"** (conscient de son contexte). Il ne se
 
 ---
 
-## Étape 27 : Refactoring de l'Orchestrateur : Vers une Modularité Totale et une Haute Maintenabilité
+## Étape 21 : Refactoring de l'orchestrateur : vers une modularité totale et une haute maintenabilité
 
 Dans cette phase, l'objectif était de transformer le point d'entrée du projet pour atteindre un niveau de maturité logicielle professionnelle, en appliquant les principes de séparation des responsabilités.
 
-### 1. Le passage du "Script" au "Pipeline Orchestré"
+### 1. Le passage du "script" au "pipeline orchestré"
 Jusqu'ici, la fonction `main()` portait une trop grande partie de la logique de décision et de configuration. Bien que fonctionnelle, cette approche présentait des risques de rigidité. Nous avons procédé à un refactoring majeur pour transformer `main.py` en un véritable **orchestrateur de flux**.
 
 * **Extraction de la logique de décision** : La logique complexe de collecte des préférences utilisateur (Outliers / Missing values) a été extraite de `main.py` pour être encapsulée dans `src/cleaner_engine.py`.
@@ -922,18 +813,18 @@ L'architecture est désormais capable d'absorber de nouvelles étapes (comme une
 
 ---
 
-## Étape 28 : Évolution vers l'Analyse Comparative : Programmation Orientée Objet (POO) et Profilage Dual
+## Étape 22 : Évolution vers l'analyse comparative : programmation orientée objet (POO) et profilage dual
 
 Dans cette phase, le projet a franchi un nouveau palier de maturité architecturale en passant d'un outil de profilage générique à un système de **double audit contextuel**. L'enjeu était de distinguer l'analyse de l'état "brut" (erreurs, bruit, anomalies) de l'analyse de l'état "nettoyé" (performance, complétude, intégrité).
 
-### 1. Le défi : Un besoin de dualité analytique
+### 1. Le défi : un besoin de dualité analytique
 Le pipeline manquait d'une distinction sémantique entre les deux phases critiques du workflow :
 * **Phase Pre-Cleaning** : L'objectif est de détecter les anomalies (casse, outliers, doublons) pour guider le nettoyage.
 * **Phase Post-Cleaning** : L'objectif est de valider la réussite des transformations et de vérifier la stabilité de la structure (absence de nouveaux biais).
 
 Utiliser une seule et même classe pour ces deux missions risquait de créer un outil trop monolithique et difficile à spécialiser.
 
-### 2. Implémentation : L'héritage et la spécialisation (POO)
+### 2. Implémentation : l'héritage et la spécialisation (POO)
 Pour répondre à ce besoin, nous avons refondu le module `data_profiler.py` en utilisant les principes de la **Programmation Orientée Objet (POO)**, plus précisément l'**héritage de classes**.
 
 * **La Classe Mère (`DataProfiler`)** : Elle conserve toute l'intelligence fondamentale (calcul des statistiques, génération des graphiques, moteur de reporting HTML/Markdown). Elle est le socle de robustesse.
@@ -943,7 +834,7 @@ Pour répondre à ce besoin, nous avons refondu le module `data_profiler.py` en 
     * **PreCleaningProfiler** : Conçue pour l'audit de détection (focus sur les alertes de qualité).
     * **ExploratoryProfiler** : Conçue pour l'audit de validation (focus sur la distribution et la structure finale).
 
-### 3. Intégration réussie dans le Pipeline
+### 3. Intégration réussie dans le pipeline
 L'implémentation dans `main.py` a transformé le workflow en un véritable processus de **comparaison avant/après** :
 1. **Instanciation du `PreCleaningProfiler`** sur le DataFrame brut $\rightarrow$ Génération du rapport de diagnostic.
 2. **Exécution du `cleaner_engine`** $\rightarrow$ Transformation des données.
@@ -951,7 +842,7 @@ L'implémentation dans `main.py` a transformé le workflow en un véritable proc
 
 Cette structure permet désormais au Data Analyst de visualiser non seulement les transformations, mais aussi la **réduction de l'entropie** (le passage du désordre à l'ordre) au sein du dataset.
 
-### 4. Perspectives et Prochaines Étapes
+### 4. Perspectives et prochaines étapes
 Bien que l'architecture soit désormais robuste et capable de gérer deux phases distinctes, le travail de personnalisation reste ouvert :
 * **Personnalisation des alertes** : Adapter les seuils de criticité spécifiquement pour la phase de pré-nettoyage.
 * **Enrichissement du mode exploratoire** : Ajouter des tests de corrélation ou de stabilité statistique uniquement dans la phase post-nettoyage.
@@ -959,18 +850,18 @@ Bien que l'architecture soit désormais robuste et capable de gérer deux phases
 
 ---
 
-## Étape 29 : Expansion de l'Analyse Multivariée et Optimisation du Dashboarding HTML
+## Étape 23 : Expansion de l'analyse multivariée et optimisation du dashboarding HTML
 
 Dans cette phase majeure, le projet a franchi un nouveau cap : le passage d'un simple outil d'inspection de colonnes à un véritable système d'**analyse exploratoire multidimensionnelle**. L'objectif était d'ajouter de la profondeur statistique tout en optimisant la lisibilité du rapport final.
 
-### 1. Expansion du module `ExploratoryProfiler` : L'analyse de corrélation
+### 1. Expansion du module `ExploratoryProfiler` : l'analyse de corrélation
 L'innovation majeure de cette étape a été l'introduction de visualisations permettant d'étudier les interactions entre les variables numériques, et non plus seulement leurs propriétés isolées.
 
 * **Matrice de Dispersion (Scatter Plot Matrix)** : Implémentation d'une matrice permettant de visualiser simultanément les relations binaires entre toutes les colonues numériques. Cela permet de détecter instantanément des clusters ou des tendances (linéaires/non-linéaires).
 * **Heatmap de Corrélation** : Intégration d'une carte thermique basée sur le coefficient de corrélation. L'utilisation de la palette `coolwarm` permet une lecture intuitive : le rouge pour les corrélations positives fortes, le bleu pour les corrélations négatives, et le blanc pour l'absence de lien.
 * **Valeur ajoutée métier** : Cette brique permet de repérer les redondances de données (colonnes fortement corrélées) et de comprendre les dépendances entre les indicateurs (ex: lien entre prix et volume).
 
-### 2. Refonte de l'Architecture Visuelle : Vers un "Dashboard" de Pilotage
+### 2. Refonte de l'architecture visuelle : vers un "dashboard" de pilotage
 L'ajout de nouveaux graphiques risquait de créer un rapport trop long et illisible. Nous avons donc entrepris une refonte complète de la couche de présentation HTML pour transformer le rapport en un véritable **Dashboard décisionnel**.
 
 * **Optimisation du Layout (Display Flex)** : Abandon du mode "liste verticale" au profit d'un système de conteneurs flexibles. Nous avons regroupé l'Histogramme, le Boxplot et les statistiques dans une **ligne horizontale unique** par variable.
@@ -987,7 +878,7 @@ L'ajout de nouveaux graphiques risquait de créer un rapport trop long et illisi
 
 ---
 
-## Étape 30 : Assainissement du Socle : Remise au Vert de la Suite de Tests et Correction de Bugs Silencieux
+## Étape 24 : Assainissement du socle : remise au vert de la suite de tests et correction de bugs silencieux
 
 Avant d'engager le chantier de l'interface web, une vérification de routine a révélé que la suite de tests comptait **17 échecs préexistants**. Ce constat, inconfortable, était en réalité une chance : un harnais de tests rouge ne peut détecter aucune régression. Impossible de refondre les modules en confiance sans d'abord rétablir ce filet de sécurité.
 
@@ -1001,7 +892,7 @@ L'analyse des 17 échecs a fait apparaître une distinction essentielle, qu'il a
 Deux défauts sérieux se cachaient derrière ces échecs, dont un bloquant :
 
 * **`clip_outliers` cassait le pipeline de bout en bout** : écrêter une colonne entière (type `Int64` nullable) avec une borne IQR flottante lève une exception dans pandas, qui refuse d'insérer une valeur non entière dans un `IntegerArray`. Le paradoxe est cruel : c'est `fix_numeric_types` qui produit ces `Int64`, si bien que le moteur se sabotait lui-même dès qu'une colonne entière contenait une valeur aberrante. La correction resserre les bornes vers l'intérieur de la clôture IQR (`ceil` pour la borne basse, `floor` pour la haute), ce qui préserve l'intégrité du type entier.
-* **La détection de dates était du code mort** : le garde-fou de performance `_can_be_numeric`, introduit pour éviter d'analyser inutilement les colonnes textuelles, exécutait un `continue` sur toute colonne non numérique. Or une date (`"01/01/2023"`) n'est pas numérique. Le bloc de conversion en `datetime`, situé 90 lignes plus bas, n'était donc **jamais atteint** — une fonctionnalité documentée dans le README mais inopérante depuis l'optimisation de l'Étape 26.
+* **La détection de dates était du code mort** : le garde-fou de performance `_can_be_numeric`, introduit pour éviter d'analyser inutilement les colonnes textuelles, exécutait un `continue` sur toute colonne non numérique. Or une date (`"01/01/2023"`) n'est pas numérique. Le bloc de conversion en `datetime`, situé 90 lignes plus bas, n'était donc **jamais atteint** — une fonctionnalité documentée dans le README mais inopérante depuis l'optimisation de l'Étape 20.
 
 ### 3. La refonte de `clean_types` et l'enrichissement de la détection de dates
 La correction a été l'occasion de restructurer la fonction selon le principe de responsabilité unique. La boucle monolithique a été scindée en deux fonctions dédiées :
@@ -1021,7 +912,7 @@ Cette approche répond à un point inscrit à la roadmap (« être plus explicit
 
 ---
 
-## Étape 31 : Industrialisation de la Couche Graphique : Sortie de PyPlot et Figures Réutilisables
+## Étape 25 : Industrialisation de la couche graphique : sortie de PyPlot et figures réutilisables
 
 Cette étape prépare l'interface web en réglant un obstacle structurel : dans l'architecture précédente, **les graphiques n'existaient nulle part en tant qu'objets**. Ils étaient créés, encodés en base64 et détruits à l'intérieur même de la fonction de génération HTML. Impossible d'en afficher un ailleurs que dans un rapport téléchargeable.
 
@@ -1067,7 +958,7 @@ La couche graphique est devenue un **service réutilisable** plutôt qu'un effet
 
 ---
 
-## Étape 32 : Découplage Interface / Logique Métier : Vers une Architecture Bi-Façade
+## Étape 26 : Découplage interface / logique métier : vers une architecture bi-façade
 
 Cette étape est le pivot du chantier. Jusqu'ici, les modules de `src/` **posaient** des questions ; désormais ils **reçoivent** des réponses. Ce renversement est ce qui rend possible une interface web sans dupliquer une ligne de logique métier.
 
@@ -1101,7 +992,7 @@ Le paramétrage a servi de révélateur. Cinq anomalies ont été corrigées, do
 **a) Le bug de l'écrêtage fantôme, enfin élucidé.**
 `get_user_decisions` transmettait `profiler_results['outliers']` — le sous-dictionnaire — à une fonction qui cherchait la clé `'outliers'` *dans* ce qu'elle recevait. La recherche échouait toujours, d'un niveau de profondeur. Conséquence : la fonction concluait « aucune valeur aberrante détectée » et retournait `False` **sans jamais poser la question**. L'écrêtage était silencieusement désactivé dès qu'un profilage existait.
 
-L'illusion était parfaite : la question suivante (valeurs manquantes), elle, fonctionnait. Une réponse `y` donnée pour les outliers était en réalité consommée par cette question suivante, donnant l'impression que tout fonctionnait. Le défaut remontait à bien avant le refactor de l'Étape 27 — il vivait alors dans `main.py` et y avait été déplacé tel quel.
+L'illusion était parfaite : la question suivante (valeurs manquantes), elle, fonctionnait. Une réponse `y` donnée pour les outliers était en réalité consommée par cette question suivante, donnant l'impression que tout fonctionnait. Le défaut remontait à bien avant le refactor de l'Étape 21 — il vivait alors dans `main.py` et y avait été déplacé tel quel.
 
 **b) Un constat de conception plus profond : l'ordre du pipeline.**
 Le correctif précédent en a révélé un second, structurel. Le profilage a lieu **avant** la correction des types. Or une colonne de montants au format `"1 200,50 €"` est encore du **texte** à ce stade : `select_dtypes(number)` ne la voit pas, et le profileur n'y détecte donc **aucun outlier** — alors que la même colonne, une fois convertie, en révèle plusieurs.
@@ -1157,7 +1048,7 @@ Cette dernière ligne mérite d'être soulignée : sur le jeu de référence, l'
 
 ---
 
-## Étape 33 : Naissance de l'Interface Web : de l'Outil de Terminal à l'Application
+## Étape 27 : Naissance de l'interface web : de l'outil de terminal à l'application
 
 Les trois étapes précédentes avaient préparé le terrain. Celle-ci construit l'application elle-même — et le résultat mérite d'être souligné : `app.py` ne contient **pas une seule ligne de logique de nettoyage**. Il dépose des widgets, transmet leur valeur, affiche ce qui revient.
 
@@ -1227,7 +1118,7 @@ Les quatre formats annoncés (CSV, Excel, JSON, JSON Lines) sont éprouvés via 
 ### 8. Validation de la tenue en charge
 L'application a été soumise à **30 cycles complets** consécutifs, mesure mémoire à l'appui. Résultats :
 
-* **aucune figure résiduelle** dans le registre de matplotlib — la garantie de l'Étape 31 tient en conditions réelles ;
+* **aucune figure résiduelle** dans le registre de matplotlib — la garantie de l'Étape 25 tient en conditions réelles ;
 * **118 Ko de croissance imputables au projet** sur 15 cycles, soit environ 8 Ko par cycle : négligeable ;
 * les 15,5 Mo restants proviennent du cache de polices de matplotlib, cache global et borné par le nombre de polices distinctes, non d'une fuite par requête.
 
@@ -1238,7 +1129,7 @@ Le serveur a par ailleurs été lancé pour de vrai et répond correctement sur 
 
 ---
 
-## Étape 34 : Conformité, Documentation et Passage en Version 1.0
+## Étape 28 : Conformité, documentation et passage en version 1.0
 
 Dernière étape du chantier. Elle ne touche presque pas au code : elle rend le projet **utilisable par quelqu'un d'autre**, et assume les obligations qui naissent dès lors qu'une application accepte des fichiers.
 
@@ -1292,7 +1183,7 @@ Trois points inscrits à la feuille de route sont livrés :
 * *améliorer la détection des dates* — six formats explicites, la détection ayant par ailleurs été trouvée inopérante.
 
 Deux points y entrent, issus des constats de ce chantier :
-* **profilage conscient des types** — le profilage précède la correction des types, si bien qu'une colonne de montants en texte n'y révèle aucune valeur aberrante. Un complément d'estimation a été ajouté à l'Étape 32, mais l'ordre du pipeline mériterait d'être repensé. Il vaut mieux consigner une limite connue que la laisser se redécouvrir.
+* **profilage conscient des types** — le profilage précède la correction des types, si bien qu'une colonne de montants en texte n'y révèle aucune valeur aberrante. Un complément d'estimation a été ajouté à l'Étape 26, mais l'ordre du pipeline mériterait d'être repensé. Il vaut mieux consigner une limite connue que la laisser se redécouvrir.
 * **traitement colonne par colonne** dans l'interface web, au lieu de deux décisions globales.
 
 ### 7. Version 1.0.0
@@ -1308,7 +1199,7 @@ Ce qui n'est pas prétendu : l'outil n'est pas déployé publiquement, et la feu
 
 ---
 
-## Étape 35 : L'Invariant du Double Profilage : Tenir la Promesse du Pipeline
+## Étape 29 : L'invariant du double profilage : tenir la promesse du pipeline
 
 Cette étape naît d'une remarque déterminante : **le rapport pré-nettoyage doit contenir des éléments incorrects — c'est tout le but du pipeline — mais le profilage post-nettoyage ne doit plus, en théorie, comporter de colonne mal typée.**
 
@@ -1323,7 +1214,7 @@ La véritable distinction est ailleurs :
 * le profil pré-nettoyage est un **bon rapport** — il décrit fidèlement les données brutes ;
 * il était un **mauvais support de décision** pour la question « voulez-vous écrêter les valeurs aberrantes ? », puisqu'il ne pouvait structurellement pas les voir sur une colonne encore textuelle.
 
-Le complément d'estimation ajouté à l'Étape 32 était donc au bon endroit — dans la fonction de décision, non dans le profileur. Vérification faite, il ne contamine pas le rapport : le profil pré-nettoyage continue d'exposer les types bruts. L'entrée fautive de la feuille de route a été retirée.
+Le complément d'estimation ajouté à l'Étape 26 était donc au bon endroit — dans la fonction de décision, non dans le profileur. Vérification faite, il ne contamine pas le rapport : le profil pré-nettoyage continue d'exposer les types bruts. L'entrée fautive de la feuille de route a été retirée.
 
 ### 2. La vérification de l'invariant : quatre colonnes en défaut
 Restait à éprouver la seconde moitié de l'affirmation. Le profil post-nettoyage du jeu de référence a été inspecté colonne par colonne. **L'invariant était violé** :
@@ -1394,7 +1285,7 @@ Sur les deux jeux de données, la vérification est désormais positive : **zér
 
 L'effet en aval dépasse la simple cosmétique des types. Sur le jeu de référence de 73 810 lignes :
 
-| Indicateur | Avant l'Étape 35 | Après |
+| Indicateur | Avant l'Étape 29 | Après |
 |---|---|---|
 | Colonnes correctement typées | 1 | **5** |
 | Valeurs aberrantes écrêtées | 2 795 | **5 848** |
@@ -1405,7 +1296,7 @@ La progression des valeurs aberrantes n'est pas un effet de bord mais la conséq
 
 ---
 
-## Étape 36 : L'Épreuve de l'Utilisateur : Six Retours, une Perte Silencieuse et une Faille de Sécurité
+## Étape 30 : L'épreuve de l'utilisateur : six retours, une perte silencieuse et une faille de sécurité
 
 Jusqu'ici, l'application avait été testée par ceux qui l'avaient construite. Cette étape commence au moment où elle a été confiée à un utilisateur réel, sur un fichier qu'aucun test n'avait anticipé : un export de prix de carburants, `prix.csv`, 57 073 lignes. Six retours en sont sortis. Chacun a mené plus loin que prévu.
 
@@ -1419,7 +1310,7 @@ Le mécanisme était pernicieux : 97 % de la colonne se convertissant correcteme
 Un second défaut latent de même nature a été trouvé en chemin : le symbole `£` était accepté par la détection mais jamais retiré par la conversion. Toute colonne en livres sterling aurait été intégralement vidée.
 
 ### 2. Le fichier de l'utilisateur : l'an 216
-Sur `prix.csv`, la cause était autre. La colonne `prix_maj` contenait la date `0216-03-02T00:00:00` — l'an 216, coquille évidente pour 2016. Le garde-fou de plausibilité des années, ajouté à l'Étape 35, l'avait écartée.
+Sur `prix.csv`, la cause était autre. La colonne `prix_maj` contenait la date `0216-03-02T00:00:00` — l'an 216, coquille évidente pour 2016. Le garde-fou de plausibilité des années, ajouté à l'Étape 29, l'avait écartée.
 
 Le vidage était le bon comportement : l'outil ne peut pas deviner s'il fallait lire 2016 ou 2216, et inventer une date serait pire. **Le vrai défaut était son silence.**
 
@@ -1432,7 +1323,7 @@ Cette information remonte partout : dans le bilan console, dans le rapport de ne
 
 Un test de propriété générale verrouille la garantie : sur un jeu réunissant toutes les sources de perte connues, **les pertes mesurées et les pertes déclarées doivent coïncider exactement**.
 
-En chemin, une observation que le code ne tranche pas mais que l'utilisateur doit connaître : sur ce fichier, cocher « Combler les valeurs manquantes » remplirait les prix des carburants en `rupture_definitive`. On inventerait un prix médian pour un produit qui n'est plus vendu. Une absence peut avoir un sens — l'Étape 22 l'avait pressenti en écrivant qu'imputer une médiane peut être « sémantiquement faux ». L'aide de cette case le dit désormais explicitement.
+En chemin, une observation que le code ne tranche pas mais que l'utilisateur doit connaître : sur ce fichier, cocher « Combler les valeurs manquantes » remplirait les prix des carburants en `rupture_definitive`. On inventerait un prix médian pour un produit qui n'est plus vendu. Une absence peut avoir un sens — l'Étape 16 l'avait pressenti en écrivant qu'imputer une médiane peut être « sémantiquement faux ». L'aide de cette case le dit désormais explicitement.
 
 ### 4. L'interface réorganisée autour de ses usages
 Quatre retours portaient sur l'ergonomie, et tous pointaient le même travers : l'interface exposait des réglages au lieu de répondre à des besoins.
@@ -1444,7 +1335,7 @@ Quatre retours portaient sur l'ergonomie, et tous pointaient le même travers : 
 
 Le formulaire se réduit ainsi aux **deux seules décisions qui altèrent les valeurs**. Tout le reste est corrigé d'office.
 
-L'onglet « Téléchargements » a disparu au profit d'un principe proposé par l'utilisateur : **chaque rapport se consulte, puis se récupère, là où il s'affiche**. Le profilage avant nettoyage dans son onglet, le fichier nettoyé et son rapport dans le leur. Et un nouvel onglet, **« Après nettoyage »**, calcule d'office le profil de contrôle et vérifie l'invariant de l'Étape 35 — plus aucune colonne mal typée — avec un verdict colonne par colonne. La fonction de vérification, `find_mistyped_columns`, a été remontée dans le moteur : les tests et l'interface contrôlent ainsi exactement la même chose.
+L'onglet « Téléchargements » a disparu au profit d'un principe proposé par l'utilisateur : **chaque rapport se consulte, puis se récupère, là où il s'affiche**. Le profilage avant nettoyage dans son onglet, le fichier nettoyé et son rapport dans le leur. Et un nouvel onglet, **« Après nettoyage »**, calcule d'office le profil de contrôle et vérifie l'invariant de l'Étape 29 — plus aucune colonne mal typée — avec un verdict colonne par colonne. La fonction de vérification, `find_mistyped_columns`, a été remontée dans le moteur : les tests et l'interface contrôlent ainsi exactement la même chose.
 
 Rien n'est calculé tant qu'on ne le demande pas : les boutons de téléchargement reçoivent une fonction, exécutée au clic seulement. Sans cela, Streamlit exécutant tous les onglets à chaque interaction, les rapports HTML et leurs graphiques auraient été recalculés en permanence.
 
@@ -1479,7 +1370,7 @@ La leçon de l'étape tient en une phrase : **un utilisateur réel, sur un fichi
 
 ---
 
-## Étape 37 : Le Retour de l'Onglet Téléchargements et la Question de la Nouvelle Fenêtre
+## Étape 31 : Le retour de l'onglet téléchargements et la question de la nouvelle fenêtre
 
 Une étape courte, mais qui illustre deux réflexes utiles : savoir revenir sur une décision quand l'usage la contredit, et vérifier ce qu'une technologie permet réellement avant de promettre une fonctionnalité.
 
@@ -1499,7 +1390,7 @@ La réponse honnête est : **pas de façon sûre**. Les trois pistes classiques 
 | Le service de fichiers statiques de Streamlit | Il faudrait écrire le rapport sur le serveur, dans un dossier **public** : quiconque devinerait l'adresse lirait le rapport d'un autre utilisateur |
 | Du JavaScript ouvrant une fenêtre | Fragile, souvent bloqué par les navigateurs, et suppose d'exécuter du script dans l'application |
 
-La deuxième piste mérite d'être soulignée, parce qu'elle est la plus tentante — une option de configuration à activer, et le tour est joué. Elle aurait pourtant détruit la garantie de confidentialité construite aux étapes 33 et 34 : aucune donnée n'est jamais écrite sur le serveur.
+La deuxième piste mérite d'être soulignée, parce qu'elle est la plus tentante — une option de configuration à activer, et le tour est joué. Elle aurait pourtant détruit la garantie de confidentialité construite aux étapes 27 et 28 : aucune donnée n'est jamais écrite sur le serveur.
 
 L'équivalent sûr retenu est une **fenêtre modale large** (`st.dialog`, jusqu'à 1 280 pixels), qui s'ouvre par-dessus l'application via un bouton « Ouvrir en grand ». Elle bénéficie de toutes les protections du rapport HTML mises en place à l'étape précédente : échappement des données et politique de sécurité interdisant les scripts. Pour un véritable onglet du navigateur, le rapport téléchargé reste autonome et s'ouvre directement. Le README documente ce choix et ses raisons, pour que la question n'ait pas à être redécouverte.
 
@@ -1508,7 +1399,7 @@ L'équivalent sûr retenu est une **fenêtre modale large** (`st.dialog`, jusqu'
 
 ---
 
-## Étape 38 : Horodatage des Fichiers, Présentation Permanente et Source Unique
+## Étape 32 : Horodatage des fichiers, présentation permanente et source unique
 
 Trois changements de nature différente, réunis par un même souci : que l'utilisateur ne perde rien — ni un essai écrasé par le suivant, ni la présentation du projet au premier fichier déposé, ni l'historique du projet dispersé entre deux documents.
 
@@ -1539,16 +1430,16 @@ Dans l'interface web, la logique est la même, à deux niveaux : une marque pos�
 Le format vivant désormais à quatre endroits (deux modules de `src/`, la ligne de commande, l'interface web), il a été centralisé dans un petit module, `src/horodatage.py`. Il était jusqu'ici recopié à deux endroits : la garantie, à terme, qu'une des copies diverge.
 
 ### 3. La présentation ne disparaît plus
-L'Étape 36 avait donné à l'application une page d'accueil racontant le projet. Elle avait un défaut : elle s'effaçait dès le premier fichier déposé. La présentation occupe désormais le **premier onglet**, « 🏠 Présentation », et reste consultable pendant tout le parcours. Seul le bouton « Essayer avec un exemple » en est retiré une fois un fichier chargé — il remplacerait le fichier en cours.
+L'Étape 30 avait donné à l'application une page d'accueil racontant le projet. Elle avait un défaut : elle s'effaçait dès le premier fichier déposé. La présentation occupe désormais le **premier onglet**, « 🏠 Présentation », et reste consultable pendant tout le parcours. Seul le bouton « Essayer avec un exemple » en est retiré une fois un fichier chargé — il remplacerait le fichier en cours.
 
 ### 4. Une seule source : ce journal
-Un `CHANGELOG.md` avait été créé à l'Étape 34, selon une convention répandue : une liste courte, par version, de ce qui a changé. Il faisait largement doublon avec ce journal, qui raconte déjà tout — en plus détaillé, raisonnements et erreurs compris. Le choix a été fait de **n'entretenir qu'une seule source commune**, celle-ci.
+Un `CHANGELOG.md` avait été créé à l'Étape 28, selon une convention répandue : une liste courte, par version, de ce qui a changé. Il faisait largement doublon avec ce journal, qui raconte déjà tout — en plus détaillé, raisonnements et erreurs compris. Le choix a été fait de **n'entretenir qu'une seule source commune**, celle-ci.
 
 La seule information que le CHANGELOG portait en propre était la correspondance entre versions et étapes. Elle a, dans la foulée, été remise en question.
 
-Au fil des étapes 35 à 38, le numéro de version avait été incrémenté quatre fois — 1.0.1, 1.1.0, 1.1.1, 1.2.0 —, chaque fois accompagné d'une étiquette git, et jamais sur décision du porteur du projet. Or celui-ci avait fixé une règle claire dès le départ : **la version 1.0 marque une application déployée et validée**. Aucune de ces versions ne correspondait à un tel jalon : l'application n'avait jamais été mise en ligne.
+Au fil des étapes 29 à 32, le numéro de version avait été incrémenté quatre fois — 1.0.1, 1.1.0, 1.1.1, 1.2.0 —, chaque fois accompagné d'une étiquette git, et jamais sur décision du porteur du projet. Or celui-ci avait fixé une règle claire dès le départ : **la version 1.0 marque une application déployée et validée**. Aucune de ces versions ne correspondait à un tel jalon : l'application n'avait jamais été mise en ligne.
 
-Les numéros intermédiaires ont donc été retirés. Le projet revient en **version 1.0.0**, qui regroupe l'ensemble des étapes 30 à 38. Le numéro de version relève désormais explicitement de la seule décision du porteur du projet : il marque un jalon réel qu'il choisit, pas l'enchaînement des commits.
+Les numéros intermédiaires ont donc été retirés. Le projet revient en **version 1.0.0**, qui regroupe l'ensemble des étapes 24 à 32. Le numéro de version relève désormais explicitement de la seule décision du porteur du projet : il marque un jalon réel qu'il choisit, pas l'enchaînement des commits.
 
 L'étiquette git `v1.0.0` a elle aussi été retirée. Elle désignait l'état du code au 27 septembre, antérieur à la correction de la faille de sécurité du rapport HTML : quiconque aurait récupéré « la version 1.0.0 » aurait obtenu un code vulnérable. Elle sera posée le jour où l'application sera déployée et validée, et désignera alors le bon code.
 
@@ -1567,40 +1458,12 @@ La feuille de route est désormais rangée par **état réel** — livré, prêt
 
 ---
 
-## Étape 39 : Le Bouton de Soutien : Choisir un Prestataire, Vérifier Avant de Brancher
-
-Le bouton de soutien était codé depuis l'Étape 33, mais restait invisible faute d'adresse. Cette étape l'active. Elle est courte, mais deux choix y méritent d'être expliqués.
-
-### 1. Choisir un prestataire selon le public, pas selon les frais
-Quatre candidats ont été comparés, dont deux français :
-
-| Prestataire | Origine | Frais | Dons ponctuels | Compte exigé du donateur |
-|---|---|---|---|---|
-| Buy Me a Coffee | États-Unis | 5 % + frais de paiement | oui | non |
-| GitHub Sponsors | États-Unis | 0 % entre particuliers | oui | **oui, un compte GitHub** |
-| Tipeee | France | 8 % minimum | oui | non |
-| Liberapay | France (association) | 0 %, frais de paiement seuls | **non, récurrents uniquement** | non |
-
-Sur le seul critère des frais, GitHub Sponsors et Liberapay l'emportaient. Mais le critère décisif était ailleurs : **le public de l'application**. Elle s'adresse à des personnes qui nettoient des fichiers, pas nécessairement à des développeurs. Leur imposer un compte GitHub, ou un engagement récurrent quand elles veulent simplement dire merci une fois, c'était perdre la plupart des dons avant qu'ils n'aient lieu. **Buy Me a Coffee** a été retenu : pas de compte à créer, un don ponctuel en deux clics. Les 5 % sont le prix de cette simplicité.
-
-### 2. Vérifier la page avant de la brancher
-L'adresse fournie était accompagnée d'un « je pense que c'est mon compte ». Or un lien de paiement erroné n'est pas un bug anodin : **les dons partiraient chez quelqu'un d'autre**. La page a donc été consultée avant d'être branchée : elle existe, elle est active, elle affiche le nom « Johan Mac » et la mention « data analyst student », avec un paiement fonctionnel en euros.
-
-Cette vérification a une limite, énoncée clairement : elle établit que la page existe et correspond au profil attendu, pas qu'elle appartient bien à son porteur. **Seule une connexion au compte le prouve.**
-
-### 3. Transparence et tests
-L'encart de confidentialité mentionne désormais le bouton : il ouvre la page Buy Me a Coffee dans un nouvel onglet, le paiement s'y déroule entièrement, et l'application ne voit passer aucune donnée de paiement — elle ne sait même pas qui a donné.
-
-Trois tests verrouillent le branchement : le bouton apparaît avec l'adresse exacte, le lien est chiffré (`https`), et l'encart de confidentialité nomme bien le prestataire. **338 tests passent.**
-
----
-
-## Étape 40 : Ouvrir le Dialogue : Retours, Soutien, et des Onglets Toujours Visibles
+## Étape 33 : Ouvrir le dialogue : retours, soutien, et des onglets toujours visibles
 
 Cette étape tourne l'application vers ses utilisateurs : leur donner les moyens de signaler un problème, de remercier s'ils le souhaitent, et de ne jamais se perdre dans l'interface.
 
 ### 1. Inviter aux retours, sans exposer les données
-Un bloc « Une remarque, une anomalie ? » figure désormais sur la page de présentation et au bas de l'onglet Téléchargements. Il précise que toute remarque constructive ou anomalie détectée est la bienvenue — et ce n'est pas une formule : plusieurs corrections majeures du projet, à l'Étape 36, sont nées d'un seul test sur un fichier réel.
+Un bloc « Une remarque, une anomalie ? » figure désormais sur la page de présentation et au bas de l'onglet Téléchargements. Il précise que toute remarque constructive ou anomalie détectée est la bienvenue — et ce n'est pas une formule : plusieurs corrections majeures du projet, à l'Étape 30, sont nées d'un seul test sur un fichier réel.
 
 Il donne trois liens : **signaler une anomalie** (la page Issues du dépôt GitHub), le **profil GitHub** et le **profil LinkedIn** du porteur du projet.
 
@@ -1609,7 +1472,7 @@ Avant de publier le lien de signalement, il a été vérifié que la page Issues
 Une précaution s'imposait : **les signalements GitHub sont publics**. Un utilisateur de bonne volonté pourrait joindre son fichier pour illustrer un problème, et publier ainsi ses données. Le bloc le met en garde explicitement : décrire le problème ou fournir un extrait anonymisé, jamais le fichier lui-même.
 
 ### 2. Le soutien, au bon moment et sans insistance
-Le bouton « Soutenir le projet » apparaît désormais à trois endroits, chacun avec un message adapté : dans la barre latérale, après l'histoire du projet sur la page de présentation — là où le lecteur mesure le travail accompli —, et au bas des téléchargements, au moment où l'outil vient de rendre service. Tous les messages disent que le soutien est facultatif ; aucun ne culpabilise.
+Le bouton « Soutenir le projet » apparaît à trois endroits, chacun avec un message adapté : dans la barre latérale, après l'histoire du projet sur la page de présentation — là où le lecteur mesure le travail accompli —, et au bas des téléchargements, au moment où l'outil vient de rendre service. Tous les messages disent que le soutien est facultatif ; aucun ne culpabilise.
 
 Le bouton a été agrandi de 20 %. Streamlit ne propose aucun réglage de taille pour ce type de bouton, mais attribue à chaque widget muni d'une clé une classe CSS de la forme `st-key-<clé>` — mécanisme vérifié dans le code source de Streamlit avant de s'y fier. Les trois boutons ayant des clés commençant par `soutien_`, une seule règle les cible, sans toucher aux autres. La propriété `zoom` a été préférée à une mise à l'échelle (`transform`) : elle agrandit le bouton **et** décale ce qui suit, là où une mise à l'échelle l'aurait fait déborder sur le texte voisin.
 
@@ -1625,17 +1488,17 @@ La correction supprime la cause de la confusion plutôt que de l'expliquer : **l
 
 ---
 
-## Étape 41 : Le Projet Prend un Nom : Quitus
+## Étape 34 : Le projet prend un nom : Quitus
 
 Quarante étapes durant, le projet s'est appelé par ce qu'il faisait : « nettoyage automatique ». Il porte désormais un nom : **Quitus**.
 
 ### 1. Un nom qui dit la promesse
-En comptabilité, *donner quitus*, c'est attester qu'une gestion est en règle : on a vérifié, on certifie. Le mot rejoint exactement ce que le projet a appris à faire au fil des étapes — ne pas seulement nettoyer un fichier, mais **prouver** qu'il est propre : le profil avant nettoyage constate le désordre, le profil après atteste sa disparition (Étape 35), et aucune valeur ne disparaît sans être déclarée (Étape 36).
+En comptabilité, *donner quitus*, c'est attester qu'une gestion est en règle : on a vérifié, on certifie. Le mot rejoint exactement ce que le projet a appris à faire au fil des étapes — ne pas seulement nettoyer un fichier, mais **prouver** qu'il est propre : le profil avant nettoyage constate le désordre, le profil après atteste sa disparition (Étape 29), et aucune valeur ne disparaît sans être déclarée (Étape 30).
 
 La devise qui accompagne le logo le dit en une ligne : **« Le fichier propre, et la preuve. »**
 
 ### 2. Un tournant, pas un chantier
-Nommer le projet n'imposait pas de tout renommer. Le dossier, le dépôt GitHub et le nom technique du paquet restent inchangés : les modifier n'aurait rien apporté à l'utilisateur, et aurait cassé des liens, des chemins et l'environnement de travail. Ils suivront plus tard, un par un et sans rien casser (Étapes 43 à 45). Le nom apparaît là où il se voit : l'application, sa documentation et ses rapports.
+Nommer le projet n'imposait pas de tout renommer. Le dossier, le dépôt GitHub et le nom technique du paquet restent inchangés : les modifier n'aurait rien apporté à l'utilisateur, et aurait cassé des liens, des chemins et l'environnement de travail. Ils suivront plus tard, un par un et sans rien casser (Étapes 36 à 38). Le nom apparaît là où il se voit : l'application, sa documentation et ses rapports.
 
 ### 3. Le logo, partout où l'on regarde
 Le logo — un tableau dont les cellules s'estompent de ligne en ligne, frappé d'une pastille verte cochée — remplace l'emoji balai qui servait jusqu'ici d'identité :
@@ -1645,7 +1508,7 @@ Le logo — un tableau dont les cellules s'estompent de ligne en ligne, frappé 
 * **en tête du README** ;
 * **en tête de chaque rapport** : profilage HTML, profilage Markdown, rapport de nettoyage.
 
-Dans les rapports, le logo est intégré au fichier lui-même, encodé en base64, plutôt que référencé par un chemin : un rapport téléchargé doit s'afficher complet où qu'on l'ouvre. C'est aussi la seule source d'image qu'autorise la politique de sécurité des rapports HTML (Étape 36). Et si le fichier du logo venait à manquer, l'en-tête retombe sur le nom et la devise en texte : un rapport ne doit jamais échouer pour une question d'habillage.
+Dans les rapports, le logo est intégré au fichier lui-même, encodé en base64, plutôt que référencé par un chemin : un rapport téléchargé doit s'afficher complet où qu'on l'ouvre. C'est aussi la seule source d'image qu'autorise la politique de sécurité des rapports HTML (Étape 30). Et si le fichier du logo venait à manquer, l'en-tête retombe sur le nom et la devise en texte : un rapport ne doit jamais échouer pour une question d'habillage.
 
 L'onglet du navigateur affiche désormais simplement « Quitus ». La formule descriptive « nettoyage automatique de données », jugée peu parlante, a été retirée des titres, en attendant une formule plus fidèle à ce que fait réellement l'outil.
 
@@ -1664,7 +1527,7 @@ Quelques finitions ont suivi :
 
 ---
 
-## Étape 42 : Mesurer la Charge Avant d'Ouvrir la Porte
+## Étape 35 : Mesurer la charge avant d'ouvrir la porte
 
 Avant la mise en ligne, une question simple : combien de personnes l'application peut-elle servir en même temps ? Plutôt que de deviner, la consommation mémoire d'une session complète — dépôt, analyse, nettoyage — a été mesurée sur des fichiers de taille croissante.
 
@@ -1700,10 +1563,10 @@ Un test le démontre en comptant les calculs : après l'effacement, les données
 
 ---
 
-## Étape 43 : Premiers Pas en Ligne
+## Étape 36 : Premiers pas en ligne
 
 ### 1. D'abord, le dépôt prend le nom du projet
-Depuis l'Étape 41, le projet s'appelle Quitus, mais son dépôt GitHub portait encore son nom de travail, `PROJET_NETTOYAGE_AUTO`. Il devient **`johan-mac-59/quitus`**, et le renommage a été fait **avant** la mise en ligne : Streamlit Community Cloud se branche sur le nom du dépôt, et renommer après coup aurait obligé à reconfigurer l'application.
+Depuis l'Étape 34, le projet s'appelle Quitus, mais son dépôt GitHub portait encore son nom de travail, `PROJET_NETTOYAGE_AUTO`. Il devient **`johan-mac-59/quitus`**, et le renommage a été fait **avant** la mise en ligne : Streamlit Community Cloud se branche sur le nom du dépôt, et renommer après coup aurait obligé à reconfigurer l'application.
 
 Des CV déjà envoyés portent l'ancienne adresse. Renommer un dépôt ne crée pas de copie : c'est le même dépôt, historique et tickets compris, qui change de nom, et GitHub redirige l'ancienne adresse vers la nouvelle, sans date d'expiration — vérifié après le renommage. La seule précaution est de ne jamais recréer un dépôt portant l'ancien nom : la redirection cesserait. Les liens de l'application, les commandes d'installation du README et le dépôt local pointent désormais vers la nouvelle adresse.
 
@@ -1739,34 +1602,34 @@ Le texte courant passe de 16 à 17 pixels, les libellés et légendes de 14 à 1
 
 ---
 
-## Étape 44 : La Feuille de Route Retrouve sa Mémoire
+## Étape 37 : La feuille de route retrouve sa mémoire
 
 ### 1. Ce que l'historique révélait
-Relue à la lumière de ses 23 versions successives dans git, la feuille de route avait perdu la trace de la moitié de ses réussites : **huit améliorations livrées en avaient été retirées sans jamais être inscrites comme livrées**. Le rapport de nettoyage (Étapes 16-17), l'enrichissement du profilage et son rapport HTML autonome (20, 21, 29), l'écrêtage optionnel (22), la casse ciblée (23, 26), le support JSON (25), le profilage après nettoyage (28) et la question du profilage conscient des types (35) avaient simplement disparu une fois faits. Quant au déploiement public, effectif depuis l'Étape 43, il figurait encore comme « prêt, reste à activer ».
+Relue à la lumière de ses 23 versions successives dans git, la feuille de route avait perdu la trace de la moitié de ses réussites : **huit améliorations livrées en avaient été retirées sans jamais être inscrites comme livrées**. Le rapport de nettoyage (Étapes 11-12), l'enrichissement du profilage et son rapport HTML autonome (20, 21, 29), l'écrêtage optionnel (22), la casse ciblée (23, 26), le support JSON (25), le profilage après nettoyage (28) et la question du profilage conscient des types (35) avaient simplement disparu une fois faits. Quant au déploiement public, effectif depuis l'Étape 36, il figurait encore comme « prêt, reste à activer ».
 
 Une liste qui efface ce qu'elle accomplit ne rend compte que de ce qui manque : elle sous-estime le projet autant qu'une autre le surestimerait.
 
 ### 2. Une nouvelle organisation
-* **Les améliorations à faire viennent en tête**, classées par ordre d'importance et non plus selon un découpage technique/fonctionnel. Les deux défauts relevés après la mise en ligne passent en premier : les numéros de téléphone perdent leur `0` initial — une perte silencieuse, précisément ce que l'Étape 36 s'était engagée à ne plus laisser passer —, et le rapport HTML devient illisible en thème sombre.
+* **Les améliorations à faire viennent en tête**, classées par ordre d'importance et non plus selon un découpage technique/fonctionnel. Les deux défauts relevés après la mise en ligne passent en premier : les numéros de téléphone perdent leur `0` initial — une perte silencieuse, précisément ce que l'Étape 30 s'était engagée à ne plus laisser passer —, et le rapport HTML devient illisible en thème sombre.
 * **Les améliorations livrées viennent ensuite**, toutes, dans l'ordre chronologique, chacune renvoyant à son étape dans ce journal.
 
 ### 3. Un nom qui dit ce que contient le fichier
-Un fichier qui recense aussi ce qui est livré ne peut plus s'appeler « améliorations futures ». Il devient **`AMELIORATIONS.md`**, sans accent ni espace, comme `DEROULEMENT_PROJET.md`. Le renommage passe par `git mv`, si bien que l'historique du fichier reste consultable par `git log --follow`. Le README pointe vers le nouveau nom et annonce les vraies priorités, au lieu de la détection des notes et pourcentages, livrée depuis l'Étape 35.
+Un fichier qui recense aussi ce qui est livré ne peut plus s'appeler « améliorations futures ». Il devient **`AMELIORATIONS.md`**, sans accent ni espace, comme `DEROULEMENT_PROJET.md`. Le renommage passe par `git mv`, si bien que l'historique du fichier reste consultable par `git log --follow`. Le README pointe vers le nouveau nom et annonce les vraies priorités, au lieu de la détection des notes et pourcentages, livrée depuis l'Étape 29.
 
 ### 4. Le dossier de travail suit le nom du projet
-Après le dépôt GitHub (Étape 43), c'est au tour du dossier de travail local de quitter son nom d'origine, `PROJET_NETTOYAGE_AUTO`, pour devenir **`quitus`**. Le dossier a été copié en entier, historique git, données et branches locales compris, et non cloné : un clone n'aurait emporté ni les commits pas encore poussés, ni les données ignorées par git. Seul l'environnement virtuel a été recréé plutôt que copié, ses exécutables gardant en dur le chemin de l'ancien dossier. Les 378 tests passent dans le nouveau dossier.
+Après le dépôt GitHub (Étape 36), c'est au tour du dossier de travail local de quitter son nom d'origine, `PROJET_NETTOYAGE_AUTO`, pour devenir **`quitus`**. Le dossier a été copié en entier, historique git, données et branches locales compris, et non cloné : un clone n'aurait emporté ni les commits pas encore poussés, ni les données ignorées par git. Seul l'environnement virtuel a été recréé plutôt que copié, ses exécutables gardant en dur le chemin de l'ancien dossier. Les 378 tests passent dans le nouveau dossier.
 
 La configuration de conteneur de développement (`.devcontainer/`) est retirée au passage.
 
 ---
 
-## Étape 45 : Version 1.0.0, et Premières Retouches
+## Étape 38 : Version 1.0.0, et premières retouches
 
 ### 1. Le jalon est atteint
-L'Étape 38 avait fixé la règle : **la version 1.0 marque une application déployée et validée**, et l'étiquette `v1.0.0` ne serait posée qu'à ce moment-là. L'application est en ligne depuis l'Étape 43 ; les vérifications faites, le porteur du projet valide la version 1.0.0.
+L'Étape 32 avait fixé la règle : **la version 1.0 marque une application déployée et validée**, et l'étiquette `v1.0.0` ne serait posée qu'à ce moment-là. L'application est en ligne depuis l'Étape 36 ; les vérifications faites, le porteur du projet valide la version 1.0.0.
 
 ### 2. Ce qui a été fait
-* l'étiquette git **`v1.0.0`** est posée sur ce commit : elle désigne le code réellement déployé, correctifs de sécurité de l'Étape 36 compris ;
+* l'étiquette git **`v1.0.0`** est posée sur ce commit : elle désigne le code réellement déployé, correctifs de sécurité de l'Étape 30 compris ;
 * le verrou de dépendances `uv.lock`, resté à `0.1.0`, est remis en accord avec `pyproject.toml`, qui annonçait déjà `1.0.0`.
 
 ### 3. Premières retouches
@@ -1781,12 +1644,12 @@ Quelques finitions ont suivi l'étiquette :
 
 ---
 
-## Étape 46 : Le Zéro qui Disparaissait
+## Étape 39 : Le zéro qui disparaissait
 
 ### 1. Le défaut
 Le premier défaut inscrit dans la feuille de route après la mise en ligne : une colonne de numéros de téléphone ressortait du nettoyage en entiers. `0612345678` devenait `612345678`. Les codes postaux de l'Ain (`01000`) et les matricules (`00042`) subissaient le même sort.
 
-C'est exactement le genre de perte que l'Étape 36 s'était engagée à ne plus laisser passer, et c'est la plus sournoise de toutes : **aucune valeur ne devient manquante**. Le recensement des valeurs vidées n'avait donc rien à signaler, et le profil après nettoyage voyait une colonne parfaitement typée. Toutes les garanties en place étaient respectées, et la donnée était pourtant abîmée.
+C'est exactement le genre de perte que l'Étape 30 s'était engagée à ne plus laisser passer, et c'est la plus sournoise de toutes : **aucune valeur ne devient manquante**. Le recensement des valeurs vidées n'avait donc rien à signaler, et le profil après nettoyage voyait une colonne parfaitement typée. Toutes les garanties en place étaient respectées, et la donnée était pourtant abîmée.
 
 ### 2. Trois endroits, pas un
 L'enquête, menée format par format, a montré que le zéro se perdait à trois endroits distincts :
@@ -1805,7 +1668,7 @@ Une seule valeur de ce genre suffit à garder toute la colonne en texte : un cod
 La règle, `has_leading_zero`, vit dans le moteur, et les deux couches l'appliquent :
 
 * **le chargement** lit d'abord le fichier tout en texte pour repérer les colonnes concernées, puis le relit en ne gardant que celles-ci en texte, pandas typant toutes les autres comme avant. Le CSV et l'Excel partagent ce mécanisme. Le JSON est lu sans inférence de type : ses nombres restent des nombres, ses chaînes des chaînes, et c'est le nettoyage, qui recense ce qu'il ne peut lire, qui convertit le reste ;
-* **le nettoyage** écarte ces colonnes de la conversion numérique. Le contrôle après nettoyage applique la même règle : il ne les signale donc pas comme « encore convertibles », et l'invariant de l'Étape 35 reste tenu.
+* **le nettoyage** écarte ces colonnes de la conversion numérique. Le contrôle après nettoyage applique la même règle : il ne les signale donc pas comme « encore convertibles », et l'invariant de l'Étape 29 reste tenu.
 
 ### 4. Ce qui ne peut pas être réparé
 Un classeur Excel où le numéro a été saisi comme un nombre, puis simplement affiché avec un format à dix chiffres, ne contient plus le zéro : la cellule stocke `612345678`. Aucun outil ne peut le retrouver sans deviner, et Quitus ne devine pas.
@@ -1815,7 +1678,7 @@ Un nouveau fichier de tests, `test_zero_initial.py`, couvre la règle, chacun de
 
 ---
 
-## Étape 47 : Un Rapport qui Garde sa Feuille Blanche
+## Étape 40 : Un rapport qui garde sa feuille blanche
 
 ### 1. Le défaut
 Deuxième défaut relevé après la mise en ligne : affiché dans l'application en thème sombre, le rapport HTML devenait illisible. Il a d'abord été reproduit dans Chrome, sur l'application lancée en local, avec un petit fichier déposé : titres, tableau et logo du rapport se fondaient dans le fond sombre de la page.
@@ -1826,23 +1689,23 @@ Le rapport ne fixait que la couleur de ses titres et le fond de ses en-têtes de
 ### 3. Une feuille claire, quel que soit le thème
 Deux solutions étaient possibles : suivre le thème de la page, ou en être indépendant.
 
-Suivre le thème supposait que le rapport le connaisse. Or une iframe ne voit pas le `color-scheme` de la page qui l'accueille, et la détection côté Python est, l'Étape 43 l'a montré, peu fiable au premier affichage. Surtout, les graphiques du rapport sont des images sur fond blanc, et son logo est la variante claire : un rapport sombre aurait juxtaposé une page noire et des rectangles blancs.
+Suivre le thème supposait que le rapport le connaisse. Or une iframe ne voit pas le `color-scheme` de la page qui l'accueille, et la détection côté Python est, l'Étape 36 l'a montré, peu fiable au premier affichage. Surtout, les graphiques du rapport sont des images sur fond blanc, et son logo est la variante claire : un rapport sombre aurait juxtaposé une page noire et des rectangles blancs.
 
 Le rapport fixe donc lui-même **son fond blanc, la couleur de son texte et un `color-scheme: light`**, qui accorde aussi ses barres de défilement. Il se lit comme une feuille posée sur la page : identique en thème clair et en thème sombre, identique dans l'aperçu, dans la fenêtre « Ouvrir en grand » et dans le fichier téléchargé. Les deux rapports, avant et après nettoyage, partagent cet en-tête.
 
-Le résultat a été contrôlé dans Chrome, en thème sombre, sur la même application locale : le rapport est lisible, logo compris. Au passage, la même vérification a confirmé l'Étape 46 dans l'interface web : la colonne de téléphones du fichier déposé garde ses `06`.
+Le résultat a été contrôlé dans Chrome, en thème sombre, sur la même application locale : le rapport est lisible, logo compris. Au passage, la même vérification a confirmé l'Étape 39 dans l'interface web : la colonne de téléphones du fichier déposé garde ses `06`.
 
 ### 4. Résultat
 Un test vérifie que le document fixe son fond, sa couleur de texte et son schéma de couleurs. **405 tests passent.**
 
 ---
 
-## Étape 48 : Décider Colonne par Colonne
+## Étape 41 : Décider colonne par colonne
 
 ### 1. Le défaut de conception
-Depuis l'Étape 22, l'utilisateur décide d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Mais il en décidait **pour tout le fichier à la fois** : deux cases à cocher, tout ou rien.
+Depuis l'Étape 16, l'utilisateur décide d'écrêter les valeurs aberrantes et de combler les valeurs manquantes. Mais il en décidait **pour tout le fichier à la fois** : deux cases à cocher, tout ou rien.
 
-Or les deux principes qui justifient ces décisions sont, par nature, propres à chaque colonne. Un extrême peut être une erreur de saisie dans une colonne de poids, et une vente exceptionnelle bien réelle dans une colonne de montants. Une absence peut être un oubli dans une colonne et avoir un sens dans une autre : l'Étape 36 l'avait relevé sur les prix de carburants en rupture. Face à un fichier qui mêlait les deux cas, l'utilisateur n'avait que deux mauvais choix : tout corriger, et abîmer des données justes, ou ne rien corriger.
+Or les deux principes qui justifient ces décisions sont, par nature, propres à chaque colonne. Un extrême peut être une erreur de saisie dans une colonne de poids, et une vente exceptionnelle bien réelle dans une colonne de montants. Une absence peut être un oubli dans une colonne et avoir un sens dans une autre : l'Étape 30 l'avait relevé sur les prix de carburants en rupture. Face à un fichier qui mêlait les deux cas, l'utilisateur n'avait que deux mauvais choix : tout corriger, et abîmer des données justes, ou ne rien corriger.
 
 ### 2. Le moteur apprend à cibler
 `clip_outliers` et `clean_missing_values` reçoivent un paramètre `columns`, et `run_all_cleaning_steps` les paramètres `outlier_columns` et `missing_columns` qui le leur transmettent. La valeur `None` signifie toutes les colonnes : la ligne de commande, qui pose ses deux questions globales, garde ainsi exactement son comportement. Une colonne choisie mais disparue entre-temps, par exemple une colonne vide supprimée, est simplement ignorée.
@@ -1864,10 +1727,10 @@ Les tests du moteur vérifient qu'une colonne non choisie reste intacte. Ceux de
 
 ---
 
-## Étape 49 : Un Seuil à la Mesure de Chaque Colonne
+## Étape 42 : Un seuil à la mesure de chaque colonne
 
 ### 1. La limite qui restait
-L'Étape 48 permet de choisir les colonnes à écrêter. Mais une colonne choisie était toujours écrêtée au même seuil : **1,5 écart interquartile** au-delà des quartiles, la règle de Tukey, figée dans le code depuis l'Étape 6.
+L'Étape 41 permet de choisir les colonnes à écrêter. Mais une colonne choisie était toujours écrêtée au même seuil : **1,5 écart interquartile** au-delà des quartiles, la règle de Tukey, figée dans le code depuis l'Étape 3.
 
 Ce seuil standard convient à des mesures stables. Il est trop sévère pour des montants à forte dispersion, où une grosse commande est rare sans être fausse : à 1,5, elle était ramenée à la borne comme une faute de frappe. L'utilisateur ne pouvait que renoncer à écrêter la colonne, et laisser passer avec elle les vraies erreurs.
 
@@ -1897,10 +1760,10 @@ Les tests couvrent les bornes, le décompte, l'écrêtage colonne par colonne se
 
 ---
 
-## Étape 50 : Toutes les Notes sur la Même Échelle
+## Étape 43 : Toutes les notes sur la même échelle
 
-### 1. La limite de l'Étape 35
-Depuis l'Étape 35, une note fractionnaire est convertie en son **numérateur** : `17/20` devient `17`. Ce choix avait une bonne raison, toujours valable : une colonne qui mêle `5` et `5/5` doit donner deux fois 5, et non 5 et 1.
+### 1. La limite de l'étape 29
+Depuis l'Étape 29, une note fractionnaire est convertie en son **numérateur** : `17/20` devient `17`. Ce choix avait une bonne raison, toujours valable : une colonne qui mêle `5` et `5/5` doit donner deux fois 5, et non 5 et 1.
 
 Mais il supposait que toutes les notes d'une colonne partagent la même échelle. Une colonne mêlant `17/20` et `4/5` donnait 17 et 4 : deux nombres côte à côte, incomparables, dont la moyenne ne voulait plus rien dire. Le défaut était silencieux, la colonne ressortant parfaitement typée.
 
@@ -1914,7 +1777,7 @@ Chaque note est ensuite exprimée sur cette échelle :
 * un nombre nu, sans dénominateur, est tenu pour déjà exprimé sur l'échelle de la colonne, ce qui conserve le comportement voulu pour `5` et `5/5`.
 
 ### 3. Rien ne change en silence
-Ramener une note à une autre échelle change la valeur affichée. Fidèle au principe posé à l'Étape 36, l'opération est donc toujours déclarée. Pour chaque colonne concernée, le moteur recense l'échelle retenue, le nombre de notes ramenées et des exemples (`4/5 → 16`), dans une nouvelle statistique, `grades_rescaled`. On la retrouve à trois endroits :
+Ramener une note à une autre échelle change la valeur affichée. Fidèle au principe posé à l'Étape 30, l'opération est donc toujours déclarée. Pour chaque colonne concernée, le moteur recense l'échelle retenue, le nombre de notes ramenées et des exemples (`4/5 → 16`), dans une nouvelle statistique, `grades_rescaled`. On la retrouve à trois endroits :
 
 * dans le **rapport de nettoyage**, un tableau sous les conversions de types ;
 * dans le **bilan console** de la ligne de commande ;
@@ -1932,21 +1795,21 @@ Les tests couvrent les échelles mêlées, l'échelle unique inchangée, l'égal
 
 ---
 
-## Étape 51 : Parquet Rejoint les Formats Acceptés
+## Étape 44 : Parquet rejoint les formats acceptés
 
 ### 1. Le cinquième format
-CSV, Excel, JSON et JSON Lines étaient pris en charge ; Parquet, demandé dès la liste de l'Étape 6, ne l'était pas. C'est pourtant le format d'échange courant des outils de données modernes : colonnes typées, compression, lecture rapide.
+CSV, Excel, JSON et JSON Lines étaient pris en charge ; Parquet, envisagé dès les premières pistes d'amélioration, ne l'était pas. C'est pourtant le format d'échange courant des outils de données modernes : colonnes typées, compression, lecture rapide.
 
 Le chargement suit le modèle des autres formats : une fonction orientée octets, `_parquet_from_bytes`, que l'interface web appelle directement, et une enveloppe orientée chemin pour la ligne de commande. Un fichier sans extension est reconnu à sa signature, `PAR1`, qui l'ouvre et le ferme. Un fichier corrompu lève une erreur explicite plutôt qu'un message de bas niveau.
 
-Parquet stocke ses types : un nombre y est déjà un nombre, une date une date. Le nettoyage n'a donc à corriger que ce qui y est resté du texte, comme des montants écrits `1 200,50 €`, et la protection des codes à zéro initial de l'Étape 46 s'applique à ses colonnes textuelles comme aux autres.
+Parquet stocke ses types : un nombre y est déjà un nombre, une date une date. Le nettoyage n'a donc à corriger que ce qui y est resté du texte, comme des montants écrits `1 200,50 €`, et la protection des codes à zéro initial de l'Étape 39 s'applique à ses colonnes textuelles comme aux autres.
 
 Une seule conversion est faite d'office : une colonne **catégorielle** devient une colonne ordinaire. Une catégorie n'accepte que ses modalités d'origine ; la casse uniformisée ou une valeur comblée y auraient été refusées.
 
 La lecture repose sur `pyarrow`. Il était déjà installé, comme dépendance de Streamlit, mais le projet s'en sert désormais directement : il est donc déclaré dans `pyproject.toml`, `requirements.txt` et le verrou `uv.lock`.
 
 ### 2. Un défaut plus ancien, révélé en chemin
-Parquet, comme JSON, peut porter dans une cellule une liste ou un objet. En testant ce cas, un défaut antérieur est apparu : **un JSON imbriqué se chargeait, mais son profilage échouait**, sur une erreur `unhashable type: 'list'`. Le profilage compte et compare des valeurs, ce qu'une liste ne permet pas. L'Étape 25 avait annoncé la prise en charge des JSON imbriqués : elle tenait pour le chargement, pas pour la suite du parcours.
+Parquet, comme JSON, peut porter dans une cellule une liste ou un objet. En testant ce cas, un défaut antérieur est apparu : **un JSON imbriqué se chargeait, mais son profilage échouait**, sur une erreur `unhashable type: 'list'`. Le profilage compte et compare des valeurs, ce qu'une liste ne permet pas. L'Étape 19 avait annoncé la prise en charge des JSON imbriqués : elle tenait pour le chargement, pas pour la suite du parcours.
 
 La correction est faite une fois, à la sortie du chargement, pour tous les formats : une cellule structurée (liste, objet, tableau) est écrite en **texte JSON**. Son contenu est entièrement conservé, il reste lisible, et il devient comparable : deux lignes identiques sont reconnues comme des doublons.
 
@@ -1961,7 +1824,7 @@ Les tests couvrent les types conservés, la catégorie rendue modifiable, les ce
 
 ---
 
-## Étape 52 : Une Documentation API qui ne Peut pas Mentir
+## Étape 45 : Une documentation API qui ne peut pas mentir
 
 ### 1. Ce qui restait à faire
 La feuille de route demandait un document technique décrivant l'interface et les paramètres de chaque fonction. Elle le disait à moitié fait : toutes les fonctions publiques avaient une docstring, et un test l'imposait. Restait à assembler le document.
@@ -1984,7 +1847,7 @@ Trois détails de mise en œuvre :
 Assembler le document a rendu visibles les docstrings les plus anciennes, réduites à une ligne. Une docstring existait partout, comme l'imposait le test, mais elle ne disait pas toujours tout. Onze ont été complétées, fidèlement au code : paramètres et retour de `clean_empty_columns`, `clean_whitespace`, `fix_numeric_types`, `clean_duplicates`, retour de `clean_case_sensitivity` et de `DataProfiler.run_analysis`, méthodes de `CleanLogger` et `generate_and_print_report`. Celle de `run_all_cleaning_steps` ne mentionnait ni `profile_info` ni ce que la fonction renvoie ; elle décrit désormais l'un et l'autre, ainsi que la répétition des premières étapes jusqu'à stabilisation.
 
 ### 5. Le README à jour
-Le README renvoie à la documentation API sous le tableau des modules, et son arborescence fait apparaître le dossier `docs/`. Sa section « Évolutions prévues » citait encore comme priorités les trois défauts corrigés aux Étapes 46 à 48 ; elle annonce désormais ce qui reste à venir.
+Le README renvoie à la documentation API sous le tableau des modules, et son arborescence fait apparaître le dossier `docs/`. Sa section « Évolutions prévues » citait encore comme priorités les trois défauts corrigés aux Étapes 39 à 41 ; elle annonce désormais ce qui reste à venir.
 
 ### 6. Résultat
 **444 tests passent.**

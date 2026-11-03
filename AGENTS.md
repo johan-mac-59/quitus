@@ -16,6 +16,7 @@ Il a **une seule logique métier** (`src/`) et **deux façades** : une interface
 | `src/` | Logique métier : `file_loader`, `data_profiler`, `cleaner_engine`, `plot_factory`, `cleaner_logger`, `cleaner_reporter`, `console_capture`, `horodatage`, `marque` |
 | `tests/` | Suite pytest, un fichier par module et par garantie |
 | `docs/API.md` | Documentation des fonctions publiques, générée depuis le code |
+| `docs/GLOSSAIRE.md` | Aide-mémoire des notions et des termes du projet, pour un lecteur novice |
 | `DEROULEMENT_PROJET.md` | Journal technique du projet, étape par étape |
 | `AMELIORATIONS.md` | Améliorations à faire, par importance, et améliorations livrées |
 | `data/samples/` | Échantillon de démonstration synthétique, versionné |
