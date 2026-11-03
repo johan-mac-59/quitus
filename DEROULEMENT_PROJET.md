@@ -1927,13 +1927,15 @@ Les garanties du module sont testées une à une.
 * **Les lignes fautives sont des étiquettes d'index**, plafonnées à cent avec cinq exemples, pour rester lisibles et se retrouver dans le fichier d'origine.
 
 ### 4. Le terminal
-L'option `--regles` rejoue un fichier de règles, lu au moment de la validation et non au démarrage. Sans elle, le mode interactif propose de définir des contraintes par questions, et la saisie suit le déroulé de l'utilisateur plutôt que celui du code.
+L'option `--regles` rejoue un fichier de règles. Sans elle, le mode interactif propose de définir des contraintes par questions. Elles viennent **en dernier** : après le nettoyage, son rapport et le nouveau profilage, celui qui permet de lire les données déjà propres. C'est là que l'utilisateur voit les anomalies métier qu'aucune machine ne peut deviner (une date de départ avant l'arrivée, un âge de 130 ans), et c'est sur ces données propres et typées qu'une règle comme « âge entre 0 et 120 » s'énonce.
 
-1. **Après le profilage et un nettoyage automatique léger.** Une copie du fichier est nettoyée sans écrêtage ni remplissage (espaces, types, doublons), en silence, pour montrer des données propres et typées : une règle comme « âge entre 0 et 120 » s'énonce alors sur de vrais nombres. Chaque règle ajoutée affiche aussitôt ce qu'elle donne sur cet aperçu.
-2. **Après le nettoyage final, la saisie se rouvre.** Les contraintes ne limitent jamais le nettoyage : elles ne le conditionnent ni ne l'arrêtent. L'utilisateur qui voit une anomalie subsister, ou en découvre une autre, peut ajouter une règle, évaluée aussi bien sur le fichier brut que sur le fichier nettoyé, et reprise dans le rapport.
-3. **L'enregistrement est proposé une seule fois, à la fin**, pour toutes les règles saisies : l'utilisateur n'écrit jamais de JSON à la main.
+* **Chaque règle ajoutée montre aussitôt ce qu'elle donne** sur le fichier nettoyé, et l'utilisateur en ajoute autant qu'il en voit le besoin.
+* **Les contraintes ne limitent jamais le nettoyage** : elles arrivent après lui, ne le conditionnent ni ne l'arrêtent, et un test vérifie que le fichier nettoyé est identique avec ou sans règles.
+* **Le rapport est réécrit une fois les règles connues.** Il existe déjà quand l'utilisateur les énonce ; il est alors régénéré, au même nom, avec la section « Contraintes ». Si l'utilisateur avait refusé le rapport, aucun fichier n'est créé par ce biais.
+* **Le fichier de règles n'est lu qu'à ce moment**, celui de la validation. Un fichier introuvable ou invalide est signalé à la fin, avec un code de sortie 1 ; le nettoyage, lui, est fait et sauvegardé, et le message le dit.
+* **L'enregistrement est proposé une seule fois**, pour toutes les règles saisies : l'utilisateur n'écrit jamais de JSON à la main.
 
-Le nettoyage léger n'a lieu que lorsqu'il sert, c'est-à-dire en mode interactif sans fichier de règles : avec `--regles`, `--oui-a-tout` ou `--non-interactif`, il ne serait qu'un second calcul inutile. Ces deux derniers modes ne posent rien ; avec `--regles` en mode interactif, seule la question de l'après-nettoyage reste ouverte. La fonction de saisie est un paramètre du menu, ce qui permet de le tester avec des réponses simulées, et une fin de flux ou une interruption conserve les règles déjà définies. L'interface web et le terminal appellent le même moteur : seule la saisie des règles diffère.
+Les modes `--oui-a-tout` et `--non-interactif` ne posent rien ; avec `--regles`, ils vérifient les règles du fichier sans question. La fonction de saisie est un paramètre du menu, ce qui permet de le tester avec des réponses simulées, et une fin de flux ou une interruption conserve les règles déjà définies. L'interface web et le terminal appellent le même moteur : seule la saisie des règles diffère.
 
 ### 5. Erreurs rencontrées
 * **Des dates ISO lues à l'envers.** Le premier essai a signalé une violation de `debut <= fin` sur `2024-01-05` et `2024-02-01`, qui n'en est pas une. Avec l'option « jour d'abord » de pandas, `2024-01-05` est lu comme le 1er mai. Les dates ISO se lisent désormais sans cette option, le reste avec ; les bornes saisies par l'utilisateur suivent le même chemin. Un test dédié nomme ce piège.
@@ -1941,7 +1943,7 @@ Le nettoyage léger n'a lieu que lorsqu'il sert, c'est-à-dire en mode interacti
 * **Un `2.0` pour un identifiant.** Une colonne d'entiers avec une valeur manquante est lue en flottants, et les exemples affichaient `2.0`. Ils affichent `2`.
 * **Une hypothèse fausse dans le plan.** Le plan supposait qu'il fallait ajouter le module à la liste de `test_integrite_source.py`. Seule la liste des fichiers de la racine est explicite : celle de `src/` est un parcours du dossier. Le module a été pris en compte sans rien changer ; seule la liste de la documentation API (`docs/generer_api.py`) devait l'inclure.
 
-* **Une question posée trop tôt, puis encore trop tôt.** Le premier essai en terminal par le porteur du projet a montré que le menu des contraintes s'ouvrait avant même le profilage : on demandait d'énoncer des règles sur des données que l'utilisateur n'avait pas encore vues, alors que tout l'intérêt est de les formuler au vu du diagnostic. Aucun test ne l'avait signalé : le menu fonctionnait comme prévu. Il a été déplacé après le profilage, puis, sur une seconde remarque, après un premier nettoyage automatique, et la saisie a été rouverte après le nettoyage final pour qu'une contrainte ne soit jamais une porte qu'on ne franchit qu'une fois. La lecture de `--regles` a suivi, repoussée au moment de la validation. Des tests fixent l'ordre des étapes, le caractère optionnel du nettoyage léger, et l'indépendance du nettoyage vis-à-vis des contraintes.
+* **Une question posée trop tôt, trois fois de suite.** Le premier essai en terminal par le porteur du projet a montré que le menu des contraintes s'ouvrait avant même le profilage : on demandait d'énoncer des règles sur des données que l'utilisateur n'avait pas encore vues. Aucun test ne l'avait signalé : le menu fonctionnait comme prévu. Le menu a d'abord été déplacé après le profilage ; puis, sur une remarque du porteur, après un nettoyage automatique « léger » destiné à montrer des données propres. Ce nettoyage n'avait aucun sens : on le calculait sans le montrer, et on nettoyait deux fois. Une troisième remarque a donné la bonne place : après le nettoyage, son rapport et le nouveau profilage, qui montre déjà les données propres. Le nettoyage léger est supprimé. Des tests fixent l'ordre des étapes, la réécriture du rapport (et son absence quand le rapport est refusé), et l'indépendance du nettoyage vis-à-vis des contraintes.
 
 Une coquille du journal a aussi été corrigée à l'Étape 9, où un mot chinois s'était glissé dans une phrase.
 
@@ -1952,8 +1954,8 @@ Le rapport de nettoyage gagne une section « 3. Contraintes », sous le détail 
 L'onglet de l'interface web, puis les pistes de la feuille de route : contraintes en langage courant, règles suggérées par le profil, détection des anomalies orthographiques, corrections proposées. Le numéro de version n'est pas modifié : la 1.2 attend un validateur opérationnel et déployé.
 
 ### 8. Résultat
-**543 tests passent**, contre 451 : 92 tests nouveaux, dont ceux de la garantie « ne modifie rien », du menu, de `main()` de bout en bout et de la section du rapport. `docs/API.md` est régénéré et couvre `validator`.
+**545 tests passent**, contre 451 : 94 tests nouveaux, dont ceux de la garantie « ne modifie rien », du menu, de `main()` de bout en bout et de la section du rapport. `docs/API.md` est régénéré et couvre `validator`.
 
 ---
 
-*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 543 tests.*
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 545 tests.*

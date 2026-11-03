@@ -111,7 +111,7 @@ python main.py --input brut.csv --regles regles.json   # vérifie des contrainte
 | `--oui-a-tout` | Accepte écrêtage, remplissage et rapports sans rien demander |
 | `--non-interactif` | Ne demande rien et refuse les traitements lourds |
 | `--seuil-iqr` | Seuil de l'écrêtage, en écarts interquartiles (1,5 par défaut ; 3 ne retient que les valeurs très extrêmes) |
-| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Sans cette option, le mode interactif propose de les définir par quelques questions, sur un aperçu du fichier nettoyé, puis de rouvrir la saisie après le nettoyage final et de les enregistrer pour les rejouer |
+| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Sans cette option, le mode interactif propose de les définir par quelques questions, après le nettoyage et le nouveau profilage, puis de les enregistrer pour les rejouer |
 
 Les contraintes (valeur minimale ou maximale, longueur, format, valeurs autorisées, valeur obligatoire ou unique, comparaison entre deux colonnes) sont signalées, jamais corrigées : le fichier nettoyé n'est pas modifié par leur vérification.
 
@@ -162,7 +162,7 @@ quitus/
 │   ├── console_capture.py      # Sortie console vers l'interface web
 │   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
 │   └── marque.py               # Nom, devise et logo pour l'application et les rapports
-├── tests/                      # 543 tests, un fichier par module et par garantie
+├── tests/                      # 545 tests, un fichier par module et par garantie
 ├── docs/                       # Documentation API, générée depuis le code
 ├── assets/                     # Logos clair et sombre, icône
 ├── data/

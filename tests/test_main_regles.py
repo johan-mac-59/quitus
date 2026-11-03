@@ -113,34 +113,46 @@ def _lancer(csv, tmp_path, *extra):
 
 
 class TestOrdre:
-    """Ordre des étapes : on énonce des contraintes au vu des données."""
+    """Les contraintes viennent en dernier : sur des données propres, déjà lues."""
 
     @staticmethod
     def _espions(monkeypatch, reponses_questions=None):
         """Enregistre l'ordre des étapes et neutralise les saisies au clavier."""
         evenements = []
         profilage = main.PreCleaningProfiler.run_profiling_workflow
+        profilage_post = main.ExploratoryProfiler.run_profiling_workflow
         nettoyage = main.run_all_cleaning_steps
+        rapport = main.generate_enhanced_report
         reponses = iter(reponses_questions or [])
 
         def profilage_espion(self, *a, **k):
             evenements.append("profilage")
             return profilage(self, *a, **k)
 
+        def profilage_post_espion(self, *a, **k):
+            evenements.append("profilage_post")
+            return profilage_post(self, *a, **k)
+
         def nettoyage_espion(df, *a, **k):
-            evenements.append("nettoyage_leger" if k.get("correct_outliers") is False
-                              and k.get("fill_missing") is False and "outlier_thresholds" not in k
-                              else "nettoyage_final")
+            evenements.append("nettoyage")
             return nettoyage(df, *a, **k)
+
+        def rapport_espion(*a, **k):
+            evenements.append("rapport_avec_contraintes" if k.get("contraintes") else "rapport")
+            return rapport(*a, **k)
 
         def questions_espion(colonnes, *a, **k):
             evenements.append("question")
             return next(reponses, [])
 
         monkeypatch.setattr(main.PreCleaningProfiler, "run_profiling_workflow", profilage_espion)
+        monkeypatch.setattr(main.ExploratoryProfiler, "run_profiling_workflow", profilage_post_espion)
         monkeypatch.setattr(main, "run_all_cleaning_steps", nettoyage_espion)
+        monkeypatch.setattr(main, "generate_enhanced_report", rapport_espion)
         monkeypatch.setattr(main, "demander_regles", questions_espion)
         monkeypatch.setattr(main, "get_user_decisions", lambda *a, **k: (False, False))
+        monkeypatch.setattr(main, "_proposer_enregistrement", lambda *a, **k: None)
+        monkeypatch.setattr("builtins.input", lambda *a: "")  # rapport : réponse par défaut
         return evenements
 
     @staticmethod
@@ -148,67 +160,76 @@ class TestOrdre:
         return main.main(["--input", str(csv), "--output", str(tmp / "s.csv"),
                           "--reports", str(tmp / "r"), "--format-rapport", "md", *extra])
 
-    def test_question_apres_profilage_et_nettoyage_leger_puis_rouverte(self, fichier_de_test,
+    def test_question_apres_nettoyage_rapport_et_nouveau_profilage(self, fichier_de_test,
+                                                                    monkeypatch):
+        csv, _, tmp = fichier_de_test
+        evenements = self._espions(monkeypatch)
+        self._lancer_interactif(csv, tmp)
+        assert evenements == ["profilage", "nettoyage", "rapport", "profilage_post", "question"]
+
+    def test_pas_de_nettoyage_leger_ni_de_question_avant_le_nettoyage(self, fichier_de_test,
                                                                        monkeypatch):
         csv, _, tmp = fichier_de_test
         evenements = self._espions(monkeypatch)
         self._lancer_interactif(csv, tmp)
-        assert evenements == ["profilage", "nettoyage_leger", "question",
-                              "nettoyage_final", "question"]
+        assert evenements.count("nettoyage") == 1
+        assert evenements.index("question") > evenements.index("profilage_post")
 
-    def test_le_nettoyage_leger_ne_touche_ni_outliers_ni_manquants(self, fichier_de_test,
-                                                                    monkeypatch):
+    def test_rapport_reecrit_avec_les_contraintes(self, fichier_de_test, monkeypatch):
         csv, _, tmp = fichier_de_test
-        appels = []
-        nettoyage = main.run_all_cleaning_steps
-
-        def espion(df, *a, **k):
-            appels.append(k)
-            return nettoyage(df, *a, **k)
-
-        monkeypatch.setattr(main, "run_all_cleaning_steps", espion)
-        monkeypatch.setattr(main, "demander_regles", lambda *a, **k: [])
-        monkeypatch.setattr(main, "get_user_decisions", lambda *a, **k: (True, True))
+        tardive = nouvelle_regle("longueur", "nom", {"max": 3})
+        evenements = self._espions(monkeypatch, reponses_questions=[[tardive]])
         self._lancer_interactif(csv, tmp)
-        assert appels[0]["correct_outliers"] is False and appels[0]["fill_missing"] is False
-        assert appels[1]["correct_outliers"] is True and appels[1]["fill_missing"] is True
+        assert evenements == ["profilage", "nettoyage", "rapport", "profilage_post",
+                              "question", "rapport_avec_contraintes"]
+        rapports = list((tmp / "r").glob("cleaning_report_*.md"))
+        assert len(rapports) == 1  # même fichier, réécrit : aucun doublon
+        contenu = rapports[0].read_text(encoding="utf-8")
+        assert "## 3. Contraintes" in contenu and "nom : longueur" in contenu
+        # Évaluée sur le brut comme sur le nettoyé.
+        ligne = next(l for l in contenu.splitlines() if l.startswith("| nom : longueur"))
+        assert "—" not in ligne
 
-    def test_avec_un_fichier_de_regles_pas_de_nettoyage_leger(self, fichier_de_test, monkeypatch):
+    def test_rapport_refuse_pas_de_rapport_cree_par_les_contraintes(self, fichier_de_test,
+                                                                     monkeypatch):
+        csv, _, tmp = fichier_de_test
+        tardive = nouvelle_regle("longueur", "nom", {"max": 3})
+        evenements = self._espions(monkeypatch, reponses_questions=[[tardive]])
+        monkeypatch.setattr("builtins.input", lambda *a: "n")  # on refuse le rapport
+        self._lancer_interactif(csv, tmp)
+        assert "rapport_avec_contraintes" not in evenements
+        assert list((tmp / "r").glob("cleaning_report_*.md")) == []
+
+    def test_avec_un_fichier_de_regles_la_validation_est_en_dernier(self, fichier_de_test,
+                                                                     monkeypatch):
         csv, regles, tmp = fichier_de_test
         evenements = self._espions(monkeypatch)
         assert self._lancer_interactif(csv, tmp, "--regles", str(regles)) == 0
-        # Seule la saisie rouverte après le nettoyage final reste possible.
-        assert evenements == ["profilage", "nettoyage_final", "question"]
+        assert evenements == ["profilage", "nettoyage", "rapport", "profilage_post",
+                              "question", "rapport_avec_contraintes"]
 
-    def test_non_interactif_ne_pose_aucune_question_ni_nettoyage_leger(self, fichier_de_test,
-                                                                        monkeypatch):
-        csv, _, tmp = fichier_de_test
+    def test_non_interactif_ne_pose_aucune_question(self, fichier_de_test, monkeypatch):
+        csv, regles, tmp = fichier_de_test
         evenements = self._espions(monkeypatch)
         main.main(["--input", str(csv), "--output", str(tmp / "s.csv"),
-                   "--reports", str(tmp / "r"), "--non-interactif"])
-        assert evenements == ["profilage", "nettoyage_final"]
+                   "--reports", str(tmp / "r"), "--non-interactif", "--regles", str(regles)])
+        assert "question" not in evenements
 
-    def test_une_contrainte_ajoutee_apres_nettoyage_figure_au_rapport(self, fichier_de_test,
-                                                                       monkeypatch):
-        """La saisie rouverte : une anomalie vue après coup peut devenir une règle."""
+    def test_fichier_de_regles_invalide_signale_a_la_fin_sans_perdre_le_nettoyage(
+            self, fichier_de_test, monkeypatch, capsys):
         csv, _, tmp = fichier_de_test
-        tardive = nouvelle_regle("longueur", "nom", {"max": 3})
-        self._espions(monkeypatch, reponses_questions=[[], [tardive]])
-        monkeypatch.setattr(main, "_proposer_enregistrement", lambda *a, **k: None)
-        monkeypatch.setattr("builtins.input", lambda *a: "")  # rapport : réponse par défaut
-        self._lancer_interactif(csv, tmp)
-        rapport = next((tmp / "r").glob("cleaning_report_*.md")).read_text(encoding="utf-8")
-        assert "## 3. Contraintes" in rapport
-        assert "nom : longueur" in rapport
-        # Évaluée sur le brut comme sur le nettoyé : les deux colonnes sont remplies.
-        ligne = next(l for l in rapport.splitlines() if l.startswith("| nom : longueur"))
-        assert ligne.count("—") == 0
+        mauvais = tmp / "mauvais.json"
+        mauvais.write_text('{"regles": [{"type": "zzz"}]}', encoding="utf-8")
+        self._espions(monkeypatch)
+        code = self._lancer_interactif(csv, tmp, "--regles", str(mauvais))
+        assert code == 1
+        assert (tmp / "s.csv").exists()  # le nettoyage est fait et sauvegardé
+        assert "seules les contraintes n'ont pas pu être vérifiées" in capsys.readouterr().out
 
     def test_les_contraintes_ne_limitent_pas_le_nettoyage(self, fichier_de_test, monkeypatch):
         """Des violations n'arrêtent ni ne modifient le nettoyage."""
         csv, regles, tmp = fichier_de_test
-        monkeypatch.setattr(main, "demander_regles", lambda *a, **k: [])
-        monkeypatch.setattr(main, "get_user_decisions", lambda *a, **k: (False, False))
+        self._espions(monkeypatch)
         self._lancer_interactif(csv, tmp)
         sans = (tmp / "s.csv").read_text(encoding="utf-8")
         (tmp / "s.csv").unlink()

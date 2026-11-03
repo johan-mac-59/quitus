@@ -15,9 +15,9 @@ Usage :
 
 Les contraintes (valeur minimale ou maximale, longueur, format, comparaison
 entre deux colonnes…) sont signalées avant et après nettoyage, jamais corrigées.
-Sans `--regles`, le mode interactif propose de les définir par quelques
-questions, au vu d'un aperçu du fichier nettoyé, puis de rouvrir la saisie après
-le nettoyage final, et d'enregistrer le fichier de règles pour le rejouer.
+Elles viennent en dernier, après le nettoyage, son rapport et le nouveau profilage :
+le mode interactif propose alors de les définir par quelques questions, au vu des
+données propres, puis d'enregistrer le fichier de règles pour le rejouer.
 """
 
 import argparse
@@ -28,7 +28,6 @@ from pathlib import Path
 from src.cleaner_engine import SEUIL_IQR, get_user_decisions, run_all_cleaning_steps
 from src.cleaner_logger import generate_and_print_report
 from src.cleaner_reporter import generate_enhanced_report
-from src.console_capture import capture_output
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
 from src.horodatage import horodater
@@ -460,43 +459,6 @@ def main(argv: list[str] = None) -> int:
         input_file, reports_dir, report_format=format_rapport, horodatage=horodatage
     )
 
-    # 3b. Contraintes : on les énonce au vu du diagnostic, donc après lui. Le
-    # fichier de règles n'est lu qu'ici, au moment de la validation. Sans
-    # fichier, le mode interactif propose de les définir par questions, sur un
-    # aperçu du fichier après un nettoyage automatique léger (ni écrêtage ni
-    # remplissage) : une règle comme « âge entre 0 et 120 » s'écrit alors sur de
-    # vrais nombres. Les contraintes ne limitent jamais le nettoyage, et la
-    # saisie se rouvre après le nettoyage final (7b).
-    regles = []
-    saisies = False
-    if args.regles:
-        try:
-            regles = charger_regles(_resoudre_chemin_regles(args.regles))
-        except (FileNotFoundError, ValueError) as e:
-            print(f"❌ {e}")
-            return 1
-        print(f"📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}\n")
-    elif interactive:
-        print("🧹 Nettoyage automatique léger, pour vous montrer les données propres...")
-        try:
-            with capture_output():
-                apercu_df, _ = run_all_cleaning_steps(
-                    initial_df.copy(), profile_info=profiler_results,
-                    correct_outliers=False, fill_missing=False,
-                )
-        except Exception as e:
-            print(f"⚠️ Aperçu indisponible ({e}) : les contraintes seront essayées sur le fichier brut.")
-            apercu_df = initial_df
-        regles = demander_regles(
-            list(apercu_df.columns),
-            apres_ajout=_retour_immediat(apercu_df, "Aperçu après nettoyage automatique"),
-        )
-        saisies = bool(regles)
-    contraintes = {}
-    if regles:
-        contraintes["avant"] = valider(initial_df, regles)
-        print(formater_bilan(contraintes["avant"], "Contraintes avant nettoyage") + "\n")
-
     # 4. Décisions de nettoyage avancé
     correct_outliers, fill_missing = get_user_decisions(
         initial_df, profiler_results, interactive=interactive, **decisions
@@ -533,34 +495,13 @@ def main(argv: list[str] = None) -> int:
     except Exception as e:
         print(f"⚠️ Erreur lors de la génération du rapport console : {e}")
 
-    # 7b. Contraintes après nettoyage : signalées, jamais corrigées. La saisie
-    # se rouvre ici : le nettoyage peut laisser passer des anomalies, ou en
-    # révéler d'autres, et l'utilisateur doit pouvoir en ajouter.
-    if regles:
-        contraintes["apres"] = valider(cleaned_df, regles)
-        print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
-    if interactive:
-        nouvelles = demander_regles(
-            list(cleaned_df.columns),
-            invite="⏳ Une anomalie vous a échappé ? Ajouter une contrainte sur le fichier "
-                   "nettoyé ? [o/N] : ",
-            apres_ajout=_retour_immediat(cleaned_df, "Fichier nettoyé"),
-        )
-        if nouvelles:
-            regles = regles + nouvelles
-            saisies = True
-            contraintes["avant"] = valider(initial_df, regles)
-            contraintes["apres"] = valider(cleaned_df, regles)
-    if saisies:
-        _proposer_enregistrement(regles, reports_dir, input_file, horodatage)
-
     # 8. Rapport de nettoyage Markdown
+    logger = logging.getLogger(__name__)
+    chemin_rapport = None
     try:
-        logger = logging.getLogger(__name__)
         chemin_rapport = generate_enhanced_report(
             profiler, logger, reports_dir, input_file, stats,
             generate=generer_rapport, horodatage=horodatage,
-            contraintes=contraintes or None,
         )
         if chemin_rapport:
             print(f"📁 Rapport de nettoyage disponible : {chemin_rapport}")
@@ -577,7 +518,50 @@ def main(argv: list[str] = None) -> int:
         reports_dir, report_format=format_rapport, horodatage=horodatage,
     )
 
-    return 0
+    # 10. Contraintes : signalées, jamais corrigées. Elles viennent en dernier,
+    # une fois le nettoyage fait, son rapport écrit et le nouveau profilage
+    # affiché : c'est sur des données déjà propres que l'utilisateur repère les
+    # anomalies métier qu'aucune machine ne peut deviner (une date de départ
+    # avant l'arrivée, un âge de 130 ans). Elles ne limitent jamais le
+    # nettoyage, et l'utilisateur en ajoute autant qu'il en voit le besoin.
+    # Le fichier de règles n'est lu qu'ici, au moment de la validation.
+    regles = []
+    saisies = False
+    erreur_regles = None
+    if args.regles:
+        try:
+            regles = charger_regles(_resoudre_chemin_regles(args.regles))
+            print(f"\n📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}")
+        except (FileNotFoundError, ValueError) as e:
+            erreur_regles = e
+            print(f"\n❌ {e}\n   Le nettoyage est terminé et sauvegardé ; seules les contraintes n'ont pas pu être vérifiées.")
+    if interactive and erreur_regles is None:
+        nouvelles = demander_regles(
+            list(cleaned_df.columns),
+            invite="\n⏳ Voyez-vous des anomalies que le nettoyage ne pouvait pas deviner ? "
+                   "Ajouter une contrainte ? [o/N] : ",
+            apres_ajout=_retour_immediat(cleaned_df, "Sur le fichier nettoyé"),
+        )
+        regles = regles + nouvelles
+        saisies = bool(nouvelles)
+    if regles:
+        contraintes = {"avant": valider(initial_df, regles), "apres": valider(cleaned_df, regles)}
+        print("\n" + formater_bilan(contraintes["avant"], "Contraintes avant nettoyage"))
+        print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
+        if chemin_rapport:
+            # Le rapport existe déjà : on le réécrit avec la section « Contraintes ».
+            print("\n📝 Mise à jour du rapport de nettoyage avec les contraintes...")
+            try:
+                generate_enhanced_report(
+                    profiler, logger, reports_dir, input_file, stats,
+                    generate=True, horodatage=horodatage, contraintes=contraintes,
+                )
+            except Exception as e:
+                print(f"⚠️ Erreur lors de la mise à jour du rapport : {e}")
+        if saisies:
+            _proposer_enregistrement(regles, reports_dir, input_file, horodatage)
+
+    return 1 if erreur_regles is not None else 0
 
 
 if __name__ == "__main__":
