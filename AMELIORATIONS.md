@@ -1,8 +1,6 @@
 # 🚀 Améliorations du projet
 
-Les améliorations à faire sont classées par ordre d'importance ; les améliorations
-livrées suivent, dans l'ordre chronologique. Le détail de chaque livraison se
-trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
+Les améliorations à faire sont classées par ordre d'importance ; les améliorations livrées suivent, dans l'ordre chronologique. Le détail de chaque livraison se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
 
 ## 🎯 À faire — par ordre d'importance
 1. **Module `validator`** : création d'un moteur de vérification des contraintes (types, formats, plages de valeurs). Il accueillerait aussi des règles métier d'alerte, par exemple signaler une colonne d'âge dont des valeurs sont négatives, idée d'une méthode `detect_quality_issues` prévue à l'Étape 9 et jamais écrite.
