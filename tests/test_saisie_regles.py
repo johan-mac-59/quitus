@@ -12,6 +12,7 @@ from src.saisie_regles import (
     colonnes_attendues,
     construire_regle,
     lire_borne,
+    saisies_depuis_regle,
     types_disponibles,
 )
 from src.validator import (
@@ -247,3 +248,44 @@ class TestExportEnMemoire:
         monkeypatch.chdir(tmp_path)
         regles_vers_texte(self.REGLES)
         assert list(tmp_path.iterdir()) == []
+
+
+class TestSaisiesDepuisRegle:
+    """Pré-remplir un formulaire : l'inverse de `construire_regle`."""
+
+    CAS = [
+        ("plage", "age", {"min": "0", "max": "120"}),
+        ("plage", "age", {"min": "0,5"}),
+        ("plage", "naissance", {"max": "05/01/2024"}),
+        ("longueur", "cp", {"min": "5", "max": "5"}),
+        ("format", "mail", {"nom": "email"}),
+        ("format", "ref", {"motif": r"[A-Z]{2}-\d{3}"}),
+        ("valeurs_autorisees", "statut", {"valeurs": "Payé ; En attente ; Annulé"}),
+        ("non_vide", "id", {}),
+        ("unique", ["a", "b"], {}),
+        ("comparaison_colonnes", ["debut", "fin"], {"operateur": ">="}),
+    ]
+
+    @pytest.mark.parametrize("type_regle, colonnes, saisies", CAS)
+    def test_reconstruire_redonne_la_meme_regle(self, type_regle, colonnes, saisies):
+        regle, _ = construire_regle(type_regle, colonnes, saisies, libelle="Mon nom")
+        relue, problemes = construire_regle(type_regle, regle["colonnes"],
+                                            saisies_depuis_regle(regle), regle["libelle"])
+        assert problemes == [] and relue == regle
+
+    def test_les_champs_absents_de_la_regle_sont_absents_des_saisies(self):
+        regle, _ = construire_regle("plage", "age", {"min": "0"})
+        assert saisies_depuis_regle(regle) == {"min": "0"}
+
+    def test_regle_sans_parametre(self):
+        regle, _ = construire_regle("non_vide", "id")
+        assert saisies_depuis_regle(regle) == {}
+
+    def test_type_inconnu_ou_regle_vide_ne_plantent_pas(self):
+        assert saisies_depuis_regle({"type": "zzz"}) == {}
+        assert saisies_depuis_regle({}) == {}
+
+    def test_toutes_les_saisies_sont_des_textes(self):
+        for type_regle, colonnes, saisies in self.CAS:
+            regle, _ = construire_regle(type_regle, colonnes, saisies)
+            assert all(isinstance(v, str) for v in saisies_depuis_regle(regle).values())

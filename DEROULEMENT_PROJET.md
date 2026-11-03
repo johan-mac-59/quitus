@@ -1989,16 +1989,35 @@ Huitième onglet, placé après « Après nettoyage » : on y définit des contr
 * **Un état qui ne se recalcule pas pour rien.** `st.tabs` exécute le corps de tous les onglets à chaque interaction ; les résultats sont donc gardés en session, avec une clé faite du fichier, du nettoyage et des règles, et ne sont recalculés que si l'un des trois change. Un nouveau nettoyage les invalide.
 * **Les contraintes ne survivent pas à un nouveau fichier**, puisqu'elles portent sur des noms de colonnes ; on les reprend par l'import. « Effacer mes données » les vide aussi, avec les clés de leurs widgets. La liste initiale est copiée à chaque session : sans cela, deux visiteurs auraient partagé leurs règles.
 
-### 4. Erreurs rencontrées
+### 4. Modifier une contrainte
+Le crayon à côté de chaque contrainte repasse le formulaire en mode modification, pré-rempli : type, colonnes, champs et nom. « Enregistrer les modifications » remplace la contrainte **en gardant sa place** dans la liste, « Annuler » la laisse intacte, et le formulaire revient en mode ajout. Le verdict est recalculé aussitôt.
+
+* **L'inverse de la construction est dans le module partagé** (`saisies_depuis_regle`) : reconstruire une règle à partir de ses saisies redonne exactement la même, ce que dix cas vérifient. Le terminal pourra la réutiliser.
+* **Le pré-remplissage se fait dans un rappel de bouton**, avant la réexécution du script : les clés des widgets sont renseignées, et le formulaire repart d'une génération neuve pour qu'aucune saisie en cours ne se mêle à la contrainte choisie. Une colonne qui n'existe plus dans le fichier (règle importée d'ailleurs) n'est pas pré-sélectionnée : la contrainte reste modifiable, il suffit de choisir une colonne.
+* **Les cas limites sont tranchés.** Une modification qui rend la règle identique à une autre est refusée (l'identifiant découle du contenu). Enregistrer sans rien changer est accepté. Une saisie invalide est expliquée et ne fait rien perdre. Retirer la contrainte en cours de modification ferme le formulaire, de même qu'un nouveau fichier ou « Effacer mes données ».
+
+### 5. Des garde-fous, parce que les règles viennent d'ailleurs
+Les contraintes sont saisies par l'utilisateur, et un fichier de règles peut venir d'un tiers. Sur le serveur partagé de l'application en ligne, cela ouvre des portes que la suite de tests, qui vérifie surtout le chemin heureux, ne regardait pas. Un audit en a fermé plusieurs.
+
+* **Un motif catastrophique ne fige plus le serveur.** Une expression régulière comme `(\d+)+` oblige le moteur de Python à essayer un nombre de découpages qui double à chaque caractère : mesuré, 2 secondes pour 26 chiffres suivis d'une lettre, le temps quadruplant tous les deux caractères, donc des heures vers 40. Ce moteur ne peut pas être interrompu en cours de route, et Streamlit exécute le calcul dans le processus qui sert les autres visiteurs. L'évaluation d'un motif personnalisé est donc confiée à un **processus séparé**, arrêté net après cinq secondes (`DELAI_MOTIF`), avec seules les valeurs distinctes en entrée. Aucune dépendance de plus. Les valeurs voyagent en JSON sur l'entrée du processus et non dans son programme : une valeur qui ressemble à du code reste une chaîne, ce qu'un test vérifie. Les formats nommés, eux, restent évalués sur place : leurs motifs sont fixes et sûrs.
+* **Des plafonds** : motif de 200 caractères au plus, 1 000 valeurs autorisées, 100 règles, fichier de règles de 1 Mo, vérifié avant de le lire (la taille se contrôle sur le fichier déposé avant même de le décoder).
+* **Un JSON très imbriqué** faisait échouer la lecture par une erreur que l'interface n'attrapait pas ; c'est désormais un refus expliqué.
+* **Pas de lien ni d'image trompeurs.** Le nom d'une contrainte venu d'un fichier tiers s'affichait tel quel en Markdown : `[cliquez ici](http://…)` devenait un lien, et `![](http://…)` une image chargée depuis un site externe au simple affichage, c'est-à-dire un pisteur discret. Le texte venu de l'utilisateur est maintenant neutralisé (`echapper_markdown`), à l'écran comme dans le rapport de nettoyage. Seuls les caractères qui fabriquent un lien, une image ou une mise en forme sont protégés : les rapports restent lisibles.
+* **`json.loads` n'exécute aucun code**, contrairement à `pickle` : un champ rempli de code Python n'est jamais qu'une chaîne, ce qu'un test confirme.
+
+### 6. Erreurs rencontrées
 * **Un test devenu ambigu.** L'envoi du fichier de règles est un second composant d'envoi : le test utilitaire qui prenait « le premier » (`app.file_uploader[0]`) ouvrait soudain le mauvais, et refusait un `.csv`. L'envoi principal est désormais retrouvé par sa clé. Le défaut était dans le test, pas dans l'application, mais il était révélateur : toute hypothèse sur l'ordre des composants est fragile.
 * **Le nombre d'onglets.** Deux tests énuméraient les sept onglets ; ils comptent désormais huit.
+* **Un fichier de règles pouvait faire planter l'affichage.** En testant le plafond de règles à l'import avec cent règles identiques, l'application a échoué : deux règles de même identifiant donnent deux boutons de même clé. L'import ne dédoublonnait que par rapport aux règles déjà présentes, pas à l'intérieur du fichier. C'est un fichier qu'un tiers peut envoyer, volontairement ou non. Le dédoublonnage porte désormais aussi sur le lot importé.
+* **Une règle à plusieurs colonnes sans violation faisait échouer l'évaluation.** La construction des exemples (« colonne A | colonne B ») utilisait une opération qui renvoie un tableau, et non une série, quand il n'y a aucune ligne en cause. Le test qui aurait dû le voir, une comparaison de deux colonnes, ne vérifiait pas l'absence d'exception : il constatait seulement que la règle avait été ajoutée. Corrigé, avec un test de régression pour la comparaison et pour l'unicité d'une combinaison.
+* **Une promesse à moitié tenue.** Le validateur affirmait qu'« une règle ne fait jamais échouer les autres », mais seule l'évaluation proprement dite était protégée, pas le calcul qui la suit, là où le défaut précédent a éclaté. Toute la construction du verdict d'une règle est maintenant protégée : une panne, même imprévue, devient un verdict d'erreur.
 
-### 5. Ce qui reste
-L'essai par le porteur du projet, dans un navigateur : les tests pilotent les widgets, ils ne disent pas si le formulaire est agréable. Puis la fusion dans `main` et le déploiement, qui ne se font qu'après cet essai. Les pistes de la feuille de route (langage courant, règles suggérées, anomalies orthographiques, corrections) restent à venir.
+### 7. Ce qui reste
+L'essai par le porteur du projet, dans un navigateur : les tests pilotent les widgets, ils ne disent pas si le formulaire est agréable. Puis la fusion dans `main` et le déploiement, qui ne se font qu'après cet essai. Les pistes de la feuille de route restent à venir, dont celles que cet audit a fait apparaître : télécharger les lignes en anomalie, règles conditionnelles, formats supplémentaires, dates relatives.
 
-### 6. Résultat
-**637 tests passent**, contre 451 avant l'Étape 47. `docs/API.md` couvre `validator` et `saisie_regles`.
+### 8. Résultat
+**687 tests passent**, contre 451 avant l'Étape 47. `docs/API.md` couvre `validator` et `saisie_regles`.
 
 ---
 
-*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 637 tests.*
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 687 tests.*

@@ -5,7 +5,7 @@ import logging
 from src.cleaner_engine import SEUIL_IQR
 from src.horodatage import horodater
 from src.marque import en_tete_markdown
-from src.validator import resumer_resultat
+from src.validator import echapper_markdown, resumer_resultat
 
 class CleanerReporter:
     """Génère un rapport détaillé du nettoyage des données."""
@@ -364,7 +364,7 @@ class CleanerReporter:
                   "ne les applique pas. Chaque nombre est le total de valeurs hors règle.\n\n")
         texte += "| Règle | Avant nettoyage | Après nettoyage |\n| :--- | :--- | :--- |\n"
         for regle in regles:
-            nom = (regle["description"] or regle["id"]).replace("|", "\\|")
+            nom = echapper_markdown(regle["description"] or regle["id"])
             texte += (f"| {nom} | {self._cellule_contrainte(par_id_avant.get(regle['id']))}"
                       f" | {self._cellule_contrainte(par_id_apres.get(regle['id']))} |\n")
         texte += "\n"
@@ -376,14 +376,14 @@ class CleanerReporter:
             titre = "après nettoyage" if apres["resultats"] else "avant nettoyage"
             texte += f"### Détail ({titre})\n\n"
             for r in fautives:
-                nom = r["description"] or r["id"]
+                nom = echapper_markdown(r["description"] or r["id"])
                 if r["statut"] == "erreur":
-                    texte += f"* **{nom}** : {r['message']}\n"
+                    texte += f"* **{nom}** : {echapper_markdown(r['message'])}\n"
                     continue
                 reperes = ", ".join(str(i) for i in r["lignes"][:10])
                 suite = " …" if r["violations"] > len(r["lignes"][:10]) else ""
                 exemples = ", ".join(str(e) for e in r["exemples"])
-                texte += (f"* **{nom}** : {r['message']}.\n"
+                texte += (f"* **{nom}** : {echapper_markdown(r['message'])}.\n"
                           f"  * Lignes (index) : {reperes}{suite}\n"
                           f"  * Exemples : {exemples}\n")
             texte += "\n"

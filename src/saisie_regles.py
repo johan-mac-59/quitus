@@ -285,3 +285,29 @@ def construire_regle(type_regle: str, colonnes: list[str] | str,
     regle = nouvelle_regle(type_regle, liste, parametres, libelle)
     problemes = verifier_regle(regle)
     return (None, problemes) if problemes else (regle, [])
+
+
+def saisies_depuis_regle(regle: dict) -> dict[str, str]:
+    """Retrouve les textes à saisir pour reconstruire une règle existante.
+
+    C'est l'inverse de `construire_regle` : il sert à pré-remplir un formulaire
+    quand l'utilisateur veut modifier une règle plutôt que la refaire.
+
+    Args:
+        regle: Une règle bien formée.
+
+    Returns:
+        Les textes à saisir, par nom de champ. Les champs que la règle ne porte
+        pas sont absents. Reconstruire la règle avec ces textes redonne la même.
+    """
+    parametres = regle.get("parametres", {}) or {}
+    saisies = {}
+    for champ in TYPES_DE_REGLE.get(regle.get("type"), {"champs": []})["champs"]:
+        valeur = parametres.get(champ["nom"])
+        if valeur is None:
+            continue
+        if champ["genre"] == "liste":
+            saisies[champ["nom"]] = " ; ".join(str(v) for v in valeur)
+        else:
+            saisies[champ["nom"]] = str(valeur)
+    return saisies

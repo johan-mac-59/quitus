@@ -264,3 +264,132 @@ class TestBilan:
         assert "Contraintes avant nettoyage" in bilan
         assert "1 violation" in bilan
         assert "-1" in bilan
+
+
+class TestGardeFous:
+    """Les règles viennent de l'utilisateur : l'application ne doit jamais se figer."""
+
+    def test_motif_catastrophique_interrompu_dans_le_delai(self, monkeypatch):
+        """`(\\d+)+` sur 40 chiffres et une lettre prendrait des heures : on l'arrête."""
+        import time
+        from src import validator
+        monkeypatch.setattr(validator, "DELAI_MOTIF", 1.0)
+        df = pd.DataFrame({"ref": ["1" * 40 + "x", "123"], "age": [-1, 5]})
+        debut = time.perf_counter()
+        bilan = valider(df, [nouvelle_regle("format", "ref", {"motif": r"(\d+)+"}),
+                             nouvelle_regle("plage", "age", {"min": 0})])
+        assert time.perf_counter() - debut < 5
+        piege, autre = bilan["resultats"]
+        assert piege["statut"] == "erreur" and "trop de temps" in piege["message"]
+        # Une règle qui s'emballe ne prive pas les autres de leur verdict.
+        assert autre["statut"] == "violations" and autre["violations"] == 1
+
+    def test_motif_raisonnable_sur_les_memes_donnees(self):
+        df = pd.DataFrame({"ref": ["1" * 40 + "x", "123", "45"]})
+        r = _un_resultat(df, "format", "ref", {"motif": r"\d+"})
+        assert r["statut"] == "violations" and r["lignes"] == [0]
+
+    def test_seules_les_valeurs_distinctes_sont_testees_mais_toutes_les_lignes_comptees(self):
+        df = pd.DataFrame({"c": ["AB", "AB", "AB", "x", None, "x"]})
+        r = _un_resultat(df, "format", "c", {"motif": "[A-Z]+"})
+        assert r["evaluees"] == 5 and r["violations"] == 2 and r["lignes"] == [3, 5]
+
+    def test_les_valeurs_manquantes_ne_plantent_pas_le_travailleur(self):
+        df = pd.DataFrame({"c": [None, None]})
+        r = _un_resultat(df, "format", "c", {"motif": "a"})
+        assert r["statut"] == "respectee" and r["evaluees"] == 0
+
+    def test_motif_trop_long_refuse(self):
+        regle = nouvelle_regle("format", "c", {"motif": "a" * 201})
+        assert any("trop long" in p for p in verifier_regle(regle))
+        assert verifier_regle(nouvelle_regle("format", "c", {"motif": "a" * 200})) == []
+
+    def test_trop_de_valeurs_autorisees_refuse(self):
+        regle = nouvelle_regle("valeurs_autorisees", "c", {"valeurs": [str(i) for i in range(1001)]})
+        assert any("trop de valeurs" in p for p in verifier_regle(regle))
+
+    def test_trop_de_regles_a_l_import_refuse(self):
+        regles = [nouvelle_regle("non_vide", f"c{i}") for i in range(101)]
+        with pytest.raises(ValueError, match="trop de règles"):
+            regles_depuis_texte(json.dumps({"regles": regles}))
+        assert len(regles_depuis_texte(json.dumps({"regles": regles[:100]}))) == 100
+
+    def test_une_valeur_ne_peut_pas_injecter_de_code_dans_le_travailleur(self):
+        """Les valeurs passent en JSON sur l'entrée du processus, jamais dans son programme."""
+        df = pd.DataFrame({"c": ['"); import os; os.system("echo x") #', "ok"]})
+        r = _un_resultat(df, "format", "c", {"motif": "ok"})
+        assert r["statut"] == "violations" and r["violations"] == 1
+
+
+class TestFichierDeReglesPiege:
+    """Un fichier de règles peut venir d'un tiers : il ne doit rien casser ni rien afficher de trompeur."""
+
+    def test_json_tres_imbrique_refuse_proprement(self):
+        with pytest.raises(ValueError, match="imbrication excessive"):
+            regles_depuis_texte("[" * 200000 + "]" * 200000)
+
+    def test_fichier_trop_volumineux_refuse_avant_lecture(self, monkeypatch):
+        from src import validator
+
+        def interdit(*_a, **_k):
+            raise AssertionError("le fichier ne doit pas être lu")
+
+        monkeypatch.setattr(validator.json, "loads", interdit)
+        with pytest.raises(ValueError, match="trop volumineux"):
+            regles_depuis_texte("x" * (validator.MAX_TAILLE_FICHIER_REGLES + 1))
+
+    def test_json_qui_n_est_pas_une_liste_de_regles(self):
+        for texte in ("42", '"texte"', "null", '{"regles": 3}'):
+            with pytest.raises(ValueError):
+                regles_depuis_texte(texte)
+
+    def test_une_regle_n_est_pas_un_programme(self):
+        """Du code dans un champ n'est jamais exécuté : ce n'est qu'une chaîne."""
+        piege = {"type": "non_vide", "colonnes": ["__import__('os').system('echo x')"],
+                 "parametres": {}, "libelle": "__import__('os').system('echo x')"}
+        assert regles_depuis_texte(json.dumps([piege]))[0]["libelle"].startswith("__import__")
+
+    def test_echapper_markdown_neutralise_liens_et_images(self):
+        from src.validator import echapper_markdown
+        sortie = echapper_markdown("[Cliquez ici](http://x.invalid) ![](http://x.invalid/p.png)")
+        assert "](http" not in sortie.replace("\\]\\(http", "")
+        assert sortie == "\\[Cliquez ici\\]\\(http://x.invalid\\) \\!\\[\\]\\(http://x.invalid/p.png\\)"
+
+    def test_echapper_markdown_laisse_lisible_un_texte_ordinaire(self):
+        from src.validator import echapper_markdown
+        assert echapper_markdown("age : valeur entre 0 et 120") == "age : valeur entre 0 et 120"
+        assert echapper_markdown(42) == "42"
+
+
+class TestReglesAPlusieursColonnesSansViolation:
+    """Régression : une règle à plusieurs colonnes sans violation faisait échouer l'évaluation."""
+
+    @pytest.mark.parametrize("type_regle, colonnes, parametres", [
+        ("comparaison_colonnes", ["a", "b"], {"operateur": "<"}),
+        ("unique", ["a", "b"], {}),
+    ])
+    def test_aucune_violation_ne_plante_pas(self, type_regle, colonnes, parametres):
+        df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
+        r = _un_resultat(df, type_regle, colonnes, parametres)
+        assert r["statut"] == "respectee" and r["violations"] == 0 and r["exemples"] == []
+
+    def test_les_exemples_a_plusieurs_colonnes_sont_plafonnes(self):
+        df = pd.DataFrame({"a": range(20), "b": [0] * 20})
+        r = _un_resultat(df, "comparaison_colonnes", ["a", "b"], {"operateur": "<"})
+        assert r["violations"] == 20 and len(r["exemples"]) == 5
+        assert r["exemples"][0] == "0 | 0"
+
+
+def test_une_regle_ne_fait_jamais_echouer_les_autres_meme_si_son_calcul_echoue(monkeypatch):
+    """Toute erreur pendant le calcul d'une règle, y compris après l'évaluation, devient un verdict d'erreur."""
+    from src import validator
+
+    def casse(*_a, **_k):
+        raise RuntimeError("panne simulée")
+
+    monkeypatch.setitem(validator._EVALUATEURS, "non_vide", casse)
+    df = pd.DataFrame({"a": [1, None], "b": [-1, 2]})
+    bilan = valider(df, [nouvelle_regle("non_vide", "a"), nouvelle_regle("plage", "b", {"min": 0})])
+    casse_r, autre = bilan["resultats"]
+    assert casse_r["statut"] == "erreur" and "panne simulée" in casse_r["message"]
+    assert autre["statut"] == "violations" and autre["violations"] == 1

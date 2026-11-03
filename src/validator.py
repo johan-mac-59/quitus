@@ -38,6 +38,8 @@ import hashlib
 import json
 import operator
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -86,6 +88,19 @@ LIBELLES_FORMATS = {
 
 MAX_LIGNES = 100
 MAX_EXEMPLES = 5
+
+# Garde-fous. Les règles viennent de l'utilisateur, et l'application web tourne
+# sur un serveur partagé : une expression régulière mal écrite, ou piégée, peut
+# occuper le processeur pendant des heures (voir `_motif_correspond`).
+MAX_REGLES = 100
+MAX_LONGUEUR_MOTIF = 200
+MAX_VALEURS_AUTORISEES = 1000
+MAX_TAILLE_FICHIER_REGLES = 1_000_000  # caractères, vérifiés avant toute lecture
+DELAI_MOTIF = 5.0  # secondes accordées à l'application d'un motif sur une colonne
+
+
+class MotifTropCouteux(RuntimeError):
+    """Un motif personnalisé met trop de temps à s'appliquer ; son calcul est interrompu."""
 _VERSION_FORMAT_FICHIER = 1
 
 
@@ -177,6 +192,9 @@ def verifier_regle(regle: object) -> list[str]:
         elif nom is not None and nom not in _MOTIFS_FORMATS:
             problemes.append(f"format nommé inconnu : {nom!r} (attendu : {', '.join(FORMATS_NOMMES)})")
         elif motif is not None:
+            if len(str(motif)) > MAX_LONGUEUR_MOTIF:
+                return problemes + [f"motif trop long ({len(str(motif))} caractères, "
+                                    f"{MAX_LONGUEUR_MOTIF} au plus)"]
             try:
                 re.compile(str(motif))
             except re.error as erreur:
@@ -185,6 +203,9 @@ def verifier_regle(regle: object) -> list[str]:
         valeurs = parametres.get("valeurs")
         if not isinstance(valeurs, list) or not valeurs:
             problemes.append("« valeurs » doit être une liste non vide")
+        elif len(valeurs) > MAX_VALEURS_AUTORISEES:
+            problemes.append(f"trop de valeurs autorisées ({len(valeurs)}, "
+                             f"{MAX_VALEURS_AUTORISEES} au plus)")
     elif type_regle == "comparaison_colonnes":
         if len(colonnes) != 2:
             problemes.append("la comparaison porte sur exactement deux colonnes")
@@ -236,6 +257,23 @@ def _bornes_numeriques(bornes: dict) -> dict | None:
         except ValueError:
             return None
     return convertis
+
+
+def echapper_markdown(texte: object) -> str:
+    """Neutralise le Markdown d'un texte venu de l'utilisateur, pour l'afficher tel quel.
+
+    Un fichier de règles peut venir d'un tiers : sans cela, un nom de contrainte
+    comme « [cliquez ici](http://…) » s'afficherait comme un lien, et
+    « ![](http://…) » ferait charger une image depuis un site externe, au seul
+    affichage de la page.
+
+    Args:
+        texte: Texte à afficher (nom de contrainte, de colonne, valeur…).
+
+    Returns:
+        Le texte, dont les caractères de mise en forme sont protégés.
+    """
+    return re.sub(r"([\\`*_\[\]()<>!|~])", r"\\\1", str(texte))
 
 
 def decrire_regle(regle: dict) -> str:
@@ -329,16 +367,25 @@ def regles_depuis_texte(texte: str) -> list[dict]:
         Les règles lues.
 
     Raises:
-        ValueError: Si le texte n'est pas du JSON valide, ou si une règle est
-            mal formée. Le message dit laquelle et pourquoi.
+        ValueError: Si le texte dépasse `MAX_TAILLE_FICHIER_REGLES`, s'il n'est
+            pas du JSON valide ou trop imbriqué, s'il contient plus de
+            `MAX_REGLES` règles, ou si une règle est mal formée. Le message dit
+            laquelle et pourquoi.
     """
+    if len(texte) > MAX_TAILLE_FICHIER_REGLES:
+        raise ValueError(f"fichier de règles trop volumineux ({len(texte) / 1e6:.1f} Mo) : "
+                         f"{MAX_TAILLE_FICHIER_REGLES / 1e6:g} Mo au plus")
     try:
         brut = json.loads(texte)
     except json.JSONDecodeError as erreur:
         raise ValueError(f"fichier de règles illisible (JSON invalide) : {erreur}") from erreur
+    except RecursionError:
+        raise ValueError("fichier de règles invalide : imbrication excessive") from None
     regles = brut.get("regles") if isinstance(brut, dict) else brut
     if not isinstance(regles, list):
         raise ValueError("fichier de règles invalide : une liste de règles est attendue")
+    if len(regles) > MAX_REGLES:
+        raise ValueError(f"trop de règles ({len(regles)}) : {MAX_REGLES} au plus")
     for position, regle in enumerate(regles, start=1):
         problemes = verifier_regle(regle)
         if problemes:
@@ -556,25 +603,30 @@ def _evaluer_regle(df: pd.DataFrame, regle: object) -> dict:
     try:
         evaluees, fautives, non_evaluables = evaluateur(df, regle["colonnes"],
                                                         regle.get("parametres", {}) or {})
+        nb_evaluees = int(evaluees.sum())
+        nb_violations = int((fautives & evaluees).sum())
+        colonnes = regle["colonnes"]
+        en_faute = df.loc[fautives & evaluees]
+        if len(colonnes) == 1:
+            exemples = en_faute[colonnes[0]].head(MAX_EXEMPLES).tolist()
+        else:
+            # Une ligne par exemple, les colonnes séparées par « | ». Construit à la main :
+            # sur un tableau vide (aucune violation), `agg` renverrait un tableau, pas une série.
+            exemples = [" | ".join(str(v) for v in ligne)
+                        for ligne in en_faute[colonnes].head(MAX_EXEMPLES).itertuples(index=False)]
+        details = dict(
+            evaluees=nb_evaluees,
+            violations=nb_violations,
+            pourcentage=round(100 * nb_violations / nb_evaluees, 2) if nb_evaluees else 0.0,
+            non_evaluables=int(non_evaluables.sum()),
+            lignes=[_natif(i) for i in en_faute.index[:MAX_LIGNES]],
+            exemples=[_natif(v) for v in exemples],
+            statut="violations" if nb_violations else "respectee",
+        )
     except Exception as erreur:  # une règle ne doit jamais faire échouer les autres
         resultat.update(statut="erreur", message=f"évaluation impossible : {erreur}")
         return resultat
-
-    nb_evaluees = int(evaluees.sum())
-    nb_violations = int((fautives & evaluees).sum())
-    colonnes = regle["colonnes"]
-    en_faute = df.loc[fautives & evaluees]
-    exemples = (en_faute[colonnes[0]] if len(colonnes) == 1
-                else en_faute[colonnes].astype(str).agg(" | ".join, axis=1))
-    resultat.update(
-        evaluees=nb_evaluees,
-        violations=nb_violations,
-        pourcentage=round(100 * nb_violations / nb_evaluees, 2) if nb_evaluees else 0.0,
-        non_evaluables=int(non_evaluables.sum()),
-        lignes=[_natif(i) for i in en_faute.index[:MAX_LIGNES]],
-        exemples=[_natif(v) for v in exemples.head(MAX_EXEMPLES).tolist()],
-        statut="violations" if nb_violations else "respectee",
-    )
+    resultat.update(details)
     resultat["message"] = _message(resultat)
     return resultat
 
@@ -668,6 +720,61 @@ def _eval_longueur(df: pd.DataFrame, colonnes: list[str], p: dict):
     return renseignee, fautive, pd.Series(False, index=df.index)
 
 
+# Programme du travailleur : il lit le motif et les valeurs sur son entrée, et
+# répond par une liste de 0 et de 1. Il n'importe que la bibliothèque standard.
+_TRAVAILLEUR_MOTIF = """
+import json, re, sys
+donnees = json.load(sys.stdin)
+motif = re.compile(donnees["motif"])
+json.dump([1 if motif.fullmatch(v) else 0 for v in donnees["valeurs"]], sys.stdout)
+"""
+
+
+def _motif_correspond(texte: pd.Series, motif: str) -> pd.Series:
+    """Dit, pour chaque valeur, si elle correspond entièrement au motif.
+
+    Un motif écrit par l'utilisateur peut être catastrophique : une répétition
+    imbriquée comme ``(\\d+)+`` oblige le moteur à essayer un nombre de
+    découpages qui double à chaque caractère, et le moteur de Python ne peut pas
+    être interrompu en cours de route. Sur un serveur partagé, un seul motif
+    pourrait ainsi occuper le processeur pendant des heures. L'application est
+    donc confiée à un **processus séparé**, arrêté net s'il dépasse
+    `DELAI_MOTIF` secondes, et seules les valeurs distinctes lui sont envoyées.
+
+    Args:
+        texte: Valeurs à tester, en texte.
+        motif: Expression régulière, déjà contrôlée par `verifier_regle`.
+
+    Returns:
+        Un masque booléen, vrai là où la valeur correspond. Les valeurs
+        manquantes ne correspondent pas.
+
+    Raises:
+        MotifTropCouteux: Si l'évaluation dépasse le délai.
+        ValueError: Si le travailleur échoue pour une autre raison.
+    """
+    uniques = texte.dropna().astype(str).unique().tolist()
+    if not uniques:
+        return pd.Series(False, index=texte.index)
+    try:
+        reponse = subprocess.run(
+            [sys.executable, "-I", "-c", _TRAVAILLEUR_MOTIF],
+            input=json.dumps({"motif": motif, "valeurs": uniques}),
+            capture_output=True, text=True, timeout=DELAI_MOTIF,
+        )
+    except subprocess.TimeoutExpired:
+        raise MotifTropCouteux(
+            f"le motif met trop de temps à s'appliquer (plus de {DELAI_MOTIF:g} s) et a "
+            "été interrompu ; évitez les répétitions imbriquées comme (a+)+ ou (.*)*"
+        ) from None
+    if reponse.returncode != 0:
+        detail = (reponse.stderr.strip().splitlines() or ["échec inconnu"])[-1]
+        raise ValueError(f"motif inutilisable : {detail}")
+    correspondance = dict(zip(uniques, json.loads(reponse.stdout)))
+    return texte.map(lambda v: bool(correspondance.get(str(v), 0)) if pd.notna(v) else False
+                     ).astype(bool)
+
+
 def _eval_format(df: pd.DataFrame, colonnes: list[str], p: dict):
     """Évalue une règle `format`.
 
@@ -692,7 +799,7 @@ def _eval_format(df: pd.DataFrame, colonnes: list[str], p: dict):
                 lambda t: isinstance(t, str) and t.isdigit() and _luhn_valide(t)
             ).astype(bool)
     else:
-        conforme = texte.str.fullmatch(str(p["motif"])).fillna(False).astype(bool)
+        conforme = _motif_correspond(texte, str(p["motif"]))
     return renseignee, ~conforme, pd.Series(False, index=df.index)
 
 

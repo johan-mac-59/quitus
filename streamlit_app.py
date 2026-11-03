@@ -49,10 +49,14 @@ from src.saisie_regles import (
     champs_du_type,
     colonnes_attendues,
     construire_regle,
+    saisies_depuis_regle,
     types_disponibles,
 )
 from src.validator import (
+    MAX_REGLES,
+    MAX_TAILLE_FICHIER_REGLES,
     decrire_regle,
+    echapper_markdown,
     regles_depuis_texte,
     regles_vers_texte,
     resumer_resultat,
@@ -129,6 +133,7 @@ ETAT_INITIAL = {
     "regles": [],
     "contraintes": None,    # {"cle", "avant", "apres"} : résultats de `valider`
     "message_regles": None,  # confirmation à afficher après un ajout ou un import
+    "regle_en_edition": None,  # identifiant de la contrainte en cours de modification
     # Entrent dans les clés des widgets de saisie et d'import : les incrémenter
     # les recrée vides, comme pour `generation_envoi`.
     "generation_regles": 0,
@@ -136,7 +141,7 @@ ETAT_INITIAL = {
 }
 
 # Préfixes des clés de widgets du validateur, purgés par « Effacer mes données ».
-PREFIXES_WIDGETS_REGLES = ("regle_", "import_regles_", "suppr_regle_")
+PREFIXES_WIDGETS_REGLES = ("regle_", "import_regles_", "suppr_regle_", "modif_regle_")
 
 
 # ==========================================================================
@@ -166,6 +171,7 @@ def reinitialiser_aval() -> None:
     st.session_state["regles"] = []
     st.session_state["contraintes"] = None
     st.session_state["message_regles"] = None
+    st.session_state["regle_en_edition"] = None
 
 
 def purger_cache(*dfs: pd.DataFrame | None) -> None:
@@ -1511,7 +1517,8 @@ def supprimer_regle(identifiant: str) -> None:
     """Retire une contrainte de la liste.
 
     Appelée comme rappel de bouton : l'état est modifié avant la réexécution du
-    script, qui affiche donc déjà la liste à jour.
+    script, qui affiche donc déjà la liste à jour. Si la contrainte était en
+    cours de modification, la modification est abandonnée.
 
     Args:
         identifiant: Identifiant de la règle à retirer.
@@ -1519,23 +1526,80 @@ def supprimer_regle(identifiant: str) -> None:
     st.session_state["regles"] = [r for r in st.session_state["regles"]
                                   if r["id"] != identifiant]
     st.session_state["contraintes"] = None
+    if st.session_state["regle_en_edition"] == identifiant:
+        annuler_modification()
 
 
 def ajouter_regles(nouvelles: list[dict]) -> int:
-    """Ajoute des règles à la liste, sans doublon.
+    """Ajoute des règles à la liste, sans doublon et dans la limite de `MAX_REGLES`.
 
     Args:
         nouvelles: Règles à ajouter.
 
     Returns:
-        Le nombre de règles réellement ajoutées (les règles déjà présentes,
-        reconnues à leur identifiant, sont ignorées).
+        Le nombre de règles réellement ajoutées (les règles déjà présentes ou
+        répétées dans le lot, reconnues à leur identifiant, sont ignorées, de
+        même que celles qui dépasseraient la limite).
     """
-    existantes = {r["id"] for r in st.session_state["regles"]}
-    ajoutees = [r for r in nouvelles if r["id"] not in existantes]
+    # Le dédoublonnage porte aussi sur le lot lui-même : deux règles de même
+    # identifiant donneraient deux boutons de même clé, et l'affichage échouerait.
+    vues = {r["id"] for r in st.session_state["regles"]}
+    place = max(MAX_REGLES - len(st.session_state["regles"]), 0)
+    ajoutees = []
+    for regle in nouvelles:
+        if regle["id"] not in vues:
+            vues.add(regle["id"])
+            ajoutees.append(regle)
+    ajoutees = ajoutees[:place]
     st.session_state["regles"] = st.session_state["regles"] + ajoutees
     st.session_state["contraintes"] = None
     return len(ajoutees)
+
+
+def annuler_modification() -> None:
+    """Abandonne la modification en cours et remet le formulaire d'ajout à zéro.
+
+    Appelée comme rappel de bouton, ou quand la contrainte modifiée disparaît.
+    """
+    st.session_state["regle_en_edition"] = None
+    st.session_state["generation_regles"] += 1
+
+
+def demarrer_modification(identifiant: str) -> None:
+    """Passe le formulaire en mode modification, pré-rempli avec la contrainte.
+
+    Appelée comme rappel de bouton : les clés des widgets sont renseignées avant
+    la réexécution du script, et le formulaire repart d'une génération neuve
+    pour qu'aucune saisie en cours ne se mêle à la contrainte choisie. Une
+    colonne qui n'existe plus dans le fichier n'est pas pré-sélectionnée.
+
+    Args:
+        identifiant: Identifiant de la règle à modifier.
+    """
+    regle = next((r for r in st.session_state["regles"] if r["id"] == identifiant), None)
+    if regle is None:
+        return
+    generation = st.session_state["generation_regles"] + 1
+    st.session_state["generation_regles"] = generation
+    st.session_state["regle_en_edition"] = identifiant
+
+    type_regle = regle["type"]
+    colonnes = list(st.session_state["df_propre"].columns)
+    cibles = [c for c in regle["colonnes"] if c in colonnes]
+    st.session_state[f"regle_{generation}_type"] = type_regle
+    mini, maxi = colonnes_attendues(type_regle)
+    if mini == 2:
+        if len(cibles) == 2:
+            st.session_state[f"regle_{generation}_col1"] = cibles[0]
+            st.session_state[f"regle_{generation}_col2"] = cibles[1]
+    elif maxi is None:
+        st.session_state[f"regle_{generation}_cols"] = cibles
+    elif cibles:
+        st.session_state[f"regle_{generation}_col"] = cibles[0]
+    for nom, texte in saisies_depuis_regle(regle).items():
+        st.session_state[f"regle_{generation}_{type_regle}_{nom}"] = texte
+    if regle.get("libelle"):
+        st.session_state[f"regle_{generation}_libelle"] = regle["libelle"]
 
 
 def champ_de_regle(champ: dict, generation: int, type_regle: str):
@@ -1564,7 +1628,7 @@ def champ_de_regle(champ: dict, generation: int, type_regle: str):
 
 
 def formulaire_regle(colonnes: list[str]) -> None:
-    """Affiche le formulaire d'ajout d'une contrainte.
+    """Affiche le formulaire d'ajout, ou de modification, d'une contrainte.
 
     Ni `st.form` ni autre conteneur qui figerait l'affichage : les champs
     dépendent du type choisi et doivent suivre ce choix immédiatement.
@@ -1573,9 +1637,14 @@ def formulaire_regle(colonnes: list[str]) -> None:
         colonnes: Colonnes du fichier nettoyé, proposées au choix.
     """
     generation = st.session_state["generation_regles"]
+    en_edition = st.session_state["regle_en_edition"]
+    if en_edition is None and len(st.session_state["regles"]) >= MAX_REGLES:
+        st.info(f"Limite de {MAX_REGLES} contraintes atteinte : retirez-en une pour en ajouter.")
+        return
+
     types = dict(types_disponibles())
     with st.container(border=True):
-        st.markdown("**➕ Ajouter une contrainte**")
+        st.markdown("**✏️ Modifier la contrainte**" if en_edition else "**➕ Ajouter une contrainte**")
         type_regle = st.selectbox("Quelle contrainte ?", list(types), format_func=types.get,
                                   key=f"regle_{generation}_type")
         mini, maxi = colonnes_attendues(type_regle)
@@ -1600,16 +1669,54 @@ def formulaire_regle(colonnes: list[str]) -> None:
                                 key=f"regle_{generation}_libelle",
                                 help="Remplace la description automatique dans les rapports.")
 
-        if st.button("Ajouter la contrainte", type="primary", key=f"regle_{generation}_ajouter"):
+        gauche, droite = st.columns([3, 1])
+        if en_edition:
+            valider_saisie = gauche.button("Enregistrer les modifications", type="primary",
+                                           key=f"regle_{generation}_enregistrer")
+            droite.button("Annuler", key=f"regle_{generation}_annuler",
+                          on_click=annuler_modification)
+        else:
+            valider_saisie = gauche.button("Ajouter la contrainte", type="primary",
+                                           key=f"regle_{generation}_ajouter")
+        if valider_saisie:
             regle, problemes = construire_regle(type_regle, cibles, saisies, libelle.strip() or None)
             for probleme in problemes:
-                st.error(probleme)
+                st.error(echapper_markdown(probleme))
             if regle is not None:
-                if ajouter_regles([regle]):
-                    st.session_state["message_regles"] = f"Contrainte ajoutée : {decrire_regle(regle)}"
-                    st.session_state["generation_regles"] += 1
-                    st.rerun()
-                st.warning("Cette contrainte est déjà dans la liste.")
+                enregistrer_regle(regle, en_edition)
+
+
+def enregistrer_regle(regle: dict, en_edition: str | None) -> None:
+    """Ajoute une contrainte, ou remplace celle qu'on modifie, puis relance l'affichage.
+
+    La contrainte modifiée garde sa place dans la liste. Une contrainte
+    identique à une autre déjà présente est refusée, puisque l'identifiant d'une
+    règle découle de son contenu.
+
+    Args:
+        regle: La contrainte construite, valide.
+        en_edition: Identifiant de la contrainte remplacée, ou None pour un ajout.
+    """
+    regles = st.session_state["regles"]
+    if en_edition is None:
+        if not ajouter_regles([regle]):
+            st.warning("Cette contrainte est déjà dans la liste.")
+            return
+        message = f"Contrainte ajoutée : {echapper_markdown(decrire_regle(regle))}"
+    else:
+        position = next((i for i, r in enumerate(regles) if r["id"] == en_edition), None)
+        if position is None:  # la contrainte a disparu entre-temps : on l'ajoute
+            return enregistrer_regle(regle, None)
+        if any(r["id"] == regle["id"] for i, r in enumerate(regles) if i != position):
+            st.warning("Une contrainte identique existe déjà dans la liste.")
+            return
+        st.session_state["regles"] = regles[:position] + [regle] + regles[position + 1:]
+        st.session_state["contraintes"] = None
+        st.session_state["regle_en_edition"] = None
+        message = f"Contrainte modifiée : {echapper_markdown(decrire_regle(regle))}"
+    st.session_state["message_regles"] = message
+    st.session_state["generation_regles"] += 1
+    st.rerun()
 
 
 def importer_regles() -> None:
@@ -1626,9 +1733,13 @@ def importer_regles() -> None:
     if fichier is None:
         return
     try:
+        # La taille se vérifie avant de lire : un fichier énorme n'est pas chargé.
+        if fichier.size > MAX_TAILLE_FICHIER_REGLES:
+            raise ValueError(f"fichier de règles trop volumineux ({fichier.size / 1e6:.1f} Mo) : "
+                             f"{MAX_TAILLE_FICHIER_REGLES / 1e6:g} Mo au plus")
         nouvelles = regles_depuis_texte(fichier.getvalue().decode("utf-8"))
     except (ValueError, UnicodeDecodeError) as e:
-        st.error(f"Import impossible : {e}")
+        st.error(echapper_markdown(f"Import impossible : {e}"))
         return
     ajoutees = ajouter_regles(nouvelles)
     st.session_state["message_regles"] = (
@@ -1692,14 +1803,18 @@ def liste_des_regles(propre: pd.DataFrame) -> None:
     else:
         st.success("✅ Le fichier nettoyé respecte toutes vos contraintes.")
 
-    entetes = st.columns([6, 2, 2, 1])
-    for colonne, titre in zip(entetes, ("Contrainte", "Avant nettoyage", "Après nettoyage", "")):
+    entetes = st.columns([6, 2, 2, 1, 1])
+    for colonne, titre in zip(entetes, ("Contrainte", "Avant nettoyage", "Après nettoyage", "", "")):
         colonne.caption(titre)
+    en_edition = st.session_state["regle_en_edition"]
     for regle in regles:
-        nom, rangee_avant, rangee_apres, retrait = st.columns([6, 2, 2, 1])
-        nom.markdown(f"**{decrire_regle(regle)}**")
+        nom, rangee_avant, rangee_apres, modif, retrait = st.columns([6, 2, 2, 1, 1])
+        nom.markdown(f"**{echapper_markdown(decrire_regle(regle))}**"
+                     + ("  \n*(en cours de modification)*" if regle["id"] == en_edition else ""))
         rangee_avant.write(resumer_resultat(avant.get(regle["id"])))
         rangee_apres.write(resumer_resultat(apres.get(regle["id"])))
+        modif.button("✏️", key=f"modif_regle_{regle['id']}", on_click=demarrer_modification,
+                     args=(regle["id"],), help="Modifier cette contrainte.")
         retrait.button("🗑️", key=f"suppr_regle_{regle['id']}", on_click=supprimer_regle,
                        args=(regle["id"],), help="Retirer cette contrainte.")
 
@@ -1708,8 +1823,8 @@ def liste_des_regles(propre: pd.DataFrame) -> None:
         if resultat is None or resultat["statut"] == "respectee":
             continue
         with st.expander(f"{'❌' if resultat['statut'] == 'erreur' else '⚠️'} "
-                         f"{decrire_regle(regle)} : détail"):
-            st.write(resultat["message"])
+                         f"{echapper_markdown(decrire_regle(regle))} : détail"):
+            st.write(echapper_markdown(resultat["message"]))
             if resultat["statut"] == "violations":
                 lignes = [i for i in resultat["lignes"] if i in propre.index]
                 suite = (f" (les {len(lignes)} premières sur {formater(resultat['violations'])})"

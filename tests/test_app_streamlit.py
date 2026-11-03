@@ -1186,6 +1186,7 @@ class TestOngletContraintes:
         app.selectbox(key="regle_0_col2").set_value("ville")
         app.selectbox(key="regle_0_comparaison_colonnes_operateur").set_value("!=")
         app = app.button(key="regle_0_ajouter").click().run()
+        assert not app.exception
         assert app.session_state["regles"][0]["colonnes"] == ["id", "ville"]
 
     def test_la_contrainte_figure_dans_le_rapport_de_nettoyage(self, app_nettoyee):
@@ -1307,3 +1308,227 @@ class TestOngletContraintes:
         app.run()
         apres = set(rapports.glob("*")) if rapports.exists() else set()
         assert apres == avant
+
+
+def _regle_importee(app, regles: list[dict]):
+    """Importe des règles par le composant de l'onglet Contraintes.
+
+    Args:
+        app: Application après nettoyage.
+        regles: Règles à importer.
+
+    Returns:
+        L'application après l'import.
+    """
+    from src.validator import regles_vers_texte
+    envoi = [u for u in app.get("file_uploader") if "Importer" in u.label][0]
+    envoi.upload("regles.json", regles_vers_texte(regles).encode("utf-8"), "application/json")
+    return app.run()
+
+
+class TestImportPiege:
+    """Un fichier de règles venu d'un tiers ne doit ni planter, ni afficher de lien trompeur."""
+
+    def test_libelle_avec_lien_et_image_affiche_tel_quel(self, app_nettoyee):
+        from src.validator import nouvelle_regle
+        piege = nouvelle_regle("non_vide", "ville", {},
+                               libelle="[Cliquez ici](http://x.invalid) ![](http://x.invalid/p.png)")
+        app = _regle_importee(app_nettoyee, [piege])
+        textes = " ".join(m.value for m in _onglet_contraintes(app).markdown)
+        assert "\\[Cliquez ici\\]" in textes
+        assert "[Cliquez ici](" not in textes and "![](" not in textes
+
+    def test_une_regle_repetee_dans_le_fichier_n_est_ajoutee_qu_une_fois(self, app_nettoyee):
+        """Deux règles de même identifiant donneraient deux boutons de même clé : plantage."""
+        from src.validator import nouvelle_regle
+        regle = nouvelle_regle("non_vide", "ville")
+        app = _regle_importee(app_nettoyee, [regle, regle, regle])
+        assert not app.exception
+        assert len(app.session_state["regles"]) == 1
+        assert any("2 déjà présente(s)" in s.value for s in _onglet_contraintes(app).success)
+
+    def test_json_tres_imbrique_ne_plante_pas(self, app_nettoyee):
+        envoi = [u for u in app_nettoyee.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", ("[" * 100000).encode("utf-8"), "application/json")
+        app = app_nettoyee.run()
+        assert not app.exception
+        assert any("Import impossible" in e.value for e in _onglet_contraintes(app).error)
+
+    def test_fichier_trop_volumineux_refuse(self, app_nettoyee):
+        envoi = [u for u in app_nettoyee.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", b"x" * 1_000_001, "application/json")
+        app = app_nettoyee.run()
+        assert app.session_state["regles"] == []
+        assert any("trop volumineux" in e.value for e in _onglet_contraintes(app).error)
+
+    def test_plafond_de_contraintes_a_l_import(self, app_nettoyee):
+        from src.validator import MAX_REGLES, nouvelle_regle
+        regles = [nouvelle_regle("plage", "montant", {"max": 1000 + i}) for i in range(MAX_REGLES)]
+        app = _regle_importee(app_nettoyee, regles)
+        assert len(app.session_state["regles"]) == MAX_REGLES
+        # Plus de place : le formulaire ne propose plus d'ajout.
+        assert any("Limite" in i.value for i in _onglet_contraintes(app).info)
+        extra = nouvelle_regle("non_vide", "ville")
+        app = _regle_importee(app, [extra])
+        assert len(app.session_state["regles"]) == MAX_REGLES
+
+
+class TestModificationDeContrainte:
+    """Modifier une contrainte plutôt que la supprimer et la refaire."""
+
+    @staticmethod
+    def _avec_une_regle(app):
+        """Ajoute une plage sur « montant » et renvoie l'application et l'identifiant."""
+        app = _ajouter_plage(app, "montant", max="500")
+        return app, app.session_state["regles"][0]["id"]
+
+    @staticmethod
+    def _modifier(app, identifiant):
+        """Clique sur le crayon d'une contrainte."""
+        return app.button(key=f"modif_regle_{identifiant}").click().run()
+
+    @staticmethod
+    def _etiquettes(app):
+        """Libellés des boutons de l'onglet Contraintes."""
+        return [b.label for b in _onglet_contraintes(app).button]
+
+    def test_le_formulaire_est_prerempli(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        assert app.session_state["regle_en_edition"] == ident
+        assert app.selectbox(key=f"regle_{g}_type").value == "plage"
+        assert app.selectbox(key=f"regle_{g}_col").value == "montant"
+        assert app.text_input(key=f"regle_{g}_plage_max").value == "500"
+        assert app.text_input(key=f"regle_{g}_plage_min").value == ""
+        assert "Enregistrer les modifications" in self._etiquettes(app)
+        assert "Annuler" in self._etiquettes(app)
+        assert "Ajouter la contrainte" not in self._etiquettes(app)
+        assert any("en cours de modification" in m.value for m in _onglet_contraintes(app).markdown)
+
+    def test_prerempli_pour_deux_colonnes_et_pour_une_combinaison(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("comparaison_colonnes").run()
+        app.selectbox(key="regle_0_col1").set_value("id")
+        app.selectbox(key="regle_0_col2").set_value("ville")
+        app.selectbox(key="regle_0_comparaison_colonnes_operateur").set_value("!=")
+        app = app.button(key="regle_0_ajouter").click().run()
+        ident = app.session_state["regles"][0]["id"]
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        assert app.selectbox(key=f"regle_{g}_col1").value == "id"
+        assert app.selectbox(key=f"regle_{g}_col2").value == "ville"
+        assert app.selectbox(key=f"regle_{g}_comparaison_colonnes_operateur").value == "!="
+
+    def test_enregistrer_remplace_la_contrainte_en_gardant_sa_place(self, app_nettoyee):
+        app, _ = self._avec_une_regle(app_nettoyee)
+        g = app.session_state["generation_regles"]
+        app.selectbox(key=f"regle_{g}_type").set_value("non_vide").run()
+        app.selectbox(key=f"regle_{g}_col").set_value("ville")
+        app = app.button(key=f"regle_{g}_ajouter").click().run()
+        premiere, seconde = app.session_state["regles"]
+
+        app = self._modifier(app, premiere["id"])
+        g = app.session_state["generation_regles"]
+        app.text_input(key=f"regle_{g}_plage_max").set_value("60")
+        app = app.button(key=f"regle_{g}_enregistrer").click().run()
+
+        regles = app.session_state["regles"]
+        assert len(regles) == 2
+        assert regles[0]["parametres"] == {"max": 60} and regles[0]["id"] != premiere["id"]
+        assert regles[1]["id"] == seconde["id"]
+        assert app.session_state["regle_en_edition"] is None
+        propre = app.session_state["df_propre"]
+        verdict = app.session_state["contraintes"]["apres"]["resultats"][0]
+        assert verdict["violations"] == int((propre["montant"] > 60).sum())
+        assert any("Contrainte modifiée" in s.value for s in _onglet_contraintes(app).success)
+        assert "Ajouter la contrainte" in self._etiquettes(app)
+
+    def test_annuler_laisse_la_contrainte_intacte(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        app.text_input(key=f"regle_{g}_plage_max").set_value("1")
+        app = app.button(key=f"regle_{g}_annuler").click().run()
+        assert app.session_state["regles"][0]["parametres"] == {"max": 500}
+        assert app.session_state["regle_en_edition"] is None
+        assert "Ajouter la contrainte" in self._etiquettes(app)
+
+    def test_modification_vers_un_doublon_refusee(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        app = _ajouter_plage(app, "montant", max="600")
+        a, b = app.session_state["regles"]
+        app = self._modifier(app, b["id"])
+        g = app.session_state["generation_regles"]
+        app.text_input(key=f"regle_{g}_plage_max").set_value("500")
+        app = app.button(key=f"regle_{g}_enregistrer").click().run()
+        assert app.session_state["regles"] == [a, b]
+        assert any("identique" in w.value for w in _onglet_contraintes(app).warning)
+        assert app.session_state["regle_en_edition"] == b["id"]
+
+    def test_enregistrer_sans_rien_changer_est_accepte(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        avant = app.session_state["regles"][0]
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        app = app.button(key=f"regle_{g}_enregistrer").click().run()
+        assert app.session_state["regles"] == [avant]
+        assert not [w for w in _onglet_contraintes(app).warning if "identique" in w.value]
+
+    def test_modification_invalide_expliquee_sans_rien_perdre(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        app.text_input(key=f"regle_{g}_plage_max").set_value("")
+        app = app.button(key=f"regle_{g}_enregistrer").click().run()
+        assert any("minimum ou un maximum" in e.value for e in _onglet_contraintes(app).error)
+        assert app.session_state["regles"][0]["parametres"] == {"max": 500}
+        assert app.session_state["regle_en_edition"] == ident
+
+    def test_changer_de_type_pendant_la_modification(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        app.selectbox(key=f"regle_{g}_type").set_value("unique").run()
+        app.multiselect(key=f"regle_{g}_cols").set_value(["ville"])
+        app = app.button(key=f"regle_{g}_enregistrer").click().run()
+        regles = app.session_state["regles"]
+        assert len(regles) == 1 and regles[0]["type"] == "unique" and regles[0]["colonnes"] == ["ville"]
+
+    def test_supprimer_la_contrainte_en_cours_de_modification_ferme_le_formulaire(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        app = self._modifier(app, ident)
+        app = app.button(key=f"suppr_regle_{ident}").click().run()
+        assert app.session_state["regles"] == []
+        assert app.session_state["regle_en_edition"] is None
+        assert "Ajouter la contrainte" in self._etiquettes(app)
+
+    def test_une_contrainte_sur_une_colonne_absente_reste_modifiable(self, app_nettoyee):
+        from src.validator import nouvelle_regle
+        app = _regle_importee(app_nettoyee, [nouvelle_regle("plage", "inexistante", {"min": 0})])
+        ident = app.session_state["regles"][0]["id"]
+        app = self._modifier(app, ident)
+        assert not app.exception
+        g = app.session_state["generation_regles"]
+        app.selectbox(key=f"regle_{g}_col").set_value("montant")
+        app = app.button(key=f"regle_{g}_enregistrer").click().run()
+        assert app.session_state["regles"][0]["colonnes"] == ["montant"]
+
+    def test_modifier_garde_le_nom_donne_a_la_contrainte(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("plage").run()
+        app.selectbox(key="regle_0_col").set_value("montant")
+        app.text_input(key="regle_0_plage_max").set_value("500")
+        app.text_input(key="regle_0_libelle").set_value("Montant plausible")
+        app = app.button(key="regle_0_ajouter").click().run()
+        ident = app.session_state["regles"][0]["id"]
+        app = self._modifier(app, ident)
+        g = app.session_state["generation_regles"]
+        assert app.text_input(key=f"regle_{g}_libelle").value == "Montant plausible"
+
+    def test_un_nouveau_fichier_ferme_la_modification(self, app_nettoyee):
+        app, ident = self._avec_une_regle(app_nettoyee)
+        app = self._modifier(app, ident)
+        app = _deposer(app, "id;prix\n1;10\n2;20\n".encode("utf-8"), "autre.csv")
+        assert app.session_state["regle_en_edition"] is None
+        assert app.session_state["regles"] == []

@@ -62,8 +62,10 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`figure_to_base64_png`](#figure_to_base64_png) — fonction
   - [`figure_to_img_tag`](#figure_to_img_tag) — fonction
 - [`src/validator.py`](#srcvalidatorpy)
+  - [`MotifTropCouteux`](#motiftropcouteux) — classe
   - [`nouvelle_regle`](#nouvelle_regle) — fonction
   - [`verifier_regle`](#verifier_regle) — fonction
+  - [`echapper_markdown`](#echapper_markdown) — fonction
   - [`decrire_regle`](#decrire_regle) — fonction
   - [`regles_vers_texte`](#regles_vers_texte) — fonction
   - [`sauver_regles`](#sauver_regles) — fonction
@@ -78,6 +80,7 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`colonnes_attendues`](#colonnes_attendues) — fonction
   - [`lire_borne`](#lire_borne) — fonction
   - [`construire_regle`](#construire_regle) — fonction
+  - [`saisies_depuis_regle`](#saisies_depuis_regle) — fonction
 - [`src/horodatage.py`](#srchorodatagepy)
   - [`horodater`](#horodater) — fonction
 - [`src/marque.py`](#srcmarquepy)
@@ -1210,6 +1213,14 @@ part (``non_evaluables``), pour qu'aucune valeur ne soit ignorée en silence.
 
 Ce module ne connaît aucune interface : il ne pose aucune question.
 
+### `MotifTropCouteux`
+
+```python
+class MotifTropCouteux(…)
+```
+
+Un motif personnalisé met trop de temps à s'appliquer ; son calcul est interrompu.
+
 ### `nouvelle_regle`
 
 ```python
@@ -1244,6 +1255,25 @@ Contrôle la forme d'une règle, sans regarder les données.
 - `regle` — La règle à contrôler.
 
 **Retour** — La liste des problèmes, en français. Vide si la règle est bien formée.
+
+### `echapper_markdown`
+
+```python
+echapper_markdown(texte: object) -> str
+```
+
+Neutralise le Markdown d'un texte venu de l'utilisateur, pour l'afficher tel quel.
+
+Un fichier de règles peut venir d'un tiers : sans cela, un nom de contrainte
+comme « [cliquez ici](http://…) » s'afficherait comme un lien, et
+« ![](http://…) » ferait charger une image depuis un site externe, au seul
+affichage de la page.
+
+**Paramètres**
+
+- `texte` — Texte à afficher (nom de contrainte, de colonne, valeur…).
+
+**Retour** — Le texte, dont les caractères de mise en forme sont protégés.
 
 ### `decrire_regle`
 
@@ -1309,7 +1339,7 @@ Accepte le format écrit par `sauver_regles` ou une simple liste de règles.
 
 **Exceptions**
 
-- `ValueError` — Si le texte n'est pas du JSON valide, ou si une règle est mal formée. Le message dit laquelle et pourquoi.
+- `ValueError` — Si le texte dépasse `MAX_TAILLE_FICHIER_REGLES`, s'il n'est pas du JSON valide ou trop imbriqué, s'il contient plus de `MAX_REGLES` règles, ou si une règle est mal formée. Le message dit laquelle et pourquoi.
 
 ### `charger_regles`
 
@@ -1485,6 +1515,23 @@ l'utilisateur corriger.
 - `libelle` — Nom lisible facultatif de la règle.
 
 **Retour** — Le couple (règle, problèmes). La règle est None si les problèmes ne sont pas vides ; sinon elle est valide (`verifier_regle`) et prête pour `valider`.
+
+### `saisies_depuis_regle`
+
+```python
+saisies_depuis_regle(regle: dict) -> dict[str, str]
+```
+
+Retrouve les textes à saisir pour reconstruire une règle existante.
+
+C'est l'inverse de `construire_regle` : il sert à pré-remplir un formulaire
+quand l'utilisateur veut modifier une règle plutôt que la refaire.
+
+**Paramètres**
+
+- `regle` — Une règle bien formée.
+
+**Retour** — Les textes à saisir, par nom de champ. Les champs que la règle ne porte pas sont absents. Reconstruire la règle avec ces textes redonne la même.
 
 ## `src/horodatage.py`
 

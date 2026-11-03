@@ -91,3 +91,12 @@ def test_main_sans_regles_ne_cree_pas_la_section(tmp_path):
                "--reports", str(tmp_path / "r"), "--non-interactif"])
     contenu = next((tmp_path / "r").glob("cleaning_report_*.md")).read_text(encoding="utf-8")
     assert "Contraintes" not in contenu
+
+
+def test_un_libelle_piege_ne_devient_ni_lien_ni_image_dans_le_rapport(reporteur):
+    regle = nouvelle_regle("non_vide", "nom", {},
+                           libelle="[Cliquez ici](http://x.invalid) ![](http://x.invalid/p.png)")
+    bilan = valider(pd.DataFrame({"nom": ["a", None]}), [regle])
+    rapport = reporteur.render({}, {"avant": bilan, "apres": bilan})
+    assert "[Cliquez ici](" not in rapport and "![](" not in rapport
+    assert "\\[Cliquez ici\\]" in rapport
