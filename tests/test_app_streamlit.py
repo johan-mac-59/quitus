@@ -69,7 +69,8 @@ def _deposer(app, contenu: bytes, nom: str):
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }
     mime = types.get(Path(nom).suffix.lower(), "application/octet-stream")
-    app.file_uploader[0].upload(nom, contenu, mime)
+    app.file_uploader(key=f"envoi_{app.session_state['generation_envoi']}").upload(
+        nom, contenu, mime)
     return app.run()
 
 
@@ -366,14 +367,14 @@ class TestPageAccueil:
         assert len(app.dataframe) >= 1
 
     def test_onglets_visibles_des_l_arrivee(self, app):
-        """Les sept onglets sont là avant tout dépôt, Présentation en premier.
+        """Les huit onglets sont là avant tout dépôt, Présentation en premier.
 
         Sans fichier, la page d'accueil n'avait pas d'onglets : après un
         relancement du serveur, on croyait qu'ils avaient disparu.
         """
         app.run()
         assert not app.exception
-        assert len(app.tabs) == 7
+        assert len(app.tabs) == 8
         assert app.tabs[0].label == "🏠 Présentation"
         textes = " ".join(m.value for m in app.tabs[0].markdown)
         assert "Trois principes" in textes
@@ -783,7 +784,8 @@ class TestFormats:
     def test_extension_parquet_acceptee(self, app):
         """Le composant de dépôt accepte l'extension .parquet."""
         app.run()
-        assert "parquet" in app.file_uploader[0].proto.type or             ".parquet" in app.file_uploader[0].proto.type
+        envoi = app.file_uploader(key=f"envoi_{app.session_state['generation_envoi']}")
+        assert "parquet" in envoi.proto.type or ".parquet" in envoi.proto.type
 
     @pytest.mark.skipif(not ECHANTILLON.exists(),
                         reason="échantillon versionné absent")
@@ -1039,3 +1041,269 @@ class TestRelanceDuNettoyage:
         app = app.run()
         bouton = [b for b in app.sidebar.button if "Nettoyer" in b.label][0]
         assert not bouton.disabled
+
+
+# --------------------------------------------------------------------------
+# Onglet « Contraintes »
+# --------------------------------------------------------------------------
+
+def _onglet_contraintes(app):
+    """Retourne l'onglet « Contraintes » de l'application.
+
+    Args:
+        app: Application exécutée.
+
+    Returns:
+        L'onglet.
+    """
+    return [o for o in app.tabs if "Contraintes" in o.label][0]
+
+
+def _cles(app, type_widget: str) -> set:
+    """Liste les clés des widgets d'un type, pour vérifier qu'ils sont affichés ou non.
+
+    Args:
+        app: Application exécutée.
+        type_widget: Type de widget (`"selectbox"`, `"text_input"`…).
+
+    Returns:
+        L'ensemble des clés présentes.
+    """
+    return {w.key for w in app.get(type_widget)}
+
+
+def _ajouter_plage(app, colonne: str = "montant", **bornes):
+    """Ajoute une contrainte de plage par le formulaire de l'onglet.
+
+    Args:
+        app: Application après nettoyage.
+        colonne: Colonne visée.
+        **bornes: Bornes saisies (`min`, `max`), en texte.
+
+    Returns:
+        L'application après l'ajout.
+    """
+    generation = app.session_state["generation_regles"]
+    app.selectbox(key=f"regle_{generation}_type").set_value("plage").run()
+    app.selectbox(key=f"regle_{generation}_col").set_value(colonne)
+    for nom, valeur in bornes.items():
+        app.text_input(key=f"regle_{generation}_plage_{nom}").set_value(valeur)
+    return app.button(key=f"regle_{generation}_ajouter").click().run()
+
+
+@pytest.fixture
+def app_nettoyee(app, csv_sale):
+    """Application après un nettoyage sans écrêtage : les montants extrêmes restent."""
+    return _apres_nettoyage(app, csv_sale, ecreter=False, combler=False)
+
+
+class TestOngletContraintes:
+    """L'onglet Contraintes : saisie, verdict, import et export, sans rien écrire."""
+
+    def test_avant_nettoyage_l_onglet_invite_a_nettoyer(self, app, csv_sale):
+        app.run()
+        app = _deposer(app, csv_sale, "donnees.csv")
+        onglet = _onglet_contraintes(app)
+        assert any("Lancez le nettoyage" in i.value for i in onglet.info)
+        assert not app.get("selectbox") or "regle_0_type" not in _cles(app, "selectbox")
+
+    def test_apres_nettoyage_le_formulaire_est_propose(self, app_nettoyee):
+        onglet = _onglet_contraintes(app_nettoyee)
+        legendes = " ".join(c.value for c in onglet.caption)
+        assert "Il ne corrige rien" in legendes
+        assert "Aucune contrainte pour l'instant" in legendes
+        assert "regle_0_type" in _cles(app_nettoyee, "selectbox")
+
+    def test_ajouter_une_contrainte_la_signale_sans_rien_corriger(self, app_nettoyee):
+        propre_avant = app_nettoyee.session_state["df_propre"].copy()
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        assert not app.exception
+
+        regles = app.session_state["regles"]
+        assert len(regles) == 1 and regles[0]["parametres"] == {"max": 500}
+        attendu = int((propre_avant["montant"] > 500).sum())
+        assert attendu > 0
+        assert app.session_state["contraintes"]["apres"]["total_violations"] == attendu
+        # Le fichier nettoyé n'a pas bougé : on signale, on ne corrige pas.
+        pd.testing.assert_frame_equal(app.session_state["df_propre"], propre_avant)
+
+        onglet = _onglet_contraintes(app)
+        assert any("enfreignent encore" in w.value for w in onglet.warning)
+        assert any("Contrainte ajoutée" in s.value for s in onglet.success)
+
+    def test_les_champs_sont_vides_apres_un_ajout(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        assert app.session_state["generation_regles"] == 1
+        assert app.text_input(key="regle_1_plage_max").value == ""
+
+    def test_une_saisie_invalide_est_expliquee_et_n_ajoute_rien(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant")  # aucune borne
+        assert app.session_state["regles"] == []
+        assert any("minimum ou un maximum" in e.value for e in _onglet_contraintes(app).error)
+
+    def test_une_contrainte_deja_presente_n_est_pas_doublee(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        app = _ajouter_plage(app, "montant", max="500")
+        assert len(app.session_state["regles"]) == 1
+        assert any("déjà dans la liste" in w.value for w in _onglet_contraintes(app).warning)
+
+    def test_supprimer_une_contrainte(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        identifiant = app.session_state["regles"][0]["id"]
+        app = app.button(key=f"suppr_regle_{identifiant}").click().run()
+        assert app.session_state["regles"] == []
+        assert app.session_state["contraintes"] is None
+
+    def test_le_formulaire_suit_le_type_choisi(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("comparaison_colonnes").run()
+        cles = _cles(app, "selectbox")
+        assert {"regle_0_col1", "regle_0_col2", "regle_0_comparaison_colonnes_operateur"} <= cles
+        app.selectbox(key="regle_0_type").set_value("unique").run()
+        assert "regle_0_cols" in _cles(app, "multiselect")
+        assert "regle_0_col1" not in _cles(app, "selectbox")
+
+    def test_motif_masque_quand_un_format_connu_est_choisi(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("format").run()
+        assert "regle_0_format_motif" in _cles(app, "text_input")
+        app.selectbox(key="regle_0_format_nom").set_value("email").run()
+        assert "regle_0_format_motif" not in _cles(app, "text_input")
+
+    def test_unicite_sur_une_colonne(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("unique").run()
+        app.multiselect(key="regle_0_cols").set_value(["ville"])
+        app = app.button(key="regle_0_ajouter").click().run()
+        regle = app.session_state["regles"][0]
+        assert regle["type"] == "unique" and regle["colonnes"] == ["ville"]
+        assert app.session_state["contraintes"]["apres"]["total_violations"] > 0
+
+    def test_comparaison_de_deux_colonnes(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("comparaison_colonnes").run()
+        app.selectbox(key="regle_0_col1").set_value("id")
+        app.selectbox(key="regle_0_col2").set_value("ville")
+        app.selectbox(key="regle_0_comparaison_colonnes_operateur").set_value("!=")
+        app = app.button(key="regle_0_ajouter").click().run()
+        assert app.session_state["regles"][0]["colonnes"] == ["id", "ville"]
+
+    def test_la_contrainte_figure_dans_le_rapport_de_nettoyage(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        textes = " ".join(m.value for m in app.markdown)
+        assert "## 3. Contraintes" in textes
+        assert "montant : valeur au plus 500" in textes
+
+    def test_pas_de_section_sans_contrainte(self, app_nettoyee):
+        textes = " ".join(m.value for m in app_nettoyee.markdown)
+        assert "## 3. Contraintes" not in textes
+
+    def test_relancer_le_nettoyage_recalcule_le_verdict(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        assert app.session_state["contraintes"]["apres"]["total_violations"] > 0
+        # Avec écrêtage, les montants extrêmes sont ramenés : la contrainte est respectée.
+        _choisir(_listes(app)[0], None)
+        app = app.run()
+        app = [b for b in app.sidebar.button if "Nettoyer" in b.label][0].click().run()
+        assert app.session_state["contraintes"]["apres"]["total_violations"] == 0
+        assert any("respecte toutes vos contraintes" in s.value
+                   for s in _onglet_contraintes(app).success)
+
+    def test_export_desactive_sans_contrainte_puis_actif(self, app_nettoyee):
+        assert app_nettoyee.get("download_button")  # l'export est proposé
+        export = [b for b in app_nettoyee.get("download_button") if b.proto.label.endswith("(JSON)")]
+        assert export and export[0].proto.disabled
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        export = [b for b in app.get("download_button") if b.proto.label.endswith("(JSON)")]
+        assert export and not export[0].proto.disabled
+        assert all(b.proto.help for b in export)
+
+    def test_l_export_est_aussi_dans_telechargements(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        onglet = [o for o in app.tabs if "Téléchargements" in o.label][0]
+        legendes = " ".join(c.value for c in onglet.caption)
+        assert "Vos contraintes" in legendes
+        assert "dl_regles_recap" in {b.key for b in app.get("download_button")}
+
+    def test_import_d_un_fichier_de_regles(self, app_nettoyee):
+        from src.validator import nouvelle_regle, regles_vers_texte
+        texte = regles_vers_texte([nouvelle_regle("plage", "montant", {"max": 500}),
+                                   nouvelle_regle("non_vide", "ville")])
+        app = app_nettoyee
+        envoi = [u for u in app.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", texte.encode("utf-8"), "application/json")
+        app = app.run()
+        assert [r["type"] for r in app.session_state["regles"]] == ["plage", "non_vide"]
+        assert any("2 contrainte(s) importée(s)" in s.value for s in _onglet_contraintes(app).success)
+
+    def test_import_ignore_les_regles_deja_presentes(self, app_nettoyee):
+        from src.validator import regles_vers_texte
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        texte = regles_vers_texte(app.session_state["regles"])
+        envoi = [u for u in app.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", texte.encode("utf-8"), "application/json")
+        app = app.run()
+        assert len(app.session_state["regles"]) == 1
+        assert any("déjà présente" in s.value for s in _onglet_contraintes(app).success)
+
+    def test_import_invalide_est_refuse_clairement(self, app_nettoyee):
+        envoi = [u for u in app_nettoyee.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", b'{"regles": [{"type": "zzz"}]}', "application/json")
+        app = app_nettoyee.run()
+        assert app.session_state["regles"] == []
+        assert any("Import impossible" in e.value and "n° 1" in e.value
+                   for e in _onglet_contraintes(app).error)
+
+    def test_import_d_un_fichier_qui_n_est_pas_du_json(self, app_nettoyee):
+        envoi = [u for u in app_nettoyee.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", "pas du json".encode("utf-8"), "application/json")
+        app = app_nettoyee.run()
+        assert app.session_state["regles"] == []
+        assert any("Import impossible" in e.value for e in _onglet_contraintes(app).error)
+
+    def test_une_regle_sur_une_colonne_absente_est_signalee(self, app_nettoyee):
+        from src.validator import nouvelle_regle, regles_vers_texte
+        texte = regles_vers_texte([nouvelle_regle("plage", "inexistante", {"min": 0})])
+        envoi = [u for u in app_nettoyee.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", texte.encode("utf-8"), "application/json")
+        app = app_nettoyee.run()
+        onglet = _onglet_contraintes(app)
+        assert any("n'ont pas pu être évaluées" in w.value for w in onglet.warning)
+
+    def test_un_nouveau_fichier_efface_les_contraintes(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        assert app.session_state["regles"]
+        autre = "id;prix\n1;10\n2;20\n3;30\n".encode("utf-8")
+        app = _deposer(app, autre, "autre.csv")
+        assert app.session_state["regles"] == []
+        assert app.session_state["contraintes"] is None
+
+    def test_effacer_mes_donnees_vide_les_contraintes_et_les_widgets(self, app_nettoyee):
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        app = [b for b in app.sidebar.button if "Effacer" in b.label][0].click().run()
+        assert app.session_state["regles"] == []
+        assert app.session_state["contraintes"] is None
+        assert app.session_state["generation_regles"] == 0
+        # Les clés de widgets de la génération précédente ne survivent pas à l'effacement.
+        for cle in ("regle_1_type", "regle_1_col", "regle_1_plage_max", "import_regles_1"):
+            assert cle not in app.session_state
+
+    def test_les_sessions_ne_partagent_pas_leurs_contraintes(self, app_nettoyee, csv_sale):
+        """La liste initiale est copiée à chaque session : pas d'état partagé."""
+        _ajouter_plage(app_nettoyee, "montant", max="500")
+        autre = _apres_nettoyage(AppTest.from_file(str(APP), default_timeout=DELAI),
+                                 csv_sale, ecreter=False, combler=False)
+        assert autre.session_state["regles"] == []
+
+    def test_aucune_ecriture_disque(self, app_nettoyee):
+        """Saisie et import n'écrivent rien sur le serveur."""
+        from src.validator import nouvelle_regle, regles_vers_texte
+        rapports = RACINE / "data" / "reports"
+        avant = set(rapports.glob("*")) if rapports.exists() else set()
+        app = _ajouter_plage(app_nettoyee, "montant", max="500")
+        texte = regles_vers_texte([nouvelle_regle("non_vide", "ville")])
+        envoi = [u for u in app.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", texte.encode("utf-8"), "application/json")
+        app.run()
+        apres = set(rapports.glob("*")) if rapports.exists() else set()
+        assert apres == avant

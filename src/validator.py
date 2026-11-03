@@ -790,6 +790,31 @@ _EVALUATEURS = {
 }
 
 
+def resumer_resultat(resultat: dict | None) -> str:
+    """Résume en quelques mots le résultat d'une règle, pour une cellule de tableau.
+
+    Args:
+        resultat: Résultat d'une règle, tel que le renvoie `valider`, ou None
+            si la règle n'a pas été évaluée à ce moment-là.
+
+    Returns:
+        Un texte court : « ✅ respectée », « ⚠️ 2 (40 %) », « ❌ non évaluable »,
+        suivi du nombre de valeurs illisibles s'il y en a ; « — » si la règle
+        n'a pas été évaluée.
+    """
+    if resultat is None:
+        return "—"
+    if resultat["statut"] == "erreur":
+        return "❌ non évaluable"
+    if resultat["statut"] == "respectee":
+        texte = "✅ respectée"
+    else:
+        texte = f"⚠️ {resultat['violations']} ({resultat['pourcentage']:g} %)"
+    if resultat["non_evaluables"]:
+        texte += f", {resultat['non_evaluables']} illisible(s)"
+    return texte
+
+
 def formater_bilan(validation: dict, titre: str = "Contraintes") -> str:
     """Met en forme le résultat de `valider` pour la console ou un rapport texte.
 

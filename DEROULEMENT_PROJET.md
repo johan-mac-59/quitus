@@ -1979,9 +1979,26 @@ Un test garde la description alignée sur le moteur : un type de règle ajouté 
 * **Un champ « si vide ».** En écrivant le dialogue est apparu un détail absurde : demander un motif personnalisé à quelqu'un qui vient de choisir un format connu. L'indication `si_vide` (« ne demander ce champ que si cet autre est resté vide ») a été ajoutée à la description partagée, pour que les deux façades la respectent.
 * **Un défaut de test.** La fonction de saisie par défaut était liée au vrai `input` dès la définition de la fonction : les tests qui le remplaçaient n'agissaient pas dessus et se bloquaient sur le clavier. Elle est désormais résolue à l'appel. Un garde-fou vérifie aussi que `main.py` reste léger (plus de fonction de menu, moins de 450 lignes).
 
-### 3. Résultat
-`src/saisie_regles.py`, `regles_vers_texte` et le terminal facultatif sont livrés avec leurs tests. Reste l'onglet « Contraintes » de l'interface web.
+### 3. L'onglet « Contraintes » de l'interface web
+Huitième onglet, placé après « Après nettoyage » : on y définit des contraintes sur les données déjà propres, puis on lit le verdict. Avant le nettoyage, il invite à nettoyer, comme l'onglet de contrôle : c'est sur des données propres et lisibles qu'on repère les anomalies métier.
+
+* **La saisie suit la description partagée.** Le formulaire choisit un type de règle, puis affiche ses champs d'après `src/saisie_regles.py` : un sélecteur pour un choix, une zone de texte sinon, une sélection multiple de colonnes pour l'unicité, deux listes de colonnes pour une comparaison. Le motif personnalisé disparaît dès qu'un format connu est choisi (`si_vide`). Les messages d'erreur de `construire_regle` s'affichent tels quels. Ni `st.form` ni conteneur figé : les champs doivent suivre le type choisi immédiatement, la même raison que pour les réglages de nettoyage de la barre latérale. Un compteur de génération entre dans les clés des widgets pour les vider après un ajout.
+* **Le verdict se lit tout de suite.** Pour chaque règle : son verdict avant et après nettoyage (le résumé est partagé avec le rapport, `resumer_resultat`), un bouton pour la retirer, et, pour celles qui sont enfreintes, un volet avec les lignes concernées du fichier nettoyé. Un bandeau dit en une phrase si le fichier respecte tout. Une règle visant une colonne absente est signalée, pas ignorée.
+* **Import et export en mémoire.** L'import lit le JSON par `regles_depuis_texte` (jamais par `charger_regles`, qui ouvre un chemin du disque du serveur) et ignore les règles déjà présentes, reconnues à leur identifiant. L'export passe par `regles_vers_texte` et un bouton de téléchargement, aussi proposé dans l'onglet Téléchargements. Rien n'est écrit sur le serveur, ce qu'un test vérifie.
+* **Le rapport de nettoyage en profite.** Son expander de l'onglet Nettoyage et ses téléchargements incluent la section « Contraintes », sans bouton de plus.
+* **Un état qui ne se recalcule pas pour rien.** `st.tabs` exécute le corps de tous les onglets à chaque interaction ; les résultats sont donc gardés en session, avec une clé faite du fichier, du nettoyage et des règles, et ne sont recalculés que si l'un des trois change. Un nouveau nettoyage les invalide.
+* **Les contraintes ne survivent pas à un nouveau fichier**, puisqu'elles portent sur des noms de colonnes ; on les reprend par l'import. « Effacer mes données » les vide aussi, avec les clés de leurs widgets. La liste initiale est copiée à chaque session : sans cela, deux visiteurs auraient partagé leurs règles.
+
+### 4. Erreurs rencontrées
+* **Un test devenu ambigu.** L'envoi du fichier de règles est un second composant d'envoi : le test utilitaire qui prenait « le premier » (`app.file_uploader[0]`) ouvrait soudain le mauvais, et refusait un `.csv`. L'envoi principal est désormais retrouvé par sa clé. Le défaut était dans le test, pas dans l'application, mais il était révélateur : toute hypothèse sur l'ordre des composants est fragile.
+* **Le nombre d'onglets.** Deux tests énuméraient les sept onglets ; ils comptent désormais huit.
+
+### 5. Ce qui reste
+L'essai par le porteur du projet, dans un navigateur : les tests pilotent les widgets, ils ne disent pas si le formulaire est agréable. Puis la fusion dans `main` et le déploiement, qui ne se font qu'après cet essai. Les pistes de la feuille de route (langage courant, règles suggérées, anomalies orthographiques, corrections) restent à venir.
+
+### 6. Résultat
+**637 tests passent**, contre 451 avant l'Étape 47. `docs/API.md` couvre `validator` et `saisie_regles`.
 
 ---
 
-*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 545 tests.*
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 637 tests.*

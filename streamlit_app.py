@@ -20,6 +20,7 @@ via les boutons de téléchargement. Voir `encart_confidentialite()`.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from pathlib import Path
@@ -44,6 +45,19 @@ from src.console_capture import capture_output
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_dataframe
 from src.horodatage import horodater
+from src.saisie_regles import (
+    champs_du_type,
+    colonnes_attendues,
+    construire_regle,
+    types_disponibles,
+)
+from src.validator import (
+    decrire_regle,
+    regles_depuis_texte,
+    regles_vers_texte,
+    resumer_resultat,
+    valider,
+)
 
 # Lien de soutien (page Buy Me a Coffee) ; mettre None pour masquer le bouton.
 # Le paiement se fait entièrement chez le prestataire : l'application ne voit
@@ -107,7 +121,22 @@ ETAT_INITIAL = {
     # fichier déjà déposé, sans quoi il serait rechargé au rafraîchissement
     # suivant et l'effacement des données n'aurait aucun effet.
     "generation_envoi": 0,
+    # Contraintes définies par l'utilisateur, au vu des données nettoyées. Elles
+    # dépendent des noms de colonnes : un nouveau fichier les efface (on les
+    # reprend en les important). Les résultats, eux, se recalculent seulement
+    # quand les règles ou les données changent : `st.tabs` exécute tous les
+    # onglets à chaque interaction.
+    "regles": [],
+    "contraintes": None,    # {"cle", "avant", "apres"} : résultats de `valider`
+    "message_regles": None,  # confirmation à afficher après un ajout ou un import
+    # Entrent dans les clés des widgets de saisie et d'import : les incrémenter
+    # les recrée vides, comme pour `generation_envoi`.
+    "generation_regles": 0,
+    "generation_import_regles": 0,
 }
+
+# Préfixes des clés de widgets du validateur, purgés par « Effacer mes données ».
+PREFIXES_WIDGETS_REGLES = ("regle_", "import_regles_", "suppr_regle_")
 
 
 # ==========================================================================
@@ -118,7 +147,7 @@ def initialiser_etat() -> None:
     """Installe les clés d'état manquantes, sans écraser l'existant."""
     for cle, valeur in ETAT_INITIAL.items():
         if cle not in st.session_state:
-            st.session_state[cle] = valeur.copy() if isinstance(valeur, dict) else valeur
+            st.session_state[cle] = valeur.copy() if isinstance(valeur, (dict, list)) else valeur
 
 
 def reinitialiser_aval() -> None:
@@ -132,6 +161,11 @@ def reinitialiser_aval() -> None:
         st.session_state[cle] = None
     st.session_state["journaux"] = {}
     st.session_state["etape"] = "charge"
+    # Les contraintes portent sur des noms de colonnes : elles ne survivent pas
+    # au changement de fichier.
+    st.session_state["regles"] = []
+    st.session_state["contraintes"] = None
+    st.session_state["message_regles"] = None
 
 
 def purger_cache(*dfs: pd.DataFrame | None) -> None:
@@ -173,6 +207,9 @@ def tout_effacer() -> None:
         st.session_state.pop(cle, None)
     # La clé du composant d'envoi lui-même, désormais orpheline.
     st.session_state.pop(f"envoi_{generation - 1}", None)
+    # Les widgets de saisie des contraintes, dont les clés ne sont pas dans l'état initial.
+    for cle in [c for c in st.session_state if str(c).startswith(PREFIXES_WIDGETS_REGLES)]:
+        st.session_state.pop(cle, None)
 
     initialiser_etat()
     st.session_state["generation_envoi"] = generation
@@ -375,7 +412,37 @@ def rapport_nettoyage() -> str:
     factice = SimpleNamespace(profile_results=st.session_state["profil"] or {})
     reporter = CleanerReporter(factice, logging.getLogger("app"),
                                source_file_path=st.session_state["nom_source"])
-    return reporter.render(st.session_state["stats"])
+    resultats = contraintes_courantes()
+    contraintes = ({"avant": resultats["avant"], "apres": resultats["apres"]}
+                   if resultats else None)
+    return reporter.render(st.session_state["stats"], contraintes)
+
+
+def contraintes_courantes() -> dict | None:
+    """Évalue les contraintes sur le fichier brut et sur le fichier nettoyé.
+
+    Le résultat est gardé en session et ne se recalcule que si les règles ou
+    les données ont changé : `st.tabs` exécute le corps de tous les onglets à
+    chaque interaction, et `valider` parcourt les données.
+
+    Returns:
+        ``{"cle", "avant", "apres"}`` (résultats de `valider`), ou None s'il n'y
+        a aucune règle ou pas encore de fichier nettoyé.
+    """
+    regles = st.session_state["regles"]
+    propre = st.session_state["df_propre"]
+    if not regles or propre is None:
+        return None
+    cle = json.dumps([st.session_state["signature"], st.session_state["horodatage_nettoyage"],
+                      regles], sort_keys=True, ensure_ascii=False, default=str)
+    actuel = st.session_state["contraintes"]
+    if actuel is not None and actuel["cle"] == cle:
+        return actuel
+    resultats = {"cle": cle,
+                 "avant": valider(st.session_state["df_brut"], regles),
+                 "apres": valider(propre, regles)}
+    st.session_state["contraintes"] = resultats
+    return resultats
 
 
 # Hauteur de l'aperçu HTML : au-delà, l'iframe défile sur elle-même, ce qui
@@ -1319,6 +1386,11 @@ def onglet_telechargements() -> None:
                    "espaces, casse, conversions de types, valeurs comblées ou "
                    "écrêtées. C'est la preuve de ce qui a changé.")
         boutons_resultat(emplacement=suffixe)
+        if st.session_state["regles"]:
+            st.caption("**Vos contraintes**, au format JSON : à réimporter dans l'onglet "
+                       "Contraintes, ou à rejouer en ligne de commande avec `--regles`. "
+                       "Leur verdict figure dans le rapport de nettoyage.")
+            bouton_export_regles(emplacement=suffixe)
         st.divider()
 
     st.markdown("**🔍 Rapport avant nettoyage**")
@@ -1433,6 +1505,258 @@ def onglet_controle() -> None:
                               horodatage=st.session_state["horodatage_nettoyage"])
 
     volet_console("profilage_post", "Détail du profilage")
+
+
+def supprimer_regle(identifiant: str) -> None:
+    """Retire une contrainte de la liste.
+
+    Appelée comme rappel de bouton : l'état est modifié avant la réexécution du
+    script, qui affiche donc déjà la liste à jour.
+
+    Args:
+        identifiant: Identifiant de la règle à retirer.
+    """
+    st.session_state["regles"] = [r for r in st.session_state["regles"]
+                                  if r["id"] != identifiant]
+    st.session_state["contraintes"] = None
+
+
+def ajouter_regles(nouvelles: list[dict]) -> int:
+    """Ajoute des règles à la liste, sans doublon.
+
+    Args:
+        nouvelles: Règles à ajouter.
+
+    Returns:
+        Le nombre de règles réellement ajoutées (les règles déjà présentes,
+        reconnues à leur identifiant, sont ignorées).
+    """
+    existantes = {r["id"] for r in st.session_state["regles"]}
+    ajoutees = [r for r in nouvelles if r["id"] not in existantes]
+    st.session_state["regles"] = st.session_state["regles"] + ajoutees
+    st.session_state["contraintes"] = None
+    return len(ajoutees)
+
+
+def champ_de_regle(champ: dict, generation: int, type_regle: str):
+    """Affiche le widget d'un champ de règle et renvoie ce qui y est saisi.
+
+    La description du champ vient de `src/saisie_regles.py`, partagée avec le
+    terminal : ici, on se borne à choisir le widget qui convient à son genre.
+
+    Args:
+        champ: Description du champ.
+        generation: Compteur qui entre dans la clé, pour vider les widgets.
+        type_regle: Type de règle, qui entre aussi dans la clé : changer de type
+            ne doit pas faire survivre une saisie du type précédent.
+
+    Returns:
+        Le texte saisi, ou la valeur choisie (chaîne vide pour « aucun »).
+    """
+    cle = f"regle_{generation}_{type_regle}_{champ['nom']}"
+    if champ["genre"] == "choix":
+        libelles = dict(champ["choix"])
+        options = list(libelles) if champ["obligatoire"] else [""] + list(libelles)
+        return st.selectbox(champ["libelle"], options, key=cle, help=champ["aide"],
+                            format_func=lambda v: libelles.get(v, "(aucun)"))
+    return st.text_input(champ["libelle"], key=cle, help=champ["aide"],
+                         placeholder="Payé ; En attente" if champ["genre"] == "liste" else None)
+
+
+def formulaire_regle(colonnes: list[str]) -> None:
+    """Affiche le formulaire d'ajout d'une contrainte.
+
+    Ni `st.form` ni autre conteneur qui figerait l'affichage : les champs
+    dépendent du type choisi et doivent suivre ce choix immédiatement.
+
+    Args:
+        colonnes: Colonnes du fichier nettoyé, proposées au choix.
+    """
+    generation = st.session_state["generation_regles"]
+    types = dict(types_disponibles())
+    with st.container(border=True):
+        st.markdown("**➕ Ajouter une contrainte**")
+        type_regle = st.selectbox("Quelle contrainte ?", list(types), format_func=types.get,
+                                  key=f"regle_{generation}_type")
+        mini, maxi = colonnes_attendues(type_regle)
+        if mini == 2:
+            premiere = st.selectbox("Première colonne", colonnes, key=f"regle_{generation}_col1")
+            autres = [c for c in colonnes if c != premiere]
+            cibles = [premiere, st.selectbox("Seconde colonne", autres,
+                                             key=f"regle_{generation}_col2")]
+        elif maxi is None:
+            cibles = st.multiselect("Colonnes dont la combinaison doit être unique", colonnes,
+                                    key=f"regle_{generation}_cols")
+        else:
+            cibles = [st.selectbox("Colonne", colonnes, key=f"regle_{generation}_col")]
+
+        saisies = {}
+        for champ in champs_du_type(type_regle):
+            # Un champ « si vide » n'a pas de sens quand l'autre est renseigné.
+            if champ["si_vide"] and str(saisies.get(champ["si_vide"], "")).strip():
+                continue
+            saisies[champ["nom"]] = champ_de_regle(champ, generation, type_regle)
+        libelle = st.text_input("Nom de la contrainte (facultatif)",
+                                key=f"regle_{generation}_libelle",
+                                help="Remplace la description automatique dans les rapports.")
+
+        if st.button("Ajouter la contrainte", type="primary", key=f"regle_{generation}_ajouter"):
+            regle, problemes = construire_regle(type_regle, cibles, saisies, libelle.strip() or None)
+            for probleme in problemes:
+                st.error(probleme)
+            if regle is not None:
+                if ajouter_regles([regle]):
+                    st.session_state["message_regles"] = f"Contrainte ajoutée : {decrire_regle(regle)}"
+                    st.session_state["generation_regles"] += 1
+                    st.rerun()
+                st.warning("Cette contrainte est déjà dans la liste.")
+
+
+def importer_regles() -> None:
+    """Propose d'importer des contraintes depuis un fichier JSON exporté plus tôt.
+
+    Le contenu est lu en mémoire : `regles_depuis_texte`, et non
+    `charger_regles`, qui lit un chemin sur le disque du serveur.
+    """
+    generation = st.session_state["generation_import_regles"]
+    fichier = st.file_uploader(
+        "Importer des contraintes (JSON)", type=["json"], key=f"import_regles_{generation}",
+        help="Un fichier exporté depuis cet onglet, ou créé par la ligne de commande. "
+             "Les contraintes importées s'ajoutent à celles déjà définies.")
+    if fichier is None:
+        return
+    try:
+        nouvelles = regles_depuis_texte(fichier.getvalue().decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as e:
+        st.error(f"Import impossible : {e}")
+        return
+    ajoutees = ajouter_regles(nouvelles)
+    st.session_state["message_regles"] = (
+        f"{ajoutees} contrainte(s) importée(s)"
+        + (f", {len(nouvelles) - ajoutees} déjà présente(s) ignorée(s)." if ajoutees < len(nouvelles) else "."))
+    st.session_state["generation_import_regles"] += 1
+    st.rerun()
+
+
+def bouton_export_regles(emplacement: str = "") -> None:
+    """Propose les contraintes au téléchargement, en JSON.
+
+    Le fichier est produit en mémoire et part directement vers le navigateur :
+    rien n'est écrit sur le serveur.
+
+    Args:
+        emplacement: Suffixe de la clé du widget, pour placer le bouton à
+            plusieurs endroits.
+    """
+    regles = st.session_state["regles"]
+    st.download_button(
+        "⬇️ Contraintes (JSON)",
+        data=lambda: regles_vers_texte(regles).encode("utf-8"),
+        file_name=nom_fichier(f"contraintes_{racine_fichier()}",
+                              st.session_state["horodatage_nettoyage"], "json"),
+        mime="application/json",
+        on_click="ignore",
+        key=f"dl_regles{emplacement}",
+        disabled=not regles,
+        width="stretch",
+        help="Vos contraintes, à réimporter ici une autre fois ou à rejouer en ligne "
+             "de commande avec --regles.",
+    )
+
+
+def liste_des_regles(propre: pd.DataFrame) -> None:
+    """Affiche les contraintes définies, leur verdict avant et après nettoyage.
+
+    Args:
+        propre: Fichier nettoyé, sur lequel s'affichent les lignes en cause.
+    """
+    regles = st.session_state["regles"]
+    if not regles:
+        st.caption("Aucune contrainte pour l'instant. Parcourez les données nettoyées "
+                   "dans les onglets précédents : une anomalie que vous remarquez, "
+                   "une date de fin avant la date de début par exemple, devient une "
+                   "contrainte en quelques clics.")
+        return
+
+    resultats = contraintes_courantes()
+    avant = {r["id"]: r for r in resultats["avant"]["resultats"]}
+    apres = {r["id"]: r for r in resultats["apres"]["resultats"]}
+
+    total = resultats["apres"]["total_violations"]
+    if total:
+        st.warning(f"**{formater(total)} valeur(s) enfreignent encore vos contraintes** "
+                   "dans le fichier nettoyé. Quitus les signale sans rien corriger : "
+                   "c'est à vous de trancher, dans la source.")
+    elif resultats["apres"]["regles_en_erreur"]:
+        st.warning("Certaines contraintes n'ont pas pu être évaluées, voir ci-dessous.")
+    else:
+        st.success("✅ Le fichier nettoyé respecte toutes vos contraintes.")
+
+    entetes = st.columns([6, 2, 2, 1])
+    for colonne, titre in zip(entetes, ("Contrainte", "Avant nettoyage", "Après nettoyage", "")):
+        colonne.caption(titre)
+    for regle in regles:
+        nom, rangee_avant, rangee_apres, retrait = st.columns([6, 2, 2, 1])
+        nom.markdown(f"**{decrire_regle(regle)}**")
+        rangee_avant.write(resumer_resultat(avant.get(regle["id"])))
+        rangee_apres.write(resumer_resultat(apres.get(regle["id"])))
+        retrait.button("🗑️", key=f"suppr_regle_{regle['id']}", on_click=supprimer_regle,
+                       args=(regle["id"],), help="Retirer cette contrainte.")
+
+    for regle in regles:
+        resultat = apres.get(regle["id"])
+        if resultat is None or resultat["statut"] == "respectee":
+            continue
+        with st.expander(f"{'❌' if resultat['statut'] == 'erreur' else '⚠️'} "
+                         f"{decrire_regle(regle)} : détail"):
+            st.write(resultat["message"])
+            if resultat["statut"] == "violations":
+                lignes = [i for i in resultat["lignes"] if i in propre.index]
+                suite = (f" (les {len(lignes)} premières sur {formater(resultat['violations'])})"
+                         if resultat["violations"] > len(lignes) else "")
+                st.caption(f"Lignes du fichier nettoyé concernées{suite} :")
+                st.dataframe(propre.loc[lignes])
+
+
+def onglet_contraintes() -> None:
+    """Définit des contraintes sur les données nettoyées et en montre le verdict.
+
+    Les contraintes viennent en dernier : c'est sur des données propres, déjà
+    lues, qu'on repère les anomalies métier qu'aucune machine ne peut deviner.
+    Elles sont signalées, jamais corrigées, et ne limitent pas le nettoyage.
+    """
+    propre = st.session_state["df_propre"]
+    if propre is None:
+        st.info("Lancez le nettoyage : les contraintes se définissent sur des données "
+                "propres, une fois repérées les anomalies que seul un œil humain voit.")
+        return
+
+    st.subheader("Contraintes")
+    st.caption("Ce que le nettoyage ne peut pas deviner : une date de fin avant la date "
+               "de début, un âge de 130 ans, un code postal trop court. Dites à Quitus "
+               "ce qui est normal pour vos données, il vous signale ce qui ne l'est pas. "
+               "**Il ne corrige rien** : les contraintes n'ont aucun effet sur le "
+               "nettoyage. Une case vide n'enfreint jamais une contrainte, sauf « valeur "
+               "obligatoire ».")
+
+    message = st.session_state["message_regles"]
+    if message:
+        st.session_state["message_regles"] = None
+        st.success(message, icon="✅")
+
+    formulaire_regle(list(propre.columns))
+    st.divider()
+    liste_des_regles(propre)
+
+    st.divider()
+    gauche, droite = st.columns(2)
+    with gauche:
+        importer_regles()
+    with droite:
+        st.markdown("&nbsp;")
+        bouton_export_regles()
+    st.caption("Les contraintes sont aussi reprises dans le rapport de nettoyage "
+               "(onglet Nettoyage), à la section « Contraintes ».")
 
 
 def onglet_graphiques() -> None:
@@ -1553,6 +1877,7 @@ def lancer_nettoyage(options: dict) -> None:
     st.session_state["choix_nettoye"] = signature_choix(
         options["ecreter"], options["seuils"], options["combler"])
     st.session_state["annonce_nettoyage"] = True
+    st.session_state["contraintes"] = None  # les données ont changé : à recalculer
 
     # Rapport console comparatif, capté pour affichage.
     def _bilan():
@@ -1618,8 +1943,8 @@ def main() -> None:
     # Sans cela, un relancement du serveur ou un « Effacer mes données »
     # ramenait sur une page sans onglets, qu'on prenait pour une panne.
     noms_onglets = ["🏠 Présentation", "📋 Aperçu", "🔍 Avant nettoyage",
-                    "🧹 Nettoyage", "✅ Après nettoyage", "📊 Graphiques",
-                    "⬇️ Téléchargements"]
+                    "🧹 Nettoyage", "✅ Après nettoyage", "📐 Contraintes",
+                    "📊 Graphiques", "⬇️ Téléchargements"]
 
     if not fichier_charge:
         onglets = st.tabs(noms_onglets)
@@ -1669,8 +1994,10 @@ def main() -> None:
     with onglets[4]:
         onglet_controle()
     with onglets[5]:
-        onglet_graphiques()
+        onglet_contraintes()
     with onglets[6]:
+        onglet_graphiques()
+    with onglets[7]:
         onglet_telechargements()
 
     st.divider()

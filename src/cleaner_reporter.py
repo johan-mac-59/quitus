@@ -5,6 +5,7 @@ import logging
 from src.cleaner_engine import SEUIL_IQR
 from src.horodatage import horodater
 from src.marque import en_tete_markdown
+from src.validator import resumer_resultat
 
 class CleanerReporter:
     """Génère un rapport détaillé du nettoyage des données."""
@@ -332,19 +333,9 @@ class CleanerReporter:
                 règle n'a pas été évaluée à ce moment-là.
 
         Returns:
-            Le texte de la cellule.
+            Le texte de la cellule (voir `resumer_resultat`).
         """
-        if resultat is None:
-            return "—"
-        if resultat["statut"] == "erreur":
-            return "❌ non évaluable"
-        if resultat["statut"] == "respectee":
-            texte = "✅ respectée"
-        else:
-            texte = f"⚠️ {resultat['violations']} ({resultat['pourcentage']:g} %)"
-        if resultat["non_evaluables"]:
-            texte += f", {resultat['non_evaluables']} illisible(s)"
-        return texte
+        return resumer_resultat(resultat)
 
     def _get_constraints_section(self, contraintes: dict = None) -> str:
         """Compose la section « Contraintes » : violations avant et après nettoyage.

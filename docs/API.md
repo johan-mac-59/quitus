@@ -70,6 +70,7 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`regles_depuis_texte`](#regles_depuis_texte) — fonction
   - [`charger_regles`](#charger_regles) — fonction
   - [`valider`](#valider) — fonction
+  - [`resumer_resultat`](#resumer_resultat) — fonction
   - [`formater_bilan`](#formater_bilan) — fonction
 - [`src/saisie_regles.py`](#srcsaisie_reglespy)
   - [`types_disponibles`](#types_disponibles) — fonction
@@ -1346,6 +1347,20 @@ d'exception : elle est rapportée en erreur et les autres sont évaluées.
 - `regles` — Règles à appliquer (voir `nouvelle_regle`).
 
 **Retour** — Un dictionnaire ``{"resultats": [...], "total_violations": n, "regles_en_erreur": n, "regles_respectees": n}``. Chaque résultat contient : ``id``, ``type``, ``colonnes``, ``description``, ``statut`` (``"respectee"``, ``"violations"`` ou ``"erreur"``), ``evaluees``, ``violations``, ``pourcentage``, ``non_evaluables``, ``lignes`` (étiquettes d'index des lignes fautives, `MAX_LIGNES` au plus), ``exemples`` (`MAX_EXEMPLES` valeurs au plus) et ``message``.
+
+### `resumer_resultat`
+
+```python
+resumer_resultat(resultat: dict | None) -> str
+```
+
+Résume en quelques mots le résultat d'une règle, pour une cellule de tableau.
+
+**Paramètres**
+
+- `resultat` — Résultat d'une règle, tel que le renvoie `valider`, ou None si la règle n'a pas été évaluée à ce moment-là.
+
+**Retour** — Un texte court : « ✅ respectée », « ⚠️ 2 (40 %) », « ❌ non évaluable », suivi du nombre de valeurs illisibles s'il y en a ; « — » si la règle n'a pas été évaluée.
 
 ### `formater_bilan`
 

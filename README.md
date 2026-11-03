@@ -74,7 +74,7 @@ Le projet a **une seule logique métier** (`src/`) et **deux façades**. Un corr
 streamlit run streamlit_app.py
 ```
 
-Déposez un fichier ou essayez directement avec l'exemple fourni, lancez l'analyse, choisissez les deux traitements optionnels, nettoyez. Sept onglets :
+Déposez un fichier ou essayez directement avec l'exemple fourni, lancez l'analyse, choisissez les deux traitements optionnels, nettoyez. Huit onglets :
 
 | Onglet | Contenu |
 |---|---|
@@ -83,6 +83,7 @@ Déposez un fichier ou essayez directement avec l'exemple fourni, lancez l'analy
 | **Avant nettoyage** | Le diagnostic, défauts compris : c'est le constat de départ |
 | **Nettoyage** | Le bilan, le détail des conversions de types, le fichier nettoyé et son rapport |
 | **Après nettoyage** | Le profil de contrôle, qui vérifie qu'aucune colonne ne reste mal typée |
+| **Contraintes** | Vos règles de validité (valeur minimale ou maximale, longueur, format, comparaison entre deux colonnes…), saisies au vu des données nettoyées : Quitus signale ce qui les enfreint, sans rien corriger. Import et export en JSON |
 | **Graphiques** | Distributions, répartitions et analyses multivariées, à la demande |
 | **Téléchargements** | Le récapitulatif : tous les fichiers produits, réunis au même endroit |
 
@@ -164,7 +165,7 @@ quitus/
 │   ├── console_capture.py      # Sortie console vers l'interface web
 │   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
 │   └── marque.py               # Nom, devise et logo pour l'application et les rapports
-├── tests/                      # 545 tests, un fichier par module et par garantie
+├── tests/                      # 637 tests, un fichier par module et par garantie
 ├── docs/                       # Documentation API, générée depuis le code
 ├── assets/                     # Logos clair et sombre, icône
 ├── data/
@@ -274,7 +275,7 @@ Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans un
 
 ## 📈 Évolutions prévues
 
-Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Le module de validation des contraintes est en cours de livraison : il fonctionne en ligne de commande et dans le rapport de nettoyage, et son interface web reste à venir. Suivent une détection assistée par IA et une proposition de règles à partir du profil.
+Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Le module de validation des contraintes est livré : règles saisies dans l'interface web ou par questions en terminal, signalées dans le rapport, jamais corrigées. Suivent la saisie de contraintes en langage courant, des règles proposées à partir du profil, et une détection assistée des anomalies orthographiques.
 
 Le journal technique détaillé du projet, étape par étape, se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 
