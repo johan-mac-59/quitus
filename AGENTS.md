@@ -31,10 +31,15 @@ uv run python main.py                    # ligne de commande
 uv run python docs/generer_api.py        # régénérer docs/API.md
 ```
 
+## Début de session
+
+- **Vérifier à chaque nouvelle session qu'aucune version postérieure n'existe en ligne** : le projet se travaille depuis plusieurs postes (PC, Chromebook), et le dépôt local peut être en retard. Avant toute modification, lancer `git pull --ff-only` sur la branche courante. Si l'arbre de travail contient des modifications non commitées, lancer `git fetch` puis comparer (`git status -sb`) plutôt que de tirer. Signaler au mainteneur toute branche distante plus récente ou tout retard constaté, et ne jamais forcer un pull qui écraserait du travail local.
+
 ## Règles du code
 
 - **`src/` ne connaît aucune interface** : aucun module de `src/` n'importe `streamlit` ni ne pose de question. Les décisions arrivent en paramètres explicites. `tests/test_integrite_source.py` le vérifie, avec trois autres contrôles : aucune fonction définie deux fois, aucun `input()` sans garde contre l'absence de terminal, aucune fonction publique sans docstring.
 - **Documentation API à jour** : après toute modification d'une fonction publique, régénérer `docs/API.md` ; un test échoue sinon.
+- **Le dialogue vit surtout dans Streamlit** : les fonctions interactives avancées (saisie de règles, retours immédiats) se développent d'abord dans l'interface web. Ce qui peut se décrire sans interface, comme les champs d'un type de règle, l'est une fois dans `src/` pour les deux façades. `main.py` reste léger : des options et des fichiers, et la création de règles en terminal seulement à la demande (`--creer-regles`), par un module à part, jamais par un menu écrit dans `main.py`.
 - **Pas de perte silencieuse** : toute valeur vidée par le nettoyage doit être déclarée à l'utilisateur (`tests/test_aucune_perte_silencieuse.py`).
 - **Écrêtage et remplissage des valeurs manquantes** : jamais appliqués sans accord explicite de l'utilisateur, car ils modifient les distributions.
 - **Confidentialité** : rien n'est écrit sur le serveur par l'interface web ; `.streamlit/config.toml` reste versionné (télémétrie désactivée).

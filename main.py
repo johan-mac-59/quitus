@@ -15,9 +15,9 @@ Usage :
 
 Les contraintes (valeur minimale ou maximale, longueur, format, comparaison
 entre deux colonnes…) sont signalées avant et après nettoyage, jamais corrigées.
-Elles viennent en dernier, après le nettoyage, son rapport et le nouveau profilage :
-le mode interactif propose alors de les définir par quelques questions, au vu des
-données propres, puis d'enregistrer le fichier de règles pour le rejouer.
+Elles viennent en dernier, après le nettoyage, son rapport et le nouveau profilage.
+Le terminal rejoue un fichier de règles ; leur création, interactive, se fait dans
+l'interface web, qui exporte le fichier.
 """
 
 import argparse
@@ -31,18 +31,7 @@ from src.cleaner_reporter import generate_enhanced_report
 from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
 from src.horodatage import horodater
-from src.validator import (
-    FORMATS_NOMMES,
-    LIBELLES_FORMATS,
-    OPERATEURS,
-    charger_regles,
-    decrire_regle,
-    formater_bilan,
-    nouvelle_regle,
-    sauver_regles,
-    valider,
-    verifier_regle,
-)
+from src.validator import charger_regles, formater_bilan, valider
 
 # Chemins par défaut, relatifs à la racine du projet.
 DEFAUT_INPUT = "data/samples/reservations_exemple.csv"
@@ -119,9 +108,9 @@ def construire_parseur() -> argparse.ArgumentParser:
     )
     parseur.add_argument(
         "--regles", default=None, metavar="FICHIER",
-        help="Fichier de règles (JSON) à vérifier avant et après nettoyage. Les "
-             "violations sont signalées, jamais corrigées. Le mode interactif "
-             "peut créer ce fichier par questions.",
+        help="Fichier de règles (JSON) à vérifier avant et après nettoyage, en fin "
+             "de traitement. Les violations sont signalées, jamais corrigées. Le "
+             "fichier se crée dans l'interface web, qui l'exporte.",
     )
     return parseur
 
@@ -145,173 +134,6 @@ def _seuil_positif(valeur: str) -> float:
     if seuil <= 0:
         raise argparse.ArgumentTypeError("le seuil doit être strictement positif")
     return seuil
-
-
-def _choisir(invite: str, options: list[str], saisir) -> int | None:
-    """Fait choisir une option dans une liste numérotée.
-
-    Args:
-        invite: Question posée.
-        options: Libellés proposés, numérotés à partir de 1.
-        saisir: Fonction de saisie (`input` en usage normal).
-
-    Returns:
-        L'indice (à partir de 0) de l'option choisie, ou None si l'utilisateur
-        abandonne en validant une réponse vide.
-    """
-    print(invite)
-    for rang, option in enumerate(options, start=1):
-        print(f"   {rang}. {option}")
-    while True:
-        reponse = saisir("⏳ Votre choix (entrée pour annuler) : ").strip()
-        if not reponse:
-            return None
-        if reponse.isdigit() and 1 <= int(reponse) <= len(options):
-            return int(reponse) - 1
-        print(f"   Entrez un nombre entre 1 et {len(options)}.")
-
-
-def _borne(texte: str):
-    """Lit une borne saisie : un nombre si possible, sinon un texte (une date).
-
-    Args:
-        texte: Saisie de l'utilisateur ; vide pour « pas de borne ».
-
-    Returns:
-        None si la saisie est vide, un nombre, ou le texte tel quel.
-    """
-    texte = texte.strip()
-    if not texte:
-        return None
-    try:
-        nombre = float(texte.replace(",", "."))
-    except ValueError:
-        return texte
-    return int(nombre) if nombre.is_integer() else nombre
-
-
-_TYPES_MENU = [
-    ("plage", "valeur minimale et/ou maximale (nombres ou dates)"),
-    ("longueur", "nombre de caractères"),
-    ("format", "format (e-mail, code postal, téléphone, SIRET…)"),
-    ("valeurs_autorisees", "liste de valeurs autorisées"),
-    ("non_vide", "valeur obligatoire"),
-    ("unique", "valeurs toutes différentes"),
-    ("comparaison_colonnes", "comparaison avec une autre colonne"),
-]
-
-
-def _saisir_une_regle(colonnes: list[str], saisir) -> dict | None:
-    """Pose les questions nécessaires pour définir une contrainte.
-
-    Args:
-        colonnes: Colonnes du fichier, proposées au choix.
-        saisir: Fonction de saisie (`input` en usage normal).
-
-    Returns:
-        La règle définie, ou None si l'utilisateur a annulé ou si la règle
-        obtenue n'est pas valide (le motif est alors expliqué).
-    """
-    choix = _choisir("\nSur quelle colonne ?", colonnes, saisir)
-    if choix is None:
-        return None
-    colonne = colonnes[choix]
-    choix = _choisir("\nQuelle contrainte ?", [libelle for _, libelle in _TYPES_MENU], saisir)
-    if choix is None:
-        return None
-    type_regle = _TYPES_MENU[choix][0]
-    cibles, parametres = [colonne], {}
-
-    if type_regle in ("plage", "longueur"):
-        for cle, nom in (("min", "minimum"), ("max", "maximum")):
-            valeur = _borne(saisir(f"⏳ {nom.capitalize()} (entrée pour aucun) : "))
-            if valeur is not None:
-                parametres[cle] = valeur
-    elif type_regle == "format":
-        libelles = [LIBELLES_FORMATS[n] for n in FORMATS_NOMMES] + ["expression régulière personnalisée"]
-        choix = _choisir("\nQuel format ?", libelles, saisir)
-        if choix is None:
-            return None
-        if choix < len(FORMATS_NOMMES):
-            parametres["nom"] = FORMATS_NOMMES[choix]
-        else:
-            parametres["motif"] = saisir("⏳ Expression régulière : ").strip()
-    elif type_regle == "valeurs_autorisees":
-        texte = saisir("⏳ Valeurs autorisées, séparées par des points-virgules : ")
-        parametres["valeurs"] = [v.strip() for v in texte.split(";") if v.strip()]
-    elif type_regle == "comparaison_colonnes":
-        autres = [c for c in colonnes if c != colonne]
-        choix = _choisir(f"\n« {colonne} » doit être comparée à quelle colonne ?", autres, saisir)
-        if choix is None:
-            return None
-        cibles.append(autres[choix])
-        symboles = list(OPERATEURS)
-        choix = _choisir(f"\n« {colonne} » doit être…",
-                         [OPERATEURS[s][1] for s in symboles], saisir)
-        if choix is None:
-            return None
-        parametres["operateur"] = symboles[choix]
-
-    regle = nouvelle_regle(type_regle, cibles, parametres)
-    problemes = verifier_regle(regle)
-    if problemes:
-        print(f"⚠️ Contrainte abandonnée : {' ; '.join(problemes)}")
-        return None
-    return regle
-
-
-def demander_regles(colonnes: list[str], saisir=input, *, invite: str | None = None,
-                    apres_ajout=None) -> list[dict]:
-    """Propose, par quelques questions, de définir des contraintes à vérifier.
-
-    Facultatif : une réponse vide, ou l'absence de terminal, termine sans rien
-    ajouter. Les contraintes déjà définies sont conservées.
-
-    Args:
-        colonnes: Colonnes du fichier chargé.
-        saisir: Fonction de saisie (`input` en usage normal), injectable pour
-            les tests.
-        invite: Première question, pour la reformuler selon le moment du
-            pipeline ; la question habituelle par défaut.
-        apres_ajout: Fonction appelée avec chaque règle ajoutée, pour montrer
-            tout de suite ce qu'elle donne sur les données.
-
-    Returns:
-        Les règles définies, éventuellement vides.
-    """
-    regles = []
-    premiere = invite or ("⏳ Ajouter une contrainte à vérifier (valeur minimale, "
-                          "longueur, format…) ? [o/N] : ")
-    try:
-        while True:
-            question = premiere if not regles else "⏳ Ajouter une autre contrainte ? [o/N] : "
-            if saisir(question).strip().lower() not in ("o", "oui", "y", "yes"):
-                break
-            regle = _saisir_une_regle(colonnes, saisir)
-            if regle is not None:
-                regles.append(regle)
-                print(f"   ✅ Contrainte ajoutée : {decrire_regle(regle)}")
-                if apres_ajout is not None:
-                    apres_ajout(regle)
-    except (EOFError, KeyboardInterrupt):
-        print("\n(saisie interrompue : les contraintes déjà définies sont conservées)")
-    return regles
-
-
-def _retour_immediat(df, titre: str):
-    """Fabrique le retour affiché après chaque contrainte ajoutée.
-
-    Args:
-        df: Données sur lesquelles la contrainte est essayée.
-        titre: Intitulé du bilan.
-
-    Returns:
-        Une fonction qui évalue une règle sur `df` et en affiche le résultat.
-    """
-    def afficher(regle: dict) -> None:
-        """Évalue la règle sur les données et affiche son résultat."""
-        print(formater_bilan(valider(df, [regle]), titre))
-    return afficher
 
 
 def resoudre_chemins(args: argparse.Namespace, horodatage: str) -> tuple[Path, Path, Path]:
@@ -372,32 +194,6 @@ def _resoudre_chemin_regles(valeur: str) -> Path:
     if chemin.is_absolute() or chemin.exists():
         return chemin
     return Path(__file__).parent / chemin
-
-
-def _proposer_enregistrement(regles: list[dict], reports_dir: Path, input_file: Path,
-                             horodatage: str, saisir=input) -> Path | None:
-    """Propose d'enregistrer les règles saisies pour les rejouer plus tard.
-
-    Args:
-        regles: Règles définies par l'utilisateur.
-        reports_dir: Dossier où écrire le fichier.
-        input_file: Fichier source, dont le nom est repris dans celui des règles.
-        horodatage: Marque de l'exécution, reprise dans le nom du fichier.
-        saisir: Fonction de saisie (`input` en usage normal).
-
-    Returns:
-        Le chemin du fichier écrit, ou None si l'utilisateur a refusé.
-    """
-    try:
-        reponse = saisir("⏳ Enregistrer ces contraintes pour les rejouer avec "
-                         "--regles ? [O/n] : ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        return None
-    if reponse in ("n", "non", "no"):
-        return None
-    chemin = sauver_regles(regles, reports_dir / f"regles_{input_file.stem}_{horodatage}.json")
-    print(f"📁 Contraintes enregistrées : {chemin}\n")
-    return chemin
 
 
 def main(argv: list[str] = None) -> int:
@@ -520,46 +316,32 @@ def main(argv: list[str] = None) -> int:
 
     # 10. Contraintes : signalées, jamais corrigées. Elles viennent en dernier,
     # une fois le nettoyage fait, son rapport écrit et le nouveau profilage
-    # affiché : c'est sur des données déjà propres que l'utilisateur repère les
-    # anomalies métier qu'aucune machine ne peut deviner (une date de départ
-    # avant l'arrivée, un âge de 130 ans). Elles ne limitent jamais le
-    # nettoyage, et l'utilisateur en ajoute autant qu'il en voit le besoin.
-    # Le fichier de règles n'est lu qu'ici, au moment de la validation.
-    regles = []
-    saisies = False
+    # affiché. Le terminal se borne à rejouer un fichier de règles, lu ici, au
+    # moment de la validation : la création des règles, au vu des données propres,
+    # se fait dans l'interface web, dont le fichier est l'export. Les contraintes
+    # ne limitent jamais le nettoyage.
     erreur_regles = None
     if args.regles:
         try:
             regles = charger_regles(_resoudre_chemin_regles(args.regles))
-            print(f"\n📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}")
         except (FileNotFoundError, ValueError) as e:
             erreur_regles = e
             print(f"\n❌ {e}\n   Le nettoyage est terminé et sauvegardé ; seules les contraintes n'ont pas pu être vérifiées.")
-    if interactive and erreur_regles is None:
-        nouvelles = demander_regles(
-            list(cleaned_df.columns),
-            invite="\n⏳ Voyez-vous des anomalies que le nettoyage ne pouvait pas deviner ? "
-                   "Ajouter une contrainte ? [o/N] : ",
-            apres_ajout=_retour_immediat(cleaned_df, "Sur le fichier nettoyé"),
-        )
-        regles = regles + nouvelles
-        saisies = bool(nouvelles)
-    if regles:
-        contraintes = {"avant": valider(initial_df, regles), "apres": valider(cleaned_df, regles)}
-        print("\n" + formater_bilan(contraintes["avant"], "Contraintes avant nettoyage"))
-        print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
-        if chemin_rapport:
-            # Le rapport existe déjà : on le réécrit avec la section « Contraintes ».
-            print("\n📝 Mise à jour du rapport de nettoyage avec les contraintes...")
-            try:
-                generate_enhanced_report(
-                    profiler, logger, reports_dir, input_file, stats,
-                    generate=True, horodatage=horodatage, contraintes=contraintes,
-                )
-            except Exception as e:
-                print(f"⚠️ Erreur lors de la mise à jour du rapport : {e}")
-        if saisies:
-            _proposer_enregistrement(regles, reports_dir, input_file, horodatage)
+        else:
+            print(f"\n📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}")
+            contraintes = {"avant": valider(initial_df, regles), "apres": valider(cleaned_df, regles)}
+            print("\n" + formater_bilan(contraintes["avant"], "Contraintes avant nettoyage"))
+            print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
+            if chemin_rapport:
+                # Le rapport existe déjà : on le réécrit avec la section « Contraintes ».
+                print("\n📝 Mise à jour du rapport de nettoyage avec les contraintes...")
+                try:
+                    generate_enhanced_report(
+                        profiler, logger, reports_dir, input_file, stats,
+                        generate=True, horodatage=horodatage, contraintes=contraintes,
+                    )
+                except Exception as e:
+                    print(f"⚠️ Erreur lors de la mise à jour du rapport : {e}")
 
     return 1 if erreur_regles is not None else 0
 

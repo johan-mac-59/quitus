@@ -111,7 +111,7 @@ python main.py --input brut.csv --regles regles.json   # vérifie des contrainte
 | `--oui-a-tout` | Accepte écrêtage, remplissage et rapports sans rien demander |
 | `--non-interactif` | Ne demande rien et refuse les traitements lourds |
 | `--seuil-iqr` | Seuil de l'écrêtage, en écarts interquartiles (1,5 par défaut ; 3 ne retient que les valeurs très extrêmes) |
-| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Sans cette option, le mode interactif propose de les définir par quelques questions, après le nettoyage et le nouveau profilage, puis de les enregistrer pour les rejouer |
+| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Vérifiées en dernier, après le nettoyage, son rapport et le nouveau profilage ; le rapport de nettoyage en reprend le résultat. Le fichier se crée dans l'interface web, qui l'exporte |
 
 Les contraintes (valeur minimale ou maximale, longueur, format, valeurs autorisées, valeur obligatoire ou unique, comparaison entre deux colonnes) sont signalées, jamais corrigées : le fichier nettoyé n'est pas modifié par leur vérification.
 
