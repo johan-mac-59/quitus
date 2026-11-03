@@ -30,6 +30,7 @@ MODULES = (
     "cleaner_logger",
     "cleaner_reporter",
     "plot_factory",
+    "validator",
     "horodatage",
     "marque",
     "console_capture",

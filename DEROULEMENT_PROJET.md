@@ -429,7 +429,7 @@ Le flux de travail devient maintenant :
 *   **Correction des imports dynamiques :** Ajout de `sys.path.insert(0, ...)` dans le fichier orchestrator pour éviter les `ModuleNotFoundError` quand le script est lancé depuis l'intérieur d'un package.
 
 ### 4. Préparer le terrain pour les futures alertes
-La classe `DataProfiler` inclut désormais une méthode预留 (`detect_quality_issues`). Cette structure est prête à accueillir nos prochaines règles métier (ex: "Si une colonne 'Age' a des valeurs < 0, alerter l'utilisateur").
+La classe `DataProfiler` inclut désormais une méthode réservée (`detect_quality_issues`). Cette structure est prête à accueillir nos prochaines règles métier (ex: "Si une colonne 'Age' a des valeurs < 0, alerter l'utilisateur").
 
 ---
 
@@ -1901,4 +1901,48 @@ Le porteur du projet fait de cette série la **version 1.1.0** : une mise en pro
 
 ---
 
-*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 451 tests.*
+## Étape 47 : Le validateur, des contraintes que l'utilisateur énonce
+
+Première étape de la future version 1.2. L'amélioration n°1 de la feuille de route, un module de validation, n'avait jamais été commencée, et la première partie du travail a été de décider ce qu'il devait être.
+
+### 1. Un emplacement qui n'a jamais existé
+L'Étape 9 annonçait une méthode `detect_quality_issues` « prête à accueillir nos prochaines règles métier ». Elle n'a jamais été écrite : le code n'en contient aucune trace. Tous les contrôles existants (90 % de manquants pour une ligne à supprimer, 30 % pour une ligne à inspecter, 80 % de dates lues, années 1900 à 2100, seuil IQR de 1,5) sont fixés dans le code, et aucun schéma ni aucune règle fournie par l'utilisateur n'est lu nulle part. La seule structure d'alerte, celle de `_analyze_row_quality`, ne porte que sur les lignes.
+
+### 2. Réfléchir avant d'écrire
+Le validateur a d'abord été discuté, sans une ligne de code, selon trois questions.
+
+* **D'où viennent les règles ?** Une première idée était de faire détecter les anomalies par une IA. Le besoin, une fois précisé, est autre : l'utilisateur énonce ses contraintes au vu des données (longueur, minimum, maximum, comparaison entre deux colonnes) et les accumule, et Quitus remonte les anomalies. Des règles écrites à la main restent à la portée d'un utilisateur qui n'est pas développeur si elles se saisissent par formulaire ou par questions, jamais en JSON.
+* **Quelle IA, si elle est utile ?** Un tour des options a écarté deux pistes : un modèle dans le navigateur ou dans Streamlit (limites de mémoire de l'hébergement, et un modèle hébergé par le projet ferait de toute façon transiter les données par son serveur). Le besoin étant précis, aucun grand modèle de langage n'est requis : une grammaire, un petit modèle spécialisé ou la similarité de chaînes suffisent pour ce qui est envisagé. Cela reste à une étape ultérieure.
+* **Que fait le validateur d'une violation ?** Il la signale, il ne la corrige pas. Les corrections, sous accord explicite, sont repoussées à la version 1.3. C'est la règle « pas de perte silencieuse » prolongée : ce que l'outil ne peut pas trancher, il le dit.
+
+### 3. Une règle est un dictionnaire
+Le seul contrat du module est le format de règle : `{id, type, colonnes, parametres, libelle}`, sérialisable en JSON. Un formulaire web, un menu de terminal, un fichier enregistré et, plus tard, un traducteur de phrases en langage courant produisent tous la même chose, et `valider` la traite de la même façon. Sept types : plage (nombres ou dates), longueur, format (e-mail, code postal, téléphone français, SIREN et SIRET avec somme de contrôle de Luhn, ou expression régulière), valeurs autorisées, valeur obligatoire, valeur unique (sur une ou plusieurs colonnes) et comparaison entre deux colonnes.
+
+Les garanties du module sont testées une à une.
+
+* **Il ne modifie rien** : ni le DataFrame, ni les règles reçues (`tests/test_validator_ne_modifie_rien.py`).
+* **Une cellule vide n'est jamais une violation**, sauf pour la règle « valeur obligatoire » : le manque relève du profilage.
+* **Une valeur illisible n'est pas ignorée en silence** : sur une règle numérique ou de dates, elle n'est ni comptée comme violation, ni oubliée, mais déclarée à part (`non_evaluables`). Valeurs vérifiées, illisibles et vides font toujours le total des lignes.
+* **Une règle ne fait jamais échouer les autres** : mal formée, ou visant une colonne absente, elle est rapportée en erreur et le reste est évalué.
+* **Les lignes fautives sont des étiquettes d'index**, plafonnées à cent avec cinq exemples, pour rester lisibles et se retrouver dans le fichier d'origine.
+
+### 4. Le terminal
+L'option `--regles` rejoue un fichier de règles. Sans elle, le mode interactif propose, sur une réponse affirmative seulement, de définir des contraintes par questions : colonne choisie dans une liste numérotée, type, bornes, puis enregistrement facultatif du fichier dans le dossier des rapports. Les modes `--oui-a-tout` et `--non-interactif` ne posent rien. La fonction de saisie est un paramètre du menu, ce qui permet de le tester avec des réponses simulées, et une fin de flux ou une interruption conserve les règles déjà définies. Les contraintes sont vérifiées avant puis après nettoyage ; le fichier nettoyé est identique avec ou sans elles. L'interface web et le terminal appellent le même moteur : seule la saisie des règles diffère.
+
+### 5. Erreurs rencontrées
+* **Des dates ISO lues à l'envers.** Le premier essai a signalé une violation de `debut <= fin` sur `2024-01-05` et `2024-02-01`, qui n'en est pas une. Avec l'option « jour d'abord » de pandas, `2024-01-05` est lu comme le 1er mai. Les dates ISO se lisent désormais sans cette option, le reste avec ; les bornes saisies par l'utilisateur suivent le même chemin. Un test dédié nomme ce piège.
+* **Une cellule manquante qui n'est plus du texte.** Avec pandas 3, le type texte par défaut conserve les valeurs manquantes au lieu de les transformer en chaîne « nan », et la somme de contrôle d'un SIRET échouait sur un flottant. Le contrôle accepte désormais ce cas.
+* **Un `2.0` pour un identifiant.** Une colonne d'entiers avec une valeur manquante est lue en flottants, et les exemples affichaient `2.0`. Ils affichent `2`.
+* **Une hypothèse fausse dans le plan.** Le plan supposait qu'il fallait ajouter le module à la liste de `test_integrite_source.py`. Seule la liste des fichiers de la racine est explicite : celle de `src/` est un parcours du dossier. Le module a été pris en compte sans rien changer ; seule la liste de la documentation API (`docs/generer_api.py`) devait l'inclure.
+
+Une coquille du journal a aussi été corrigée à l'Étape 9, où un mot chinois s'était glissé dans une phrase.
+
+### 6. Ce qui reste
+La section « Contraintes » du rapport d'audit, l'onglet de l'interface web, puis les pistes de la feuille de route : contraintes en langage courant, règles suggérées par le profil, détection des anomalies orthographiques, corrections proposées. Le numéro de version n'est pas modifié : la 1.2 attend un validateur opérationnel et déployé.
+
+### 7. Résultat
+**525 tests passent**, contre 451 : 74 tests nouveaux, dont ceux de la garantie « ne modifie rien » et ceux du menu et de `main()` de bout en bout. `docs/API.md` est régénéré et couvre `validator`.
+
+---
+
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 525 tests.*

@@ -99,6 +99,7 @@ python main.py -i brut.csv -o propre.csv -r rapports/
 python main.py --input brut.csv --oui-a-tout     # aucune question, tout accepté
 python main.py --input brut.csv --non-interactif # aucune question, traitements lourds refusés
 python main.py --input brut.csv --format-rapport html
+python main.py --input brut.csv --regles regles.json   # vérifie des contraintes
 ```
 
 | Option | Rôle |
@@ -110,6 +111,9 @@ python main.py --input brut.csv --format-rapport html
 | `--oui-a-tout` | Accepte écrêtage, remplissage et rapports sans rien demander |
 | `--non-interactif` | Ne demande rien et refuse les traitements lourds |
 | `--seuil-iqr` | Seuil de l'écrêtage, en écarts interquartiles (1,5 par défaut ; 3 ne retient que les valeurs très extrêmes) |
+| `--regles` | Fichier de contraintes (JSON) à vérifier avant et après nettoyage. Sans cette option, le mode interactif propose de les définir par quelques questions, puis de les enregistrer pour les rejouer |
+
+Les contraintes (valeur minimale ou maximale, longueur, format, valeurs autorisées, valeur obligatoire ou unique, comparaison entre deux colonnes) sont signalées, jamais corrigées : le fichier nettoyé n'est pas modifié par leur vérification.
 
 Les modes `--oui-a-tout` et `--non-interactif` rendent le pipeline utilisable dans un script ou une chaîne d'intégration continue. Le code de sortie vaut 0 en cas de succès, 1 sinon.
 
@@ -122,6 +126,7 @@ Les modes `--oui-a-tout` et `--non-interactif` rendent le pipeline utilisable da
 | **`file_loader`** | **Lecture intelligente.** Détecte le format (CSV, Excel, JSON, JSON Lines, Parquet), l'encodage (UTF-8, Latin1, CP1252) et le séparateur (`,` `;` `\t` `\|`). Accepte un chemin ou des octets en mémoire, ce qui permet à l'interface web de consommer un fichier déposé sans fichier temporaire. |
 | **`data_profiler`** | **Double audit.** `PreCleaningProfiler` diagnostique les anomalies avant nettoyage ; `ExploratoryProfiler` valide le résultat après, en ajoutant matrice de dispersion et corrélations. Produit des rapports Markdown et HTML autonomes. |
 | **`cleaner_engine`** | **Moteur de transformation.** Doublons, espaces superflus, casse incohérente, types mal détectés, formats monétaires (`"1 200,50 €"` → `1200.50`), entiers nullables `Int64`, valeurs manquantes, valeurs aberrantes (IQR). Nettoyage itératif, qui s'arrête dès que plus rien ne change. |
+| **`validator`** | **Contraintes.** Vérifie des règles saisies par l'utilisateur (plage, longueur, format, valeurs autorisées, valeur obligatoire ou unique, comparaison entre deux colonnes). Il signale les violations avec leurs lignes et des exemples, et ne modifie jamais les données. |
 | **`plot_factory`** | **Fabrique de graphiques.** Cinq graphiques, exposés comme objets réutilisables : un même code alimente les rapports HTML et l'interface web. |
 | **`cleaner_logger`** | **Traçabilité.** Rapport console comparatif avant / après. |
 | **`cleaner_reporter`** | **Audit.** Rapport Markdown structuré, avec indicateurs de transformation. |
@@ -150,13 +155,14 @@ quitus/
 │   ├── file_loader.py          # Lecture : format, encodage, séparateur
 │   ├── data_profiler.py        # Profilage avant et après nettoyage
 │   ├── cleaner_engine.py       # Nettoyage
+│   ├── validator.py            # Vérification de contraintes saisies par l'utilisateur
 │   ├── plot_factory.py         # Graphiques réutilisables
 │   ├── cleaner_logger.py       # Traçabilité console
 │   ├── cleaner_reporter.py     # Rapport de nettoyage
 │   ├── console_capture.py      # Sortie console vers l'interface web
 │   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
 │   └── marque.py               # Nom, devise et logo pour l'application et les rapports
-├── tests/                      # 444 tests, un fichier par module et par garantie
+├── tests/                      # 525 tests, un fichier par module et par garantie
 ├── docs/                       # Documentation API, générée depuis le code
 ├── assets/                     # Logos clair et sombre, icône
 ├── data/
@@ -266,7 +272,7 @@ Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans un
 
 ## 📈 Évolutions prévues
 
-Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Restent à venir un module de validation des contraintes (types, formats, plages de valeurs) et une détection assistée par IA.
+Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Le module de validation des contraintes est en cours de livraison : il fonctionne en ligne de commande, et son rapport et son interface web restent à venir. Suivent une détection assistée par IA et une proposition de règles à partir du profil.
 
 Le journal technique détaillé du projet, étape par étape, se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 

@@ -61,6 +61,15 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`figure_correlation_heatmap`](#figure_correlation_heatmap) — fonction
   - [`figure_to_base64_png`](#figure_to_base64_png) — fonction
   - [`figure_to_img_tag`](#figure_to_img_tag) — fonction
+- [`src/validator.py`](#srcvalidatorpy)
+  - [`nouvelle_regle`](#nouvelle_regle) — fonction
+  - [`verifier_regle`](#verifier_regle) — fonction
+  - [`decrire_regle`](#decrire_regle) — fonction
+  - [`sauver_regles`](#sauver_regles) — fonction
+  - [`regles_depuis_texte`](#regles_depuis_texte) — fonction
+  - [`charger_regles`](#charger_regles) — fonction
+  - [`valider`](#valider) — fonction
+  - [`formater_bilan`](#formater_bilan) — fonction
 - [`src/horodatage.py`](#srchorodatagepy)
   - [`horodater`](#horodater) — fonction
 - [`src/marque.py`](#srcmarquepy)
@@ -1154,6 +1163,177 @@ Produit une balise `<img>` autonome contenant la figure.
 - `**kwargs` — Transmis à `figure_to_base64_png`.
 
 **Retour** — Le fragment HTML de la balise image.
+
+## `src/validator.py`
+
+Vérification de contraintes saisies par l'utilisateur.
+
+Le validateur **signale, il ne corrige jamais** : le DataFrame reçu n'est pas
+modifié, et chaque ligne qui enfreint une règle est restituée à l'utilisateur
+avec des exemples. C'est la suite logique de la garantie « pas de perte
+silencieuse » : ce que l'outil ne peut pas trancher, il doit au moins le dire.
+
+Une **règle** est un dictionnaire sérialisable en JSON::
+
+{"id": "plage-age-1a2b3c", "type": "plage", "colonnes": ["age"],
+"parametres": {"min": 0, "max": 120}, "libelle": "Âge plausible"}
+
+Ce format est le seul contrat du module. Qu'une règle vienne d'un formulaire
+web, d'un menu en terminal, d'un fichier enregistré ou, plus tard, d'un
+traducteur de phrases en langage courant, `valider` la traite de la même façon.
+
+Types de règle (`TYPES_REGLES`) :
+
+* ``plage`` : valeur minimale et/ou maximale, nombres ou dates.
+* ``longueur`` : nombre de caractères minimal et/ou maximal.
+* ``format`` : format nommé (``nom``) ou expression régulière (``motif``).
+* ``valeurs_autorisees`` : liste fermée de valeurs (``valeurs``).
+* ``non_vide`` : une valeur est obligatoire.
+* ``unique`` : aucune valeur (ou combinaison de colonnes) répétée.
+* ``comparaison_colonnes`` : première colonne ``operateur`` seconde colonne.
+
+Une cellule vide n'enfreint jamais une règle, sauf ``non_vide`` : le manque est
+l'affaire du profilage. Une valeur qu'on ne sait pas lire comme un nombre ou
+une date n'est pas non plus comptée comme une violation : elle est déclarée à
+part (``non_evaluables``), pour qu'aucune valeur ne soit ignorée en silence.
+
+Ce module ne connaît aucune interface : il ne pose aucune question.
+
+### `nouvelle_regle`
+
+```python
+nouvelle_regle(type_regle: str, colonnes: list[str] | str, parametres: dict | None = None, libelle: str | None = None) -> dict
+```
+
+Construit une règle avec un identifiant stable.
+
+L'identifiant est déduit du type, des colonnes et des paramètres : la même
+règle porte toujours le même identifiant, et deux règles différentes ne
+risquent pas de se confondre.
+
+**Paramètres**
+
+- `type_regle` — Un des `TYPES_REGLES`.
+- `colonnes` — Nom de colonne, ou liste de noms.
+- `parametres` — Paramètres propres au type de règle.
+- `libelle` — Nom lisible facultatif, repris dans les rapports.
+
+**Retour** — La règle, prête pour `valider` ou `sauver_regles`. Sa validité n'est pas contrôlée ici : voir `verifier_regle`.
+
+### `verifier_regle`
+
+```python
+verifier_regle(regle: object) -> list[str]
+```
+
+Contrôle la forme d'une règle, sans regarder les données.
+
+**Paramètres**
+
+- `regle` — La règle à contrôler.
+
+**Retour** — La liste des problèmes, en français. Vide si la règle est bien formée.
+
+### `decrire_regle`
+
+```python
+decrire_regle(regle: dict) -> str
+```
+
+Décrit une règle en une phrase française.
+
+**Paramètres**
+
+- `regle` — Une règle bien formée.
+
+**Retour** — Le libellé de la règle s'il existe, sinon une description déduite de son type et de ses paramètres.
+
+### `sauver_regles`
+
+```python
+sauver_regles(regles: list[dict], chemin: str | Path) -> Path
+```
+
+Enregistre des règles dans un fichier JSON, pour les rejouer plus tard.
+
+**Paramètres**
+
+- `regles` — Règles à enregistrer.
+- `chemin` — Fichier de destination ; ses dossiers parents sont créés.
+
+**Retour** — Le chemin du fichier écrit.
+
+### `regles_depuis_texte`
+
+```python
+regles_depuis_texte(texte: str) -> list[dict]
+```
+
+Lit des règles depuis un texte JSON (contenu d'un fichier de règles).
+
+Accepte le format écrit par `sauver_regles` ou une simple liste de règles.
+
+**Paramètres**
+
+- `texte` — Contenu JSON.
+
+**Retour** — Les règles lues.
+
+**Exceptions**
+
+- `ValueError` — Si le texte n'est pas du JSON valide, ou si une règle est mal formée. Le message dit laquelle et pourquoi.
+
+### `charger_regles`
+
+```python
+charger_regles(chemin: str | Path) -> list[dict]
+```
+
+Lit un fichier de règles JSON.
+
+**Paramètres**
+
+- `chemin` — Fichier écrit par `sauver_regles` (ou liste JSON de règles).
+
+**Retour** — Les règles lues.
+
+**Exceptions**
+
+- `FileNotFoundError` — Si le fichier n'existe pas.
+- `ValueError` — Si le contenu n'est pas valide (voir `regles_depuis_texte`).
+
+### `valider`
+
+```python
+valider(df: pd.DataFrame, regles: list[dict]) -> dict
+```
+
+Vérifie un DataFrame contre une liste de règles, sans le modifier.
+
+Une règle mal formée, ou qui vise une colonne absente, ne lève pas
+d'exception : elle est rapportée en erreur et les autres sont évaluées.
+
+**Paramètres**
+
+- `df` — Données à vérifier. Jamais modifiées.
+- `regles` — Règles à appliquer (voir `nouvelle_regle`).
+
+**Retour** — Un dictionnaire ``{"resultats": [...], "total_violations": n, "regles_en_erreur": n, "regles_respectees": n}``. Chaque résultat contient : ``id``, ``type``, ``colonnes``, ``description``, ``statut`` (``"respectee"``, ``"violations"`` ou ``"erreur"``), ``evaluees``, ``violations``, ``pourcentage``, ``non_evaluables``, ``lignes`` (étiquettes d'index des lignes fautives, `MAX_LIGNES` au plus), ``exemples`` (`MAX_EXEMPLES` valeurs au plus) et ``message``.
+
+### `formater_bilan`
+
+```python
+formater_bilan(validation: dict, titre: str = 'Contraintes') -> str
+```
+
+Met en forme le résultat de `valider` pour la console ou un rapport texte.
+
+**Paramètres**
+
+- `validation` — Résultat de `valider`.
+- `titre` — Intitulé du bilan.
+
+**Retour** — Un texte multiligne. Vide si aucune règle n'a été évaluée.
 
 ## `src/horodatage.py`
 
