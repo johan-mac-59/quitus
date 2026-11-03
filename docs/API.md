@@ -865,7 +865,7 @@ Décide s'il faut générer le rapport de nettoyage.
 #### `CleanerReporter.render`
 
 ```python
-render(stats: dict = None) -> str
+render(stats: dict = None, contraintes: dict = None) -> str
 ```
 
 Produit le contenu du rapport en mémoire, sans accès au disque.
@@ -876,13 +876,14 @@ téléchargement sans rien écrire sur le serveur.
 **Paramètres**
 
 - `stats` — Statistiques de nettoyage à détailler.
+- `contraintes` — Résultats du validateur avant et après nettoyage (``{"avant": ..., "apres": ...}``). Sans eux, le rapport ne comporte pas de section « Contraintes ».
 
 **Retour** — Le contenu Markdown du rapport.
 
 #### `CleanerReporter.generate_with_stats`
 
 ```python
-generate_with_stats(output_path: str, stats: dict = None) -> str
+generate_with_stats(output_path: str, stats: dict = None, contraintes: dict = None) -> str
 ```
 
 Génère le fichier Markdown complet avec les statistiques.
@@ -891,6 +892,7 @@ Génère le fichier Markdown complet avec les statistiques.
 
 - `output_path` — Chemin du fichier à écrire.
 - `stats` — Statistiques de nettoyage à détailler.
+- `contraintes` — Résultats du validateur avant et après nettoyage (voir `render`).
 
 **Retour** — Le chemin absolu du fichier écrit.
 
@@ -931,7 +933,7 @@ Compose le chemin horodaté d'un rapport de nettoyage.
 ### `generate_enhanced_report`
 
 ```python
-generate_enhanced_report(profiler, logger, reports_dir, input_file, stats, *, generate: bool = None, horodatage: str = None)
+generate_enhanced_report(profiler, logger, reports_dir, input_file, stats, *, generate: bool = None, horodatage: str = None, contraintes: dict = None)
 ```
 
 Génère le rapport de nettoyage détaillé.
@@ -945,6 +947,7 @@ Génère le rapport de nettoyage détaillé.
 - `stats` — Statistiques de nettoyage à détailler.
 - `generate` — Décision imposée — True génère sans demander, False saute l'étape, None pose la question en terminal.
 - `horodatage` — Suffixe commun aux fichiers de l'exécution en cours.
+- `contraintes` — Résultats du validateur avant et après nettoyage (``{"avant": ..., "apres": ...}``), pour la section « Contraintes ».
 
 **Retour** — Le chemin du rapport écrit, ou None si l'étape a été sautée ou a échoué.
 

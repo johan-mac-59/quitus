@@ -162,7 +162,7 @@ quitus/
 │   ├── console_capture.py      # Sortie console vers l'interface web
 │   ├── horodatage.py           # Suffixe commun des fichiers d'une exécution
 │   └── marque.py               # Nom, devise et logo pour l'application et les rapports
-├── tests/                      # 525 tests, un fichier par module et par garantie
+├── tests/                      # 534 tests, un fichier par module et par garantie
 ├── docs/                       # Documentation API, générée depuis le code
 ├── assets/                     # Logos clair et sombre, icône
 ├── data/
@@ -272,7 +272,7 @@ Ce dernier point rend le pipeline utilisable avec une sortie redirigée, dans un
 
 ## 📈 Évolutions prévues
 
-Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Le module de validation des contraintes est en cours de livraison : il fonctionne en ligne de commande, et son rapport et son interface web restent à venir. Suivent une détection assistée par IA et une proposition de règles à partir du profil.
+Voir [`AMELIORATIONS.md`](AMELIORATIONS.md), qui classe les améliorations à faire par ordre d'importance et recense celles déjà livrées. Le module de validation des contraintes est en cours de livraison : il fonctionne en ligne de commande et dans le rapport de nettoyage, et son interface web reste à venir. Suivent une détection assistée par IA et une proposition de règles à partir du profil.
 
 Le journal technique détaillé du projet, étape par étape, se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md).
 

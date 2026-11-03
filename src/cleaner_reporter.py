@@ -323,7 +323,82 @@ class CleanerReporter:
             print("⚠️ Veuillez répondre par 'y' (oui) ou 'n' (non).")
             print("⏳  Appuyez sur Entrée pour choisir 'y' par défaut.")
 
-    def render(self, stats: dict = None) -> str:
+    @staticmethod
+    def _cellule_contrainte(resultat: dict = None) -> str:
+        """Résume en une cellule de tableau le résultat d'une règle.
+
+        Args:
+            resultat: Résultat de `valider` pour une règle, ou None si la
+                règle n'a pas été évaluée à ce moment-là.
+
+        Returns:
+            Le texte de la cellule.
+        """
+        if resultat is None:
+            return "—"
+        if resultat["statut"] == "erreur":
+            return "❌ non évaluable"
+        if resultat["statut"] == "respectee":
+            texte = "✅ respectée"
+        else:
+            texte = f"⚠️ {resultat['violations']} ({resultat['pourcentage']:g} %)"
+        if resultat["non_evaluables"]:
+            texte += f", {resultat['non_evaluables']} illisible(s)"
+        return texte
+
+    def _get_constraints_section(self, contraintes: dict = None) -> str:
+        """Compose la section « Contraintes » : violations avant et après nettoyage.
+
+        Les contraintes sont signalées, jamais corrigées : cette section montre
+        ce que le nettoyage a laissé en l'état, pour que l'utilisateur tranche.
+
+        Args:
+            contraintes: ``{"avant": ..., "apres": ...}``, chaque clé portant
+                un résultat de `valider` (l'une ou l'autre peut manquer).
+
+        Returns:
+            Le Markdown de la section, ou une chaîne vide si aucune contrainte
+            n'a été évaluée.
+        """
+        avant = (contraintes or {}).get("avant") or {"resultats": []}
+        apres = (contraintes or {}).get("apres") or {"resultats": []}
+        regles = avant["resultats"] or apres["resultats"]
+        if not regles:
+            return ""
+
+        par_id_avant = {r["id"]: r for r in avant["resultats"]}
+        par_id_apres = {r["id"]: r for r in apres["resultats"]}
+        texte = "## 3. Contraintes\n\n"
+        texte += ("Ces contraintes sont signalées, jamais corrigées : le nettoyage "
+                  "ne les applique pas. Chaque nombre est le total de valeurs hors règle.\n\n")
+        texte += "| Règle | Avant nettoyage | Après nettoyage |\n| :--- | :--- | :--- |\n"
+        for regle in regles:
+            nom = (regle["description"] or regle["id"]).replace("|", "\\|")
+            texte += (f"| {nom} | {self._cellule_contrainte(par_id_avant.get(regle['id']))}"
+                      f" | {self._cellule_contrainte(par_id_apres.get(regle['id']))} |\n")
+        texte += "\n"
+
+        # Le détail porte sur l'état final : c'est lui que l'utilisateur garde.
+        etat_final = apres["resultats"] or avant["resultats"]
+        fautives = [r for r in etat_final if r["statut"] in ("violations", "erreur")]
+        if fautives:
+            titre = "après nettoyage" if apres["resultats"] else "avant nettoyage"
+            texte += f"### Détail ({titre})\n\n"
+            for r in fautives:
+                nom = r["description"] or r["id"]
+                if r["statut"] == "erreur":
+                    texte += f"* **{nom}** : {r['message']}\n"
+                    continue
+                reperes = ", ".join(str(i) for i in r["lignes"][:10])
+                suite = " …" if r["violations"] > len(r["lignes"][:10]) else ""
+                exemples = ", ".join(str(e) for e in r["exemples"])
+                texte += (f"* **{nom}** : {r['message']}.\n"
+                          f"  * Lignes (index) : {reperes}{suite}\n"
+                          f"  * Exemples : {exemples}\n")
+            texte += "\n"
+        return texte
+
+    def render(self, stats: dict = None, contraintes: dict = None) -> str:
         """Produit le contenu du rapport en mémoire, sans accès au disque.
 
         C'est ce que consomme l'interface web pour proposer le rapport au
@@ -331,20 +406,27 @@ class CleanerReporter:
 
         Args:
             stats: Statistiques de nettoyage à détailler.
+            contraintes: Résultats du validateur avant et après nettoyage
+                (``{"avant": ..., "apres": ...}``). Sans eux, le rapport ne
+                comporte pas de section « Contraintes ».
 
         Returns:
             Le contenu Markdown du rapport.
         """
         return (self._get_header()
                 + self._get_summary_section()
-                + self._get_operations_table(stats))
+                + self._get_operations_table(stats)
+                + self._get_constraints_section(contraintes))
 
-    def generate_with_stats(self, output_path: str, stats: dict = None) -> str:
+    def generate_with_stats(self, output_path: str, stats: dict = None,
+                            contraintes: dict = None) -> str:
         """Génère le fichier Markdown complet avec les statistiques.
 
         Args:
             output_path: Chemin du fichier à écrire.
             stats: Statistiques de nettoyage à détailler.
+            contraintes: Résultats du validateur avant et après nettoyage
+                (voir `render`).
 
         Returns:
             Le chemin absolu du fichier écrit.
@@ -353,7 +435,7 @@ class CleanerReporter:
             RuntimeError: Si l'écriture échoue.
         """
         try:
-            content = self.render(stats)
+            content = self.render(stats, contraintes)
 
             path_obj = Path(output_path)
             # Vérification du répertoire parent
@@ -395,7 +477,8 @@ def build_cleaning_report_path(reports_dir, input_file, horodatage: str = None) 
 
 
 def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
-                             *, generate: bool = None, horodatage: str = None):
+                             *, generate: bool = None, horodatage: str = None,
+                             contraintes: dict = None):
     """Génère le rapport de nettoyage détaillé.
 
     Args:
@@ -409,6 +492,8 @@ def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
         generate: Décision imposée — True génère sans demander, False saute
             l'étape, None pose la question en terminal.
         horodatage: Suffixe commun aux fichiers de l'exécution en cours.
+        contraintes: Résultats du validateur avant et après nettoyage
+            (``{"avant": ..., "apres": ...}``), pour la section « Contraintes ».
 
     Returns:
         Le chemin du rapport écrit, ou None si l'étape a été sautée ou a échoué.
@@ -424,7 +509,8 @@ def generate_enhanced_report(profiler, logger, reports_dir, input_file, stats,
         final_report_filename = build_cleaning_report_path(reports_dir, input_file,
                                                            horodatage=horodatage)
 
-        report_path = reporter.generate_with_stats(str(final_report_filename), stats)
+        report_path = reporter.generate_with_stats(str(final_report_filename), stats,
+                                                   contraintes)
         print(f"📝 Rapport de nettoyage généré : {report_path}")
         return report_path
 

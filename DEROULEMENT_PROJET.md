@@ -1937,12 +1937,15 @@ L'option `--regles` rejoue un fichier de règles. Sans elle, le mode interactif 
 
 Une coquille du journal a aussi été corrigée à l'Étape 9, où un mot chinois s'était glissé dans une phrase.
 
-### 6. Ce qui reste
-La section « Contraintes » du rapport d'audit, l'onglet de l'interface web, puis les pistes de la feuille de route : contraintes en langage courant, règles suggérées par le profil, détection des anomalies orthographiques, corrections proposées. Le numéro de version n'est pas modifié : la 1.2 attend un validateur opérationnel et déployé.
+### 6. Le rapport
+Le rapport de nettoyage gagne une section « 3. Contraintes », sous le détail des opérations : un tableau règle par règle, avec les violations avant et après nettoyage, puis le détail de l'état final (lignes et exemples). Elle rappelle que les contraintes sont signalées, jamais corrigées. Le paramètre est facultatif (`contraintes`, de `render` à `generate_enhanced_report`) : sans règle, le rapport est strictement identique à celui d'avant, ce qu'un test vérifie. Le tableau montre aussi ce que le nettoyage a réglé par effet de bord : une valeur obligatoire manquante avant, respectée après la suppression d'une ligne en doublon. Une barre verticale dans une règle (un motif `A|B`) est protégée pour ne pas casser le tableau.
 
-### 7. Résultat
-**525 tests passent**, contre 451 : 74 tests nouveaux, dont ceux de la garantie « ne modifie rien » et ceux du menu et de `main()` de bout en bout. `docs/API.md` est régénéré et couvre `validator`.
+### 7. Ce qui reste
+L'onglet de l'interface web, puis les pistes de la feuille de route : contraintes en langage courant, règles suggérées par le profil, détection des anomalies orthographiques, corrections proposées. Le numéro de version n'est pas modifié : la 1.2 attend un validateur opérationnel et déployé.
+
+### 8. Résultat
+**534 tests passent**, contre 451 : 83 tests nouveaux, dont ceux de la garantie « ne modifie rien », du menu, de `main()` de bout en bout et de la section du rapport. `docs/API.md` est régénéré et couvre `validator`.
 
 ---
 
-*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 525 tests.*
+*Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 534 tests.*

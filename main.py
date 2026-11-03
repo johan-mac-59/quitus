@@ -442,9 +442,10 @@ def main(argv: list[str] = None) -> int:
         regles = demander_regles(list(initial_df.columns))
         if regles:
             _proposer_enregistrement(regles, reports_dir, input_file, horodatage)
+    contraintes = {}
     if regles:
-        bilan = formater_bilan(valider(initial_df, regles), "Contraintes avant nettoyage")
-        print(bilan + "\n")
+        contraintes["avant"] = valider(initial_df, regles)
+        print(formater_bilan(contraintes["avant"], "Contraintes avant nettoyage") + "\n")
 
     # 3. Profilage pré-nettoyage
     profiler = PreCleaningProfiler(initial_df, input_file)
@@ -490,7 +491,8 @@ def main(argv: list[str] = None) -> int:
 
     # 7b. Contraintes après nettoyage : signalées, jamais corrigées.
     if regles:
-        print("\n" + formater_bilan(valider(cleaned_df, regles), "Contraintes après nettoyage"))
+        contraintes["apres"] = valider(cleaned_df, regles)
+        print("\n" + formater_bilan(contraintes["apres"], "Contraintes après nettoyage"))
 
     # 8. Rapport de nettoyage Markdown
     try:
@@ -498,6 +500,7 @@ def main(argv: list[str] = None) -> int:
         chemin_rapport = generate_enhanced_report(
             profiler, logger, reports_dir, input_file, stats,
             generate=generer_rapport, horodatage=horodatage,
+            contraintes=contraintes or None,
         )
         if chemin_rapport:
             print(f"📁 Rapport de nettoyage disponible : {chemin_rapport}")

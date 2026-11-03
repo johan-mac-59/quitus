@@ -3,7 +3,7 @@
 Les améliorations à faire sont classées par ordre d'importance ; les améliorations livrées suivent, dans l'ordre chronologique. Le détail de chaque livraison se trouve dans [`DEROULEMENT_PROJET.md`](DEROULEMENT_PROJET.md), à l'étape indiquée.
 
 ## 🎯 À faire — par ordre d'importance
-1. **Module `validator`, suite** : contraintes saisies par l'utilisateur (plage, longueur, format, comparaison entre colonnes), signalées sans jamais corriger. Le moteur et la ligne de commande sont livrés ; restent la section « Contraintes » du rapport d'audit et l'onglet de l'interface web. *Voir l'étape 47.*
+1. **Module `validator`, suite** : contraintes saisies par l'utilisateur (plage, longueur, format, comparaison entre colonnes), signalées sans jamais corriger. Le moteur, la ligne de commande et la section « Contraintes » du rapport sont livrés ; reste l'onglet de l'interface web. *Voir l'étape 47.*
 2. **Contraintes en langage courant** : traduire des conditions énoncées en phrases (« l'âge doit être entre 0 et 120 ») en règles du validateur, que l'utilisateur confirme une à une. Grammaire française simple, ou modèle léger hébergé ; aucun LLM obligatoire, ni dans le navigateur, ni dans Streamlit. *Voir l'étape 47.*
 3. **Règles suggérées par le profil** : proposer des contraintes d'après les données (« trois valeurs négatives dans une colonne qui ressemble à un âge »), que l'utilisateur accepte ou refuse.
 4. **Détection assistée des anomalies orthographiques** : regrouper les valeurs proches d'une colonne par similarité de chaînes, sans modèle ; sens des colonnes complexes par un modèle léger hébergé, en option.
