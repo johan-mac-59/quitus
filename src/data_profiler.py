@@ -116,10 +116,18 @@ class DataProfiler:
             # Ajout de la détection des outliers
             self.profile_results['outliers'] = self._detect_outliers(numeric_cols)
 
-        # 5. Stats Catégorielles
-        categorical_cols = self.df.select_dtypes(include=['str','object', 'category'])
-        if not categorical_cols.empty:
-            self.profile_results['describe_categorical'] = self._analyze_categorical_columns(categorical_cols)
+        # 5. Stats Catégorielles : seulement les colonnes qui le sont, selon la
+        #    définition unique du projet (voir plot_factory.is_categorical_column).
+        categorical_cols = pf.categorical_columns(self.df)
+        if categorical_cols:
+            self.profile_results['describe_categorical'] = (
+                self._analyze_categorical_columns(self.df[categorical_cols]))
+
+        # 5 bis. Qualité du format de toute colonne de texte (espaces, casse) :
+        #    elle désigne les colonnes à nettoyer, catégorielles ou non.
+        text_cols = self.df.select_dtypes(include=['str', 'object', 'category'])
+        if not text_cols.empty:
+            self.profile_results['format_text'] = self._analyze_text_format(text_cols)
 
         # 6. Aperçu
         self.profile_results['sample_preview'] = self.df.head(10).to_markdown(index=False) if not self.df.empty else "Pas de données"
@@ -157,11 +165,14 @@ class DataProfiler:
         return outliers_info
 
     def _analyze_categorical_columns(self, categorical_df: pd.DataFrame) -> Dict[str, Any]:
-        """Analyse approfondie des colonnes catégorielles avec synthèse des anomalies."""
+        """Statistiques de répartition des colonnes catégorielles."""
         categorical_stats = {}
         
         for col in categorical_df.columns:
             series = categorical_df[col]
+            if pf.is_integer_valued(series):
+                # Une note stockée en flottant (1.0, 2.0) se lit 1, 2.
+                series = series.astype('Int64')
             
             # Cardinalité
             unique_count = series.nunique()
@@ -186,27 +197,6 @@ class DataProfiler:
                 skewness_frequency = 0
                 is_high_skewness = False
             
-            # Qualité du format (détection d'hétérogénéité)
-            detected_anomalies = []
-
-            # Espaces en début ou en fin de valeur.
-            has_whitespace_issue = any(
-                isinstance(v, str) and v != v.strip() for v in value_counts.index
-            )
-
-            # Variations de casse : une même valeur écrite de plusieurs façons
-            # (« Paris », « PARIS », « paris »). Une colonne dont chaque valeur
-            # a une seule graphie, même répétée ou capitalisée, n'en a pas.
-            graphies = pd.Series(series.dropna().astype(str).str.strip().unique())
-            has_case_variation = bool(
-                (graphies.groupby(graphies.str.lower()).size() > 1).any()
-            ) if len(graphies) else False
-
-            if has_case_variation:
-                detected_anomalies.append("Variations de casse (Maj/Min)")
-            if has_whitespace_issue:
-                detected_anomalies.append("Présence d'espaces superflus (début/fin)")
-
             categorical_stats[col] = {
                 'cardinality_absolute': cardinality_absolute,
                 'cardinality_relative': cardinality_relative,
@@ -214,10 +204,31 @@ class DataProfiler:
                 'skewness_frequency': skewness_frequency,
                 'is_high_skewness': is_high_skewness,
                 'top_categories': top_categories,
-                'format_anomalies': detected_anomalies
             }
         
         return categorical_stats
+
+    def _analyze_text_format(self, text_df: pd.DataFrame) -> Dict[str, Any]:
+        """Détecte les défauts de format des colonnes de texte (espaces, casse)."""
+        format_stats = {}
+        for col in text_df.columns:
+            valeurs = text_df[col].dropna().astype(str)
+            uniques = pd.Series(valeurs.unique())
+            detected_anomalies = []
+
+            # Variations de casse : une même valeur écrite de plusieurs façons
+            # (« Paris », « PARIS », « paris »). Une colonne dont chaque valeur
+            # a une seule graphie, même répétée ou capitalisée, n'en a pas.
+            graphies = pd.Series(uniques.str.strip().unique())
+            if len(graphies) and (graphies.groupby(graphies.str.lower()).size() > 1).any():
+                detected_anomalies.append("Variations de casse (Maj/Min)")
+
+            # Espaces en début ou en fin de valeur.
+            if (uniques != uniques.str.strip()).any():
+                detected_anomalies.append("Présence d'espaces superflus (début/fin)")
+
+            format_stats[col] = {'format_anomalies': detected_anomalies}
+        return format_stats
    
     def _analyze_row_quality(self) -> Dict[str, Any]:
         """Analyse la qualité des lignes en fonction du pourcentage de valeurs manquantes."""
@@ -401,13 +412,19 @@ class DataProfiler:
                     # Pour les listes très longues (ex: IDs), on affiche juste le compteur pour confirmer la diversité
                     pass 
                 
-                # Qualité du format
-                if stats['format_anomalies']:
-                    md.append("\n- **⚠️ Anomalies de format détectées** :")
-                    for issue in stats['format_anomalies']:
+        # Qualité du format des colonnes de texte
+        if 'format_text' in self.profile_results:
+            md.append("\n## 🔤 Qualité du format des colonnes de texte\n")
+            fautives = {c: i['format_anomalies']
+                        for c, i in self.profile_results['format_text'].items()
+                        if i['format_anomalies']}
+            if fautives:
+                for col, issues in fautives.items():
+                    md.append(f"- **⚠️ {col}** :")
+                    for issue in issues:
                         md.append(f"  - {issue}")
-                else:
-                    md.append("\n- **✅ Format conforme (pas d'espace superflu ni de variation de casse)**")
+            else:
+                md.append("- **✅ Format conforme (pas d'espace superflu ni de variation de casse)**")
 
         return "\n".join(md)
 
@@ -621,14 +638,21 @@ class DataProfiler:
                         html += f"<li>{_esc(category)} ({percentage}%)</li>"
                     html += "</ul>"
 
-                if stats['format_anomalies']:
-                    html += "<p><strong>⚠️ Anomalies de format détectées</strong> :</p><ul>"
-                    for issue in stats['format_anomalies']:
-                        # Les messages d'anomalie citent des valeurs du fichier.
+        # Qualité du format des colonnes de texte
+        if 'format_text' in self.profile_results:
+            html += "<h2>🔤 Qualité du format des colonnes de texte</h2>"
+            fautives = {c: i['format_anomalies']
+                        for c, i in self.profile_results['format_text'].items()
+                        if i['format_anomalies']}
+            if fautives:
+                for col, issues in fautives.items():
+                    html += f"<p><strong>⚠️ {_esc(col)}</strong> :</p><ul>"
+                    for issue in issues:
+                        # Les noms de colonnes viennent du fichier : échappés.
                         html += f"<li>{_esc(issue)}</li>"
                     html += "</ul>"
-                else:
-                    html += "<p><strong>✅ Format conforme</strong></p>"
+            else:
+                html += "<p><strong>✅ Format conforme</strong></p>"
 
         # Graphiques Numériques (Conteneur unique pour les 3 éléments)
         numeric_cols = self.df.select_dtypes(include=['number']).columns

@@ -2038,7 +2038,7 @@ Sur l'échantillon, l'écart est net : au plus 4,5 % de valeurs distinctes pour 
 
 ### 3. Ce qui en découle
 * **Les graphiques** (`split_categorical_columns`, `iter_plot_specs`, rapport HTML) suivent cette définition. Les entiers sont tracés comme des libellés : sans cela, seaborn lisait l'axe des modalités comme un axe numérique.
-* **Le profil n'a pas été rebranché.** `describe_categorical` continue de couvrir toute colonne de texte : c'est lui qui désigne les colonnes dont on unifie la casse et les espaces, et un nom propre en a besoin autant qu'un statut. Seule la notion de « colonne à répartir » est unifiée.
+* **Le profil a d'abord été laissé de côté, puis corrigé.** `describe_categorical` couvrait toute colonne de texte, identifiants, dates et montants compris, sous le titre « catégorielles » ; ce défaut datait des premières versions du profileur. Il mêlait deux choses : des statistiques de répartition, qui n'ont de sens que pour une colonne catégorielle, et un contrôle de format (espaces, casse) qui vaut pour tout texte. Les deux sont séparés : `describe_categorical` ne contient plus que les colonnes catégorielles (les entiers à peu de valeurs en font partie, et une note stockée en flottant se lit 1, 2, 3), et un bloc `format_text` porte le contrôle de format de toute colonne de texte. Le nettoyage de la casse lit ce second bloc, les rapports HTML et Markdown et l'interface web ont une section de format à part.
 * **Aucune règle spéciale pour les petits fichiers.** Conséquence assumée : sous 10 lignes, aucune colonne n'est catégorielle, puisqu'une modalité unique pèse alors plus de 10 %.
 
 ### 4. Erreurs rencontrées
@@ -2047,7 +2047,7 @@ Sur l'échantillon, l'écart est net : au plus 4,5 % de valeurs distinctes pour 
 * **`iter_plot_specs` ne filtrait pas les identifiants**, contrairement à l'interface et au rapport HTML. Il passe maintenant par la même fonction.
 
 ### 5. Résultat
-**718 tests passent**, contre 687 avant cette étape. `docs/API.md` est régénéré. Reste, pour le validateur manuel, à s'appuyer sur cette définition le jour où une contrainte portera sur les modalités d'une colonne.
+**719 tests passent**, contre 687 avant cette étape. `docs/API.md` est régénéré. Reste, pour le validateur manuel, à s'appuyer sur cette définition le jour où une contrainte portera sur les modalités d'une colonne.
 
 ---
 

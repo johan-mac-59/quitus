@@ -120,26 +120,38 @@ class TestDataProfilerRunAnalysis:
         assert 'age' in results['describe_numeric']
         assert 'salaire' in results['describe_numeric']
 
-    def test_categorical_stats_presence(self, valid_df):
-        """Cas nominal : Les stats catégorielles doivent être présentes pour les strings."""
-        profiler = DataProfiler(valid_df)
-        results = profiler.run_analysis()
+    def test_categorical_stats_presence(self):
+        """Cas nominal : seules les colonnes catégorielles ont des stats de répartition."""
+        n = 40
+        df = pd.DataFrame({
+            'id': [f"R{i}" for i in range(n)],
+            'statut': ['Realisee', 'annulee'] * (n // 2),
+            'note': [1.0, 2.0, 3.0, np.nan] * (n // 4),
+            'montant': [10.5 + i for i in range(n)],
+        })
+        results = DataProfiler(df).run_analysis()
 
-        assert 'describe_categorical' in results
-        assert 'nom' in results['describe_categorical']
+        # Identifiant et montant n'ont pas de répartition à décrire ; la note,
+        # entière bien que stockée en flottant, oui.
+        assert set(results['describe_categorical']) == {'statut', 'note'}
 
         # Chaque colonne expose le jeu complet d'indicateurs attendus
         expected_keys = {
             'cardinality_absolute', 'cardinality_relative', 'sparsity_ratio',
             'skewness_frequency', 'is_high_skewness', 'top_categories',
-            'format_anomalies',
         }
         for col, values in results['describe_categorical'].items():
             assert isinstance(values, dict)
             assert expected_keys <= set(values), f"Indicateurs manquants pour {col}"
             # top_categories est plafonné aux 10 valeurs les plus fréquentes
             assert len(values['top_categories']) <= 10
-            assert isinstance(values['format_anomalies'], list)
+        assert set(results['describe_categorical']['note']['top_categories']) == {1, 2, 3}
+
+    def test_format_text_couvre_toute_colonne_de_texte(self, valid_df):
+        """Le contrôle de format porte sur le texte, catégoriel ou non."""
+        results = DataProfiler(valid_df).run_analysis()
+        assert 'nom' in results['format_text']
+        assert isinstance(results['format_text']['nom']['format_anomalies'], list)
 
     def test_run_analysis_empty_df(self, empty_df):
         """Cas critique : Analyser un DataFrame vide doit lever une exception."""
@@ -266,14 +278,14 @@ class TestAnomaliesDeFormatCategorielles:
 
     def test_variations_de_casse_sans_espaces_ne_declarent_pas_d_espaces(self):
         df = pd.DataFrame({'statut': ['Realisee', 'REALISEE', 'realisee', 'annulee'] * 10})
-        anomalies = DataProfiler(df).run_analysis()['describe_categorical']['statut']['format_anomalies']
+        anomalies = DataProfiler(df).run_analysis()['format_text']['statut']['format_anomalies']
         assert anomalies == ["Variations de casse (Maj/Min)"]
 
     def test_espaces_de_bord_declares(self):
         df = pd.DataFrame({'ville': ['Lyon ', 'Nice'] * 10})
-        anomalies = DataProfiler(df).run_analysis()['describe_categorical']['ville']['format_anomalies']
+        anomalies = DataProfiler(df).run_analysis()['format_text']['ville']['format_anomalies']
         assert anomalies == ["Présence d'espaces superflus (début/fin)"]
 
     def test_colonne_capitalisee_de_facon_homogene_sans_anomalie(self):
         df = pd.DataFrame({'ville': ['Lyon', 'Nice'] * 10})
-        assert DataProfiler(df).run_analysis()['describe_categorical']['ville']['format_anomalies'] == []
+        assert DataProfiler(df).run_analysis()['format_text']['ville']['format_anomalies'] == []

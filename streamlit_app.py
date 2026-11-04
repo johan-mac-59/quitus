@@ -1166,12 +1166,20 @@ def afficher_profil(profil: dict) -> None:
     if categorielles:
         with st.expander("Analyse des colonnes catégorielles"):
             for col, infos in categorielles.items():
-                anomalies = infos.get("format_anomalies") or []
-                icone = "⚠️" if anomalies else "✅"
                 st.markdown(
-                    f"{icone} **{col}** — {infos.get('cardinality_absolute', 0)} "
+                    f"**{col}** — {infos.get('cardinality_absolute', 0)} "
                     f"modalités ({infos.get('cardinality_relative', 0)} % du total)"
                 )
+
+    formats = profil.get("format_text") or {}
+    if formats:
+        with st.expander("Qualité du format des colonnes de texte"):
+            fautives = {c: i.get("format_anomalies") for c, i in formats.items()
+                        if i.get("format_anomalies")}
+            if not fautives:
+                st.markdown("✅ Aucun espace superflu ni variation de casse.")
+            for col, anomalies in fautives.items():
+                st.markdown(f"⚠️ **{col}**")
                 for anomalie in anomalies:
                     st.caption(f"　• {anomalie}")
 

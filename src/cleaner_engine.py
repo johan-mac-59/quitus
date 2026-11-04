@@ -731,8 +731,8 @@ def prepare_target_columns_for_case_cleaning(profiler_results: dict) -> list:
         list: Liste des noms de colonnes à traiter
     """
     target_cols = []
-    if profiler_results and 'describe_categorical' in profiler_results:
-        for col, stats in profiler_results['describe_categorical'].items():
+    if profiler_results and 'format_text' in profiler_results:
+        for col, stats in profiler_results['format_text'].items():
             anomalies = stats.get('format_anomalies', [])
             # On cible les colonnes qui ont des problèmes de casse OU d'espaces détectés par le profiler
             if any("Variations de casse" in str(a) or "Espaces" in str(a) for a in anomalies):
@@ -1397,8 +1397,8 @@ def run_all_cleaning_steps(df: pd.DataFrame, profile_info: dict = None, max_iter
     
     # ÉTAPE PRÉLIMINAIRE : Utilisation du Profile pour filtrer les cibles
     target_cols_for_case = []
-    if profile_info and 'describe_categorical' in profile_info:
-        for col, col_stats in profile_info['describe_categorical'].items():
+    if profile_info and 'format_text' in profile_info:
+        for col, col_stats in profile_info['format_text'].items():
             # Si le profiler a détecté des anomalies de format (donc casse probable)
             if col_stats.get('format_anomalies') and any("Variations de casse" in s or "Espaces" in s for s in col_stats['format_anomalies']):
                 target_cols_for_case.append(col)
