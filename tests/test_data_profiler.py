@@ -259,3 +259,21 @@ class TestRapportHtmlLisible:
         assert "color-scheme: light" in regle
         assert "background-color: #ffffff" in regle
         assert "color: #1f2933" in regle
+
+
+class TestAnomaliesDeFormatCategorielles:
+    """Une anomalie n'est déclarée que si elle existe."""
+
+    def test_variations_de_casse_sans_espaces_ne_declarent_pas_d_espaces(self):
+        df = pd.DataFrame({'statut': ['Realisee', 'REALISEE', 'realisee', 'annulee'] * 10})
+        anomalies = DataProfiler(df).run_analysis()['describe_categorical']['statut']['format_anomalies']
+        assert anomalies == ["Variations de casse (Maj/Min)"]
+
+    def test_espaces_de_bord_declares(self):
+        df = pd.DataFrame({'ville': ['Lyon ', 'Nice'] * 10})
+        anomalies = DataProfiler(df).run_analysis()['describe_categorical']['ville']['format_anomalies']
+        assert anomalies == ["Présence d'espaces superflus (début/fin)"]
+
+    def test_colonne_capitalisee_de_facon_homogene_sans_anomalie(self):
+        df = pd.DataFrame({'ville': ['Lyon', 'Nice'] * 10})
+        assert DataProfiler(df).run_analysis()['describe_categorical']['ville']['format_anomalies'] == []

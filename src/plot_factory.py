@@ -136,8 +136,149 @@ def is_identifier_column(series: pd.Series) -> bool:
     return presentes.nunique() / len(presentes) >= SEUIL_IDENTIFIANT
 
 
+# --- Définition unique d'une colonne catégorielle ---------------------------
+#
+# Une colonne est catégorielle quand elle prend un petit nombre de valeurs
+# différentes par rapport à sa longueur : un statut, un canal de vente, une note
+# de 1 à 5. La règle cumule un type qui peut porter une catégorie (texte,
+# booléen, entier, ou flottant à valeurs entières, car pandas passe en
+# flottant dès qu'un entier a une valeur manquante), l'absence de dates, au
+# plus SEUIL_TAUX_CATEGORIEL de valeurs distinctes et au plus
+# MAX_MODALITES_CATEGORIEL valeurs distinctes. Les valeurs distinctes se
+# comptent après normalisation des textes (espaces de bord, casse). La
+# détection propose : l'utilisateur garde la main sur ce qu'il traite comme
+# catégoriel ou comme numérique.
+
+SEUIL_TAUX_CATEGORIEL = 0.10
+MAX_MODALITES_CATEGORIEL = 25
+
+# Part de valeurs en forme de date au-delà de laquelle une colonne texte est
+# tenue pour une colonne de dates.
+SEUIL_COLONNE_DATE = 0.5
+_ECHANTILLON_DATES = 1000
+_MOTIF_DATE = r"^\s*\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}"
+
+
+def _est_texte(series: pd.Series) -> bool:
+    """Indique si la colonne porte du texte (ou des modalités nommées)."""
+    return (pd.api.types.is_string_dtype(series)
+            or pd.api.types.is_object_dtype(series)
+            or isinstance(series.dtype, pd.CategoricalDtype))
+
+
+def is_date_column(series: pd.Series) -> bool:
+    """Indique si une colonne est une colonne de dates.
+
+    Une colonne de type date l'est toujours. Une colonne de texte l'est quand la
+    majorité de ses valeurs présentes a la forme d'une date avec séparateurs
+    (`2025-11-02`, `27/06/2024`), quel que soit l'ordre des champs. Un entier
+    tel que 2024 n'est jamais une date : une année reste une catégorie possible.
+
+    Args:
+        series: La colonne à examiner.
+
+    Returns:
+        True si la colonne est de type date ou si la majorité de ses valeurs
+        présentes se lit comme une date.
+    """
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return True
+    if not _est_texte(series) or isinstance(series.dtype, pd.CategoricalDtype):
+        return False
+    presentes = series.dropna().astype(str).head(_ECHANTILLON_DATES)
+    if presentes.empty:
+        return False
+    return presentes.str.match(_MOTIF_DATE).mean() > SEUIL_COLONNE_DATE
+
+
+def is_integer_valued(series: pd.Series) -> bool:
+    """Indique si les valeurs présentes d'une colonne numérique sont toutes entières.
+
+    Args:
+        series: La colonne à examiner.
+
+    Returns:
+        True pour un type entier, ou pour un flottant sans décimale et sans
+        valeur infinie (1.0, 2.0, 3.0). False pour tout autre type, et pour une
+        colonne sans valeur présente.
+    """
+    if pd.api.types.is_bool_dtype(series):
+        return False
+    if pd.api.types.is_integer_dtype(series):
+        return True
+    if pd.api.types.is_float_dtype(series):
+        presentes = series.dropna()
+        if presentes.empty:
+            return False
+        return bool(presentes.map(float.is_integer).all())
+    return False
+
+
+def count_modalities(series: pd.Series) -> int:
+    """Compte les valeurs distinctes présentes, textes normalisés.
+
+    Args:
+        series: La colonne à examiner.
+
+    Returns:
+        Le nombre de valeurs distinctes, espaces de bord et casse ignorés pour
+        les textes.
+    """
+    presentes = series.dropna()
+    if _est_texte(presentes) and not pd.api.types.is_bool_dtype(presentes):
+        presentes = presentes.astype(str).str.strip().str.lower()
+    return int(presentes.nunique())
+
+
+def is_categorical_column(series: pd.Series) -> bool:
+    """Indique si une colonne est catégorielle, selon la définition du projet.
+
+    Args:
+        series: La colonne à examiner.
+
+    Returns:
+        True si le type convient, si la colonne n'est pas une colonne de dates,
+        et si ses valeurs distinctes sont au plus `MAX_MODALITES_CATEGORIEL` et
+        au plus `SEUIL_TAUX_CATEGORIEL` des valeurs présentes.
+    """
+    presentes = series.dropna()
+    if presentes.empty or is_date_column(series):
+        return False
+
+    est_numerique = (pd.api.types.is_bool_dtype(series)
+                     or pd.api.types.is_integer_dtype(series)
+                     or pd.api.types.is_float_dtype(series))
+    if est_numerique:
+        if not pd.api.types.is_bool_dtype(series) and not is_integer_valued(series):
+            return False
+    elif not _est_texte(series):
+        return False
+
+    modalites = count_modalities(series)
+    return (modalites <= MAX_MODALITES_CATEGORIEL
+            and modalites / len(presentes) <= SEUIL_TAUX_CATEGORIEL)
+
+
+def categorical_columns(df: pd.DataFrame) -> list[str]:
+    """Liste les colonnes catégorielles d'un tableau, dans l'ordre des colonnes.
+
+    Args:
+        df: Source des données.
+
+    Returns:
+        Les noms des colonnes qui satisfont `is_categorical_column`.
+    """
+    return [c for c in df.columns if is_categorical_column(df[c])]
+
+
 def split_categorical_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:
-    """Sépare les colonnes catégorielles à tracer de celles qui sont des identifiants.
+    """Donne les colonnes catégorielles à tracer et les identifiants écartés.
+
+    Les colonnes à tracer suivent la définition unique du projet
+    (`is_categorical_column`) : une colonne entière à peu de
+    valeurs, comme une note de 1 à 5, en fait partie, une colonne de dates ou de
+    montants non. Les colonnes de texte qui sont des identifiants sont rendues à
+    part, pour que l'interface puisse dire pourquoi elles ne sont pas tracées.
 
     Args:
         df: Source des données.
@@ -145,9 +286,9 @@ def split_categorical_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:
     Returns:
         Un couple (colonnes à tracer, colonnes écartées comme identifiants).
     """
-    colonnes = df.select_dtypes(include=["str", "object", "string", "category"]).columns
-    ecartees = [c for c in colonnes if is_identifier_column(df[c])]
-    return [c for c in colonnes if c not in ecartees], ecartees
+    texte = df.select_dtypes(include=["str", "object", "string", "category"]).columns
+    ecartees = [c for c in texte if is_identifier_column(df[c])]
+    return categorical_columns(df), ecartees
 
 
 def figure_barplot_top(df: pd.DataFrame, col: str, *, top_n: int = 10,
@@ -167,8 +308,14 @@ def figure_barplot_top(df: pd.DataFrame, col: str, *, top_n: int = 10,
     """
     fig = new_figure(figsize, dpi)
     ax = fig.subplots()
-    value_counts = df[col].value_counts().head(top_n)
-    sns.barplot(x=value_counts.values, y=value_counts.index, ax=ax)
+    serie = df[col].dropna()
+    if is_integer_valued(serie):
+        # Une note stockée en flottant (1.0, 2.0) s'affiche 1, 2.
+        serie = serie.astype("int64")
+    value_counts = serie.value_counts().head(top_n)
+    # Les modalités sont des libellés, même quand ce sont des nombres : sans
+    # cela, seaborn lirait l'axe des modalités comme un axe numérique.
+    sns.barplot(x=value_counts.values, y=value_counts.index.astype(str), ax=ax)
     ax.set_title(f"Répartition de {col}")
     ax.set_xlabel("Nombre d'occurrences")
     fig.tight_layout()

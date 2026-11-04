@@ -55,6 +55,11 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`figure_histogram`](#figure_histogram) — fonction
   - [`figure_boxplot`](#figure_boxplot) — fonction
   - [`is_identifier_column`](#is_identifier_column) — fonction
+  - [`is_date_column`](#is_date_column) — fonction
+  - [`is_integer_valued`](#is_integer_valued) — fonction
+  - [`count_modalities`](#count_modalities) — fonction
+  - [`is_categorical_column`](#is_categorical_column) — fonction
+  - [`categorical_columns`](#categorical_columns) — fonction
   - [`split_categorical_columns`](#split_categorical_columns) — fonction
   - [`figure_barplot_top`](#figure_barplot_top) — fonction
   - [`figure_scatter_matrix`](#figure_scatter_matrix) — fonction
@@ -1062,13 +1067,94 @@ serait trop fragile : la colonne n'est alors jamais écartée.
 
 **Retour** — True si au moins 90 % des valeurs présentes sont distinctes.
 
+### `is_date_column`
+
+```python
+is_date_column(series: pd.Series) -> bool
+```
+
+Indique si une colonne est une colonne de dates.
+
+Une colonne de type date l'est toujours. Une colonne de texte l'est quand la
+majorité de ses valeurs présentes a la forme d'une date avec séparateurs
+(`2025-11-02`, `27/06/2024`), quel que soit l'ordre des champs. Un entier
+tel que 2024 n'est jamais une date : une année reste une catégorie possible.
+
+**Paramètres**
+
+- `series` — La colonne à examiner.
+
+**Retour** — True si la colonne est de type date ou si la majorité de ses valeurs présentes se lit comme une date.
+
+### `is_integer_valued`
+
+```python
+is_integer_valued(series: pd.Series) -> bool
+```
+
+Indique si les valeurs présentes d'une colonne numérique sont toutes entières.
+
+**Paramètres**
+
+- `series` — La colonne à examiner.
+
+**Retour** — True pour un type entier, ou pour un flottant sans décimale et sans valeur infinie (1.0, 2.0, 3.0). False pour tout autre type, et pour une colonne sans valeur présente.
+
+### `count_modalities`
+
+```python
+count_modalities(series: pd.Series) -> int
+```
+
+Compte les valeurs distinctes présentes, textes normalisés.
+
+**Paramètres**
+
+- `series` — La colonne à examiner.
+
+**Retour** — Le nombre de valeurs distinctes, espaces de bord et casse ignorés pour les textes.
+
+### `is_categorical_column`
+
+```python
+is_categorical_column(series: pd.Series) -> bool
+```
+
+Indique si une colonne est catégorielle, selon la définition du projet.
+
+**Paramètres**
+
+- `series` — La colonne à examiner.
+
+**Retour** — True si le type convient, si la colonne n'est pas une colonne de dates, et si ses valeurs distinctes sont au plus `MAX_MODALITES_CATEGORIEL` et au plus `SEUIL_TAUX_CATEGORIEL` des valeurs présentes.
+
+### `categorical_columns`
+
+```python
+categorical_columns(df: pd.DataFrame) -> list[str]
+```
+
+Liste les colonnes catégorielles d'un tableau, dans l'ordre des colonnes.
+
+**Paramètres**
+
+- `df` — Source des données.
+
+**Retour** — Les noms des colonnes qui satisfont `is_categorical_column`.
+
 ### `split_categorical_columns`
 
 ```python
 split_categorical_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]
 ```
 
-Sépare les colonnes catégorielles à tracer de celles qui sont des identifiants.
+Donne les colonnes catégorielles à tracer et les identifiants écartés.
+
+Les colonnes à tracer suivent la définition unique du projet
+(`is_categorical_column`) : une colonne entière à peu de
+valeurs, comme une note de 1 à 5, en fait partie, une colonne de dates ou de
+montants non. Les colonnes de texte qui sont des identifiants sont rendues à
+part, pour que l'interface puisse dire pourquoi elles ne sont pas tracées.
 
 **Paramètres**
 

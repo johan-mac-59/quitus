@@ -2022,4 +2022,33 @@ L'essai par le porteur du projet, dans un navigateur : les tests pilotent les wi
 
 ---
 
+## Étape 49 : Une seule définition d'une colonne catégorielle
+
+### 1. Le problème
+Dans l'échantillon, l'onglet Graphiques ne montrait pas la répartition de `statut` par défaut, alors que c'est l'exemple même d'une colonne catégorielle. La cause était double : la sélection initiale ne retenait que les deux premières colonnes de texte, et ces deux colonnes étaient des dates lues en texte. Derrière ce symptôme, le projet n'avait pas de définition de « catégorielle » : le profil retenait tout ce qui est de type texte, les graphiques retiraient les identifiants (90 % de valeurs distinctes), et les listes de types ne coïncidaient pas d'un module à l'autre.
+
+### 2. La définition retenue
+Le porteur du projet a posé le principe : une colonne catégorielle a un nombre limité de valeurs différentes par rapport à sa longueur. La règle, dans `src/plot_factory.py` à côté du test d'identifiant, cumule :
+* **un taux de valeurs distinctes d'au plus 10 %** des valeurs présentes, et **au plus 25 valeurs distinctes**, pour qu'un diagramme reste lisible quelle que soit la taille du fichier ;
+* **les valeurs distinctes comptées après normalisation** (espaces de bord, casse) : `statut` compte 5 graphies mais 2 modalités ;
+* **des entiers admis**, flottants à valeurs entières compris : pandas passe en flottant dès qu'un entier a une valeur manquante, et `nb_personnes` comme `note_satisfaction` sont dans ce cas. Un flottant à vraies décimales n'est jamais catégoriel ;
+* **les dates exclues**, qu'elles soient de type date ou du texte en forme de date (formats mixtes compris), pour qu'un très gros fichier de dates ne passe pas sous le seuil. Une année entière (2024) reste une catégorie possible.
+
+Sur l'échantillon, l'écart est net : au plus 4,5 % de valeurs distinctes pour les catégories, plus de 76 % pour les dates, l'identifiant et les montants. Les identifiants avec beaucoup de doublons sont laissés de côté : un tel fichier est nettoyé (doublons supprimés) ou inexploitable. La détection propose, l'utilisateur garde la main : il choisit dans la sélection existante, sans nouvelle case.
+
+### 3. Ce qui en découle
+* **Les graphiques** (`split_categorical_columns`, `iter_plot_specs`, rapport HTML) suivent cette définition. Les entiers sont tracés comme des libellés : sans cela, seaborn lisait l'axe des modalités comme un axe numérique.
+* **Le profil n'a pas été rebranché.** `describe_categorical` continue de couvrir toute colonne de texte : c'est lui qui désigne les colonnes dont on unifie la casse et les espaces, et un nom propre en a besoin autant qu'un statut. Seule la notion de « colonne à répartir » est unifiée.
+* **Aucune règle spéciale pour les petits fichiers.** Conséquence assumée : sous 10 lignes, aucune colonne n'est catégorielle, puisqu'une modalité unique pèse alors plus de 10 %.
+
+### 4. Erreurs rencontrées
+* **Un test faux, et une phrase fausse dans le plan.** Le plan annonçait qu'une colonne à valeur unique restait catégorielle sous 10 lignes. Une modalité sur 4 lignes fait 25 % : le test l'a montré, le code était juste.
+* **Un faux positif plus profond que prévu dans le profil.** Le profil déclarait « présence d'espaces superflus » dès qu'il voyait des variations de casse, sans regarder les espaces. En le corrigeant, un défaut voisin est apparu : « variations de casse » était déclarée dès qu'une valeur à majuscule initiale apparaissait deux fois, donc sur une colonne propre comme `Lyon, Nice, Lyon`. Le test portait sur le nombre d'occurrences au lieu de porter sur les graphies d'une même valeur. Une variation n'est désormais déclarée que si une même valeur existe sous au moins deux graphies. Effet de bord à connaître : une colonne capitalisée de façon homogène n'est plus signalée, donc plus ramenée en minuscules par le nettoyage de la casse.
+* **`iter_plot_specs` ne filtrait pas les identifiants**, contrairement à l'interface et au rapport HTML. Il passe maintenant par la même fonction.
+
+### 5. Résultat
+**718 tests passent**, contre 687 avant cette étape. `docs/API.md` est régénéré. Reste, pour le validateur manuel, à s'appuyer sur cette définition le jour où une contrainte portera sur les modalités d'une colonne.
+
+---
+
 *Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 687 tests.*

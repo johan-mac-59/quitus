@@ -187,59 +187,24 @@ class DataProfiler:
                 is_high_skewness = False
             
             # Qualité du format (détection d'hétérogénéité)
-            # Vérification des majuscules/minuscules et espaces
             detected_anomalies = []
-            has_whitespace_issue = False
-            has_case_issue = False
 
-            if len(value_counts) > 0:
-                # Vérifier les valeurs avec des espaces en début/fin
-                for value in value_counts.index:
-                    if isinstance(value, str):
-                        if value != value.strip():
-                            has_whitespace_issue = True
-                        if value != value.lower() and value != value.upper():
-                            has_case_issue = True
-            
-            # Nouvelle logique : détection d'anomalie de casse
-            # On ne considère une anomalie de casse que si :
-            # 1. Il y a des valeurs en majuscules et en minuscules dans la colonne
-            # 2. Et qu'il n'y a pas un seul mot avec différentes casse (comme "Paris", "PARIS", "paris")
-            if has_case_issue:
-                # Récupérer toutes les valeurs non nulls
-                non_null_values = series.dropna()
-                
-                # Convertir en string pour éviter les erreurs
-                str_values = non_null_values.astype(str)
-                
-                # Vérifier si des mots ont des casse différentes
-                # On vérifie si au moins une valeur contient à la fois majuscules et minuscules
-                has_mixed_case = False
-                for value in str_values:
-                    if isinstance(value, str) and len(value) > 0:
-                        # Vérifier si la valeur est mixte (contient majuscules ET minuscules)
-                        if value != value.lower() and value != value.upper():
-                            has_mixed_case = True
-                            break
-                
-                # Si c'est un mélange, on vérifie qu'il y a plus d'une version de chaque mot
-                if has_mixed_case:
-                    # Obtenir les valeurs uniques en minuscules pour détecter les doublons
-                    lowercase_values = str_values.str.lower()
-                    value_counts_lower = lowercase_values.value_counts()
-                    
-                    # Si une valeur apparaît plusieurs fois avec différentes casse, c'est une anomalie
-                    has_multiple_forms = False
-                    for count in value_counts_lower:
-                        if count > 1:
-                            has_multiple_forms = True
-                            break
-                    
-                    if has_multiple_forms:
-                        detected_anomalies.append("Présence d'espaces superflus (début/fin)")
-                        detected_anomalies.append("Variations de casse (Maj/Min)")
-            
-            if has_whitespace_issue and "Présence d'espaces superflus (début/fin)" not in detected_anomalies:
+            # Espaces en début ou en fin de valeur.
+            has_whitespace_issue = any(
+                isinstance(v, str) and v != v.strip() for v in value_counts.index
+            )
+
+            # Variations de casse : une même valeur écrite de plusieurs façons
+            # (« Paris », « PARIS », « paris »). Une colonne dont chaque valeur
+            # a une seule graphie, même répétée ou capitalisée, n'en a pas.
+            graphies = pd.Series(series.dropna().astype(str).str.strip().unique())
+            has_case_variation = bool(
+                (graphies.groupby(graphies.str.lower()).size() > 1).any()
+            ) if len(graphies) else False
+
+            if has_case_variation:
+                detected_anomalies.append("Variations de casse (Maj/Min)")
+            if has_whitespace_issue:
                 detected_anomalies.append("Présence d'espaces superflus (début/fin)")
 
             categorical_stats[col] = {
@@ -796,7 +761,7 @@ class DataProfiler:
                 build=lambda c=col: self.plot_numeric_boxplot(c),
             )
 
-        categorical_cols = self.df.select_dtypes(include=['str', 'object', 'category']).columns
+        categorical_cols, _ = pf.split_categorical_columns(self.df)
         for col in categorical_cols:
             yield PlotSpec(
                 key=f"bar::{col}", section="Catégories", title=f"Répartition de {col}",

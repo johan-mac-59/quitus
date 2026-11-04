@@ -7,6 +7,7 @@ longue durée.
 """
 
 import base64
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +16,7 @@ import pytest
 from matplotlib.figure import Figure
 
 from src import plot_factory as pf
+from src.data_profiler import DataProfiler
 
 
 @pytest.fixture
@@ -203,3 +205,102 @@ class TestColonnesIdentifiants:
 
     def test_categorie_repetee_conservee(self):
         assert not pf.is_identifier_column(pd.Series(["a", "b", "c"] * 20))
+
+
+# --- Définition unique d'une colonne catégorielle ---
+
+ECHANTILLON = Path(__file__).resolve().parent.parent / "data" / "samples" / "reservations_exemple.csv"
+
+@pytest.fixture
+def echantillon():
+    return pd.read_csv(ECHANTILLON, sep=";")
+
+
+class TestEchantillon:
+    """La définition donne, sur l'échantillon versionné, le verdict attendu."""
+
+    @pytest.mark.parametrize("col", ["statut", "hotel", "ville", "region", "canal",
+                                     "nb_personnes", "note_satisfaction", "nb_nuits"])
+    def test_colonnes_categorielles(self, echantillon, col):
+        assert pf.is_categorical_column(echantillon[col])
+
+    @pytest.mark.parametrize("col", ["id_reservation", "date_reservation", "date_arrivee",
+                                     "date_depart", "montant_total"])
+    def test_colonnes_non_categorielles(self, echantillon, col):
+        assert not pf.is_categorical_column(echantillon[col])
+
+    def test_statut_compte_ses_modalites_apres_normalisation(self, echantillon):
+        assert pf.count_modalities(echantillon["statut"]) == 2
+
+
+class TestTypes:
+    def test_flottant_a_decimales_jamais_categoriel(self):
+        assert not pf.is_categorical_column(pd.Series([1.5, 2.5] * 50))
+
+    def test_flottant_a_valeurs_entieres_categoriel(self):
+        assert pf.is_categorical_column(pd.Series([1.0, 2.0, np.nan, 3.0] * 50))
+
+    def test_booleen_categoriel(self):
+        assert pf.is_categorical_column(pd.Series([True, False] * 50))
+
+    def test_annee_entiere_categorielle_et_non_date(self):
+        annees = pd.Series([2023, 2024, 2025] * 40)
+        assert not pf.is_date_column(annees)
+        assert pf.is_categorical_column(annees)
+
+    def test_colonne_de_type_date_exclue(self):
+        dates = pd.Series(pd.to_datetime(["2025-01-01", "2025-01-02"] * 50))
+        assert pf.is_date_column(dates)
+        assert not pf.is_categorical_column(dates)
+
+    def test_dates_en_texte_formats_mixtes_exclues(self):
+        dates = pd.Series(["2025-01-01", "02/01/2025"] * 50)
+        assert pf.is_date_column(dates)
+        assert not pf.is_categorical_column(dates)
+
+    def test_colonne_vide_non_categorielle(self):
+        assert not pf.is_categorical_column(pd.Series([np.nan] * 10))
+
+    def test_type_category_pris_en_charge(self):
+        assert pf.is_categorical_column(pd.Series(["a", "b"] * 50, dtype="category"))
+
+
+class TestSeuils:
+    def test_plafond_de_modalites(self):
+        # 25 modalités sur 1000 valeurs : 2,5 %, au plafond.
+        ok = pd.Series([f"m{i}" for i in range(25)] * 40)
+        trop = pd.Series([f"m{i}" for i in range(26)] * 40)
+        assert pf.is_categorical_column(ok)
+        assert not pf.is_categorical_column(trop)
+
+    def test_taux_maximal_de_valeurs_distinctes(self):
+        # 10 modalités sur 100 valeurs : 10 %, accepté ; 11 sur 100 : refusé.
+        assert pf.is_categorical_column(pd.Series([f"m{i}" for i in range(10)] * 10))
+        valeurs = [f"m{i}" for i in range(11)] * 9 + ["m0"]
+        assert not pf.is_categorical_column(pd.Series(valeurs))
+
+    def test_petit_fichier_soumis_aux_memes_regles(self):
+        # Une modalité unique ne passe sous 10 % qu'à partir de 10 lignes.
+        assert not pf.is_categorical_column(pd.Series(["a", "b", "a", "b"]))
+        assert not pf.is_categorical_column(pd.Series(["a"] * 9))
+        assert pf.is_categorical_column(pd.Series(["a"] * 10))
+
+
+class TestBranchement:
+    """Les graphiques reprennent la définition, y compris les entiers."""
+
+    def test_split_reprend_la_definition(self, echantillon):
+        a_tracer, ecartees = pf.split_categorical_columns(echantillon)
+        assert a_tracer == pf.categorical_columns(echantillon)
+        assert "statut" in a_tracer and "nb_personnes" in a_tracer
+        assert ecartees == ["id_reservation", "montant_total"]
+
+    def test_repartition_d_une_colonne_entiere_se_construit(self, echantillon):
+        figure = pf.figure_barplot_top(echantillon, "note_satisfaction")
+        etiquettes = [t.get_text() for t in figure.axes[0].get_yticklabels()]
+        assert sorted(etiquettes) == ["1", "2", "3", "4", "5"]
+
+    def test_plots_du_profiler_suivent_la_definition(self, echantillon):
+        specs = DataProfiler(echantillon).iter_plot_specs()
+        barres = {s.key.removeprefix("bar::") for s in specs if s.key.startswith("bar::")}
+        assert barres == set(pf.categorical_columns(echantillon))
