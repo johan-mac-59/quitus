@@ -284,7 +284,21 @@ class TestAnomaliesDeFormatCategorielles:
     def test_espaces_de_bord_declares(self):
         df = pd.DataFrame({'ville': ['Lyon ', 'Nice'] * 10})
         anomalies = DataProfiler(df).run_analysis()['format_text']['ville']['format_anomalies']
-        assert anomalies == ["Présence d'espaces superflus (début/fin)"]
+        assert anomalies == ["Présence d'espaces superflus (début, fin ou multiples)"]
+
+    def test_espaces_multiples_au_milieu_declares(self):
+        df = pd.DataFrame({'hotel': ['Rivage  Centre', 'Rivage Montagne'] * 10})
+        anomalies = DataProfiler(df).run_analysis()['format_text']['hotel']['format_anomalies']
+        assert anomalies == ["Présence d'espaces superflus (début, fin ou multiples)"]
+
+    def test_diagnostic_et_nettoyage_d_accord_sur_les_espaces(self):
+        """Le profil signale un défaut d'espaces exactement quand clean_whitespace en corrige un."""
+        from src.cleaner_engine import clean_whitespace
+        for valeurs in (['a b', 'c d'], ['a  b', 'c d'], [' a b', 'c d'], ['a\tb', 'c d']):
+            df = pd.DataFrame({'v': valeurs * 10})
+            _, n_modifiees = clean_whitespace(df)
+            signale = bool(DataProfiler(df).run_analysis()['format_text']['v']['format_anomalies'])
+            assert signale == (n_modifiees > 0), valeurs
 
     def test_colonne_capitalisee_de_facon_homogene_sans_anomalie(self):
         df = pd.DataFrame({'ville': ['Lyon', 'Nice'] * 10})

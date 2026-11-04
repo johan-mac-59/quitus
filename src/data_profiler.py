@@ -223,9 +223,12 @@ class DataProfiler:
             if len(graphies) and (graphies.groupby(graphies.str.lower()).size() > 1).any():
                 detected_anomalies.append("Variations de casse (Maj/Min)")
 
-            # Espaces en début ou en fin de valeur.
-            if (uniques != uniques.str.strip()).any():
-                detected_anomalies.append("Présence d'espaces superflus (début/fin)")
+            # Espaces superflus : de bordure, multiples, ou autres blancs
+            # (tabulation, saut de ligne). Même règle que `clean_whitespace`,
+            # pour que le diagnostic annonce exactement ce que le nettoyage corrige.
+            normalisees = uniques.str.strip().str.replace(r'\s+', ' ', regex=True)
+            if (uniques != normalisees).any():
+                detected_anomalies.append("Présence d'espaces superflus (début, fin ou multiples)")
 
             format_stats[col] = {'format_anomalies': detected_anomalies}
         return format_stats
