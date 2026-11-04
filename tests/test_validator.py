@@ -393,3 +393,91 @@ def test_une_regle_ne_fait_jamais_echouer_les_autres_meme_si_son_calcul_echoue(m
     casse_r, autre = bilan["resultats"]
     assert casse_r["statut"] == "erreur" and "panne simulée" in casse_r["message"]
     assert autre["statut"] == "violations" and autre["violations"] == 1
+
+
+class TestCompatibiliteDesColonnes:
+    """Une plage ou une comparaison n'ont de sens que sur des nombres ou des dates."""
+
+    @pytest.fixture
+    def donnees(self):
+        return pd.DataFrame({
+            "ville": ["Lille", "Nice", "Lyon"] * 10,
+            "region": ["Nord", "Sud", "Rhône"] * 10,
+            "age": [20, 30, 40] * 10,
+            "montant": ["12,50", "7,00", "130"] * 10,
+            "debut": ["2025-01-01", "02/02/2025", "2025-03-03"] * 10,
+            "fin": ["2025-02-01", "03/03/2025", "2025-04-04"] * 10,
+        })
+
+    def test_nature_des_colonnes(self, donnees):
+        from src.validator import nature_colonne
+        assert {c: nature_colonne(donnees[c]) for c in donnees} == {
+            "ville": "texte", "region": "texte", "age": "nombre",
+            "montant": "nombre", "debut": "date", "fin": "date"}
+
+    def test_booleen_et_colonne_vide_sont_du_texte(self):
+        from src.validator import nature_colonne
+        assert nature_colonne(pd.Series([True, False])) == "texte"
+        assert nature_colonne(pd.Series([None, "", " "])) == "texte"
+
+    def test_une_plage_ne_propose_pas_le_texte(self, donnees):
+        from src.validator import colonnes_compatibles
+        assert colonnes_compatibles(donnees, "plage") == ["age", "montant", "debut", "fin"]
+
+    def test_les_autres_types_proposent_tout(self, donnees):
+        from src.validator import colonnes_compatibles
+        for type_regle in ("longueur", "format", "valeurs_autorisees", "non_vide", "unique"):
+            assert colonnes_compatibles(donnees, type_regle) == list(donnees.columns)
+
+    def test_comparaison_exclut_les_colonnes_sans_partenaire(self, donnees):
+        from src.validator import colonnes_compatibles
+        assert colonnes_compatibles(donnees, "comparaison_colonnes") == [
+            "age", "montant", "debut", "fin"]
+        seul = donnees[["ville", "age", "debut"]]
+        assert colonnes_compatibles(seul, "comparaison_colonnes") == []
+
+    def test_comparables_meme_nature_seulement(self, donnees):
+        from src.validator import colonnes_comparables
+        assert colonnes_comparables(donnees, "debut") == ["fin"]
+        assert colonnes_comparables(donnees, "age") == ["montant"]
+        assert colonnes_comparables(donnees, "ville") == []
+
+    def test_verifier_colonnes_refuse_le_texte_et_les_natures_mixtes(self, donnees):
+        from src.validator import verifier_colonnes
+        assert verifier_colonnes(donnees, "plage", ["age"]) == []
+        assert "est du texte" in verifier_colonnes(donnees, "plage", ["ville"])[0]
+        assert verifier_colonnes(donnees, "comparaison_colonnes", ["debut", "fin"]) == []
+        assert "est du texte" in verifier_colonnes(
+            donnees, "comparaison_colonnes", ["ville", "region"])[0]
+        assert "ne se comparent pas" in verifier_colonnes(
+            donnees, "comparaison_colonnes", ["debut", "age"])[0]
+        assert "absente" in verifier_colonnes(donnees, "plage", ["inconnue"])[0]
+
+
+class TestReglesNonRealisables:
+    """Les règles qui ne peuvent pas s'appliquer sont repérées, pas écartées."""
+
+    @pytest.fixture
+    def donnees(self):
+        return pd.DataFrame({"ville": ["Lille", "Nice"] * 10, "age": [20, 30] * 10})
+
+    def test_aucune_alerte_quand_tout_s_applique(self, donnees):
+        from src.validator import nouvelle_regle, regles_non_realisables
+        assert regles_non_realisables(donnees, [
+            nouvelle_regle("plage", "age", {"max": 120}),
+            nouvelle_regle("non_vide", "ville")]) == []
+
+    def test_plage_sur_du_texte_et_colonne_absente_signalees(self, donnees):
+        from src.validator import nouvelle_regle, regles_non_realisables
+        phrases = regles_non_realisables(donnees, [
+            nouvelle_regle("plage", "ville", {"max": 5}),
+            nouvelle_regle("non_vide", "pays"),
+            nouvelle_regle("non_vide", "age")])
+        assert len(phrases) == 2
+        assert "est du texte" in phrases[0] and "absente" in phrases[1]
+
+    def test_la_regle_reste_non_evaluable_au_verdict(self, donnees):
+        """L'alerte n'écarte rien : `valider` déclare toujours la règle non évaluable."""
+        from src.validator import nouvelle_regle, valider
+        bilan = valider(donnees, [nouvelle_regle("plage", "ville", {"max": 5})])
+        assert bilan["resultats"][0]["non_evaluables"] == 20

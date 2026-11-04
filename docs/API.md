@@ -76,6 +76,11 @@ sont des détails d'implémentation, susceptibles de changer.
   - [`sauver_regles`](#sauver_regles) — fonction
   - [`regles_depuis_texte`](#regles_depuis_texte) — fonction
   - [`charger_regles`](#charger_regles) — fonction
+  - [`nature_colonne`](#nature_colonne) — fonction
+  - [`colonnes_comparables`](#colonnes_comparables) — fonction
+  - [`colonnes_compatibles`](#colonnes_compatibles) — fonction
+  - [`verifier_colonnes`](#verifier_colonnes) — fonction
+  - [`regles_non_realisables`](#regles_non_realisables) — fonction
   - [`valider`](#valider) — fonction
   - [`resumer_resultat`](#resumer_resultat) — fonction
   - [`formater_bilan`](#formater_bilan) — fonction
@@ -1292,6 +1297,12 @@ Types de règle (`TYPES_REGLES`) :
 * ``unique`` : aucune valeur (ou combinaison de colonnes) répétée.
 * ``comparaison_colonnes`` : première colonne ``operateur`` seconde colonne.
 
+Toutes les colonnes ne conviennent pas à tous les types de règle : une plage ou
+une comparaison supposent des nombres ou des dates, pas du texte. `nature_colonne`
+dit ce qu'une colonne est (nombre, date ou texte), `colonnes_compatibles` et
+`colonnes_comparables` ne proposent que les choix qui ont un sens, et
+`verifier_colonnes` refuse les autres.
+
 Une cellule vide n'enfreint jamais une règle, sauf ``non_vide`` : le manque est
 l'affaire du profilage. Une valeur qu'on ne sait pas lire comme un nombre ou
 une date n'est pas non plus comptée comme une violation : elle est déclarée à
@@ -1446,6 +1457,94 @@ Lit un fichier de règles JSON.
 - `FileNotFoundError` — Si le fichier n'existe pas.
 - `ValueError` — Si le contenu n'est pas valide (voir `regles_depuis_texte`).
 
+### `nature_colonne`
+
+```python
+nature_colonne(serie: pd.Series) -> str
+```
+
+Dit si une colonne se lit comme des nombres, des dates ou du texte.
+
+Une colonne de texte est lue comme des nombres (ou des dates) quand au moins
+80 % de ses valeurs renseignées s'y prêtent, avec la même tolérance que les
+règles (virgule décimale, symbole monétaire, dates en jour d'abord). Seules
+les 1 000 premières valeurs renseignées sont examinées.
+
+**Paramètres**
+
+- `serie` — La colonne à examiner.
+
+**Retour** — « nombre », « date » ou « texte ». Une colonne sans valeur renseignée, et une colonne de booléens, sont du texte.
+
+### `colonnes_comparables`
+
+```python
+colonnes_comparables(df: pd.DataFrame, colonne: str) -> list[str]
+```
+
+Liste les colonnes qu'on peut comparer à une colonne donnée.
+
+Deux colonnes se comparent si ce sont toutes deux des nombres, ou toutes deux
+des dates. Le texte ne se compare pas : l'ordre alphabétique ne dit rien.
+
+**Paramètres**
+
+- `df` — Données.
+- `colonne` — La première colonne de la comparaison.
+
+**Retour** — Les autres colonnes de même nature, dans l'ordre du tableau. Vide si la colonne est du texte.
+
+### `colonnes_compatibles`
+
+```python
+colonnes_compatibles(df: pd.DataFrame, type_regle: str) -> list[str]
+```
+
+Liste les colonnes sur lesquelles un type de règle a un sens.
+
+**Paramètres**
+
+- `df` — Données.
+- `type_regle` — Un des `TYPES_REGLES`.
+
+**Retour** — Pour `plage`, les colonnes de nombres ou de dates. Pour `comparaison_colonnes`, celles qui ont au moins une colonne comparable. Pour les autres types, toutes les colonnes.
+
+### `verifier_colonnes`
+
+```python
+verifier_colonnes(df: pd.DataFrame, type_regle: str, colonnes: list[str]) -> list[str]
+```
+
+Contrôle que les colonnes choisies conviennent au type de règle.
+
+**Paramètres**
+
+- `df` — Données.
+- `type_regle` — Un des `TYPES_REGLES`.
+- `colonnes` — Colonnes visées par la règle.
+
+**Retour** — La liste des problèmes, en français. Vide si le choix est compatible.
+
+### `regles_non_realisables`
+
+```python
+regles_non_realisables(df: pd.DataFrame, regles: list[dict]) -> list[str]
+```
+
+Repère, parmi des règles reçues, celles qui sont non réalisables sur les données.
+
+Une règle importée peut viser une colonne absente du fichier, ou une colonne
+d'un type qui ne lui convient pas (une plage sur du texte). Elle reste dans
+la liste, avec son verdict habituel ; cette fonction sert à
+prévenir l'utilisateur dès l'entrée, au lieu de le laisser le découvrir.
+
+**Paramètres**
+
+- `df` — Données sur lesquelles les règles s'appliqueraient.
+- `regles` — Règles bien formées.
+
+**Retour** — Une phrase par règle non réalisable (description et raison). Vide si toutes les règles peuvent s'appliquer.
+
 ### `valider`
 
 ```python
@@ -1584,7 +1683,7 @@ Lit une borne saisie : un nombre si possible, sinon le texte (une date).
 ### `construire_regle`
 
 ```python
-construire_regle(type_regle: str, colonnes: list[str] | str, saisies: dict | None = None, libelle: str | None = None) -> tuple[dict | None, list[str]]
+construire_regle(type_regle: str, colonnes: list[str] | str, saisies: dict | None = None, libelle: str | None = None, df=None) -> tuple[dict | None, list[str]]
 ```
 
 Construit une règle à partir de ce que l'utilisateur a saisi.
@@ -1599,6 +1698,7 @@ l'utilisateur corriger.
 - `colonnes` — Nom de colonne, ou liste de noms.
 - `saisies` — Textes saisis, par nom de champ (voir `champs_du_type`).
 - `libelle` — Nom lisible facultatif de la règle.
+- `df` — Données, facultatives. Si elles sont fournies, les colonnes doivent convenir au type de règle (`validator.verifier_colonnes`) : pas de plage sur du texte, pas de comparaison entre textes.
 
 **Retour** — Le couple (règle, problèmes). La règle est None si les problèmes ne sont pas vides ; sinon elle est valide (`verifier_regle`) et prête pour `valider`.
 

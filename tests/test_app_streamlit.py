@@ -1182,12 +1182,23 @@ class TestOngletContraintes:
     def test_comparaison_de_deux_colonnes(self, app_nettoyee):
         app = app_nettoyee
         app.selectbox(key="regle_0_type").set_value("comparaison_colonnes").run()
-        app.selectbox(key="regle_0_col1").set_value("id")
-        app.selectbox(key="regle_0_col2").set_value("ville")
+        app.selectbox(key="regle_0_col1").set_value("montant")
+        app.selectbox(key="regle_0_col2").set_value("note")
         app.selectbox(key="regle_0_comparaison_colonnes_operateur").set_value("!=")
         app = app.button(key="regle_0_ajouter").click().run()
         assert not app.exception
-        assert app.session_state["regles"][0]["colonnes"] == ["id", "ville"]
+        assert app.session_state["regles"][0]["colonnes"] == ["montant", "note"]
+
+    def test_le_texte_n_est_pas_propose_pour_une_plage_ou_une_comparaison(self, app_nettoyee):
+        app = app_nettoyee
+        app.selectbox(key="regle_0_type").set_value("plage").run()
+        assert set(app.selectbox(key="regle_0_col").options) == {"montant", "note"}
+        app.selectbox(key="regle_0_type").set_value("comparaison_colonnes").run()
+        assert set(app.selectbox(key="regle_0_col1").options) == {"montant", "note"}
+        assert app.selectbox(key="regle_0_col2").options == ["note"]
+        # Les autres types gardent toutes les colonnes.
+        app.selectbox(key="regle_0_type").set_value("non_vide").run()
+        assert "ville" in app.selectbox(key="regle_0_col").options
 
     def test_la_contrainte_figure_dans_le_rapport_de_nettoyage(self, app_nettoyee):
         app = _ajouter_plage(app_nettoyee, "montant", max="500")
@@ -1236,6 +1247,37 @@ class TestOngletContraintes:
         app = app.run()
         assert [r["type"] for r in app.session_state["regles"]] == ["plage", "non_vide"]
         assert any("2 contrainte(s) importée(s)" in s.value for s in _onglet_contraintes(app).success)
+
+    def test_import_de_regles_non_realisables_alerte_et_conserve(self, app_nettoyee):
+        from src.validator import nouvelle_regle, regles_vers_texte
+        texte = regles_vers_texte([nouvelle_regle("plage", "ville", {"max": 5}),
+                                   nouvelle_regle("non_vide", "pays"),
+                                   nouvelle_regle("plage", "montant", {"max": 500})])
+        app = app_nettoyee
+        envoi = [u for u in app.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", texte.encode("utf-8"), "application/json")
+        app = app.run()
+        # Rien n'est écarté : les trois règles sont dans la liste.
+        assert len(app.session_state["regles"]) == 3
+        alertes = [w.value for w in _onglet_contraintes(app).warning
+                   if "non réalisable" in w.value]
+        assert len(alertes) == 1
+        assert "2 contrainte(s)" in alertes[0]
+        assert "« ville » est du texte" in alertes[0] and "absente" in alertes[0]
+        # L'alerte n'est donnée qu'une fois.
+        app = app.run()
+        assert not [w for w in _onglet_contraintes(app).warning
+                    if "non réalisable" in w.value]
+
+    def test_import_de_regles_realisables_sans_alerte(self, app_nettoyee):
+        from src.validator import nouvelle_regle, regles_vers_texte
+        texte = regles_vers_texte([nouvelle_regle("plage", "montant", {"max": 500})])
+        app = app_nettoyee
+        envoi = [u for u in app.get("file_uploader") if "Importer" in u.label][0]
+        envoi.upload("regles.json", texte.encode("utf-8"), "application/json")
+        app = app.run()
+        assert not [w for w in _onglet_contraintes(app).warning
+                    if "non réalisable" in w.value]
 
     def test_import_ignore_les_regles_deja_presentes(self, app_nettoyee):
         from src.validator import regles_vers_texte
@@ -1409,15 +1451,15 @@ class TestModificationDeContrainte:
     def test_prerempli_pour_deux_colonnes_et_pour_une_combinaison(self, app_nettoyee):
         app = app_nettoyee
         app.selectbox(key="regle_0_type").set_value("comparaison_colonnes").run()
-        app.selectbox(key="regle_0_col1").set_value("id")
-        app.selectbox(key="regle_0_col2").set_value("ville")
+        app.selectbox(key="regle_0_col1").set_value("montant")
+        app.selectbox(key="regle_0_col2").set_value("note")
         app.selectbox(key="regle_0_comparaison_colonnes_operateur").set_value("!=")
         app = app.button(key="regle_0_ajouter").click().run()
         ident = app.session_state["regles"][0]["id"]
         app = self._modifier(app, ident)
         g = app.session_state["generation_regles"]
-        assert app.selectbox(key=f"regle_{g}_col1").value == "id"
-        assert app.selectbox(key=f"regle_{g}_col2").value == "ville"
+        assert app.selectbox(key=f"regle_{g}_col1").value == "montant"
+        assert app.selectbox(key=f"regle_{g}_col2").value == "note"
         assert app.selectbox(key=f"regle_{g}_comparaison_colonnes_operateur").value == "!="
 
     def test_enregistrer_remplace_la_contrainte_en_gardant_sa_place(self, app_nettoyee):

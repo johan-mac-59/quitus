@@ -189,8 +189,9 @@ class TestCreerRegles:
                                                                          monkeypatch, capsys):
         csv, _, tmp = fichier_de_test
         monkeypatch.setattr(main, "get_user_decisions", lambda *a, **k: (False, False))
-        # Rapport : réponse par défaut ; puis une plage sur « age » (colonne 2), puis fin.
-        reponses = iter(["", "o", "1", "2", "0", "120", "n"])
+        # Rapport : réponse par défaut ; puis une plage sur « age », seule colonne
+        # numérique donc seule proposée (choix 1), puis fin.
+        reponses = iter(["", "o", "1", "1", "0", "120", "n"])
         monkeypatch.setattr("builtins.input", lambda *a: next(reponses))
         assert _lancer(csv, tmp, "--creer-regles") == 0
         sortie = capsys.readouterr().out
@@ -205,7 +206,7 @@ class TestCreerRegles:
     def test_s_ajoute_aux_regles_du_fichier(self, fichier_de_test, monkeypatch):
         csv, regles, tmp = fichier_de_test
         monkeypatch.setattr(main, "get_user_decisions", lambda *a, **k: (False, False))
-        reponses = iter(["", "o", "1", "2", "0", "120", "n"])
+        reponses = iter(["", "o", "1", "1", "0", "120", "n"])
         monkeypatch.setattr("builtins.input", lambda *a: next(reponses))
         assert _lancer(csv, tmp, "--regles", str(regles), "--creer-regles") == 0
         enregistrees = charger_regles(next((tmp / "r").glob("regles_*.json")))
@@ -234,3 +235,35 @@ class TestCreerRegles:
         source = open(main.__file__, encoding="utf-8").read()
         assert "_choisir" not in source and "_saisir_une_regle" not in source
         assert len(source.splitlines()) < 450
+
+
+class TestColonnesProposeesParType:
+    """Le terminal ne propose que les colonnes qui conviennent au type de règle."""
+
+    @pytest.fixture
+    def donnees(self):
+        return pd.DataFrame({"ville": ["Lille", "Nice"] * 10, "age": [20, 30] * 10,
+                             "poids": [60, 70] * 10})
+
+    def test_plage_ne_propose_pas_le_texte(self, donnees, capsys):
+        reponses = iter(["1"])
+        propose = saisie_terminal._choisir_colonnes(
+            "plage", list(donnees.columns), lambda *a: next(reponses), donnees)
+        assert propose == ["age"]
+        sortie = capsys.readouterr().out
+        assert "ville" not in sortie and "age" in sortie and "poids" in sortie
+
+    def test_seconde_colonne_de_meme_nature(self, donnees, capsys):
+        donnees["pays"] = ["France", "Italie"] * 10
+        reponses = iter(["1", "1"])
+        choisies = saisie_terminal._choisir_colonnes(
+            "comparaison_colonnes", list(donnees.columns), lambda *a: next(reponses), donnees)
+        assert choisies == ["age", "poids"]
+        assert "pays" not in capsys.readouterr().out
+
+    def test_aucune_colonne_compatible_annule_avec_un_message(self, capsys):
+        textes = pd.DataFrame({"ville": ["Lille", "Nice"] * 10})
+        choisies = saisie_terminal._choisir_colonnes(
+            "plage", ["ville"], lambda *a: pytest.fail("question posée"), textes)
+        assert choisies is None
+        assert "Aucune colonne ne convient" in capsys.readouterr().out

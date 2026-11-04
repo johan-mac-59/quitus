@@ -33,7 +33,8 @@ from src.data_profiler import ExploratoryProfiler, PreCleaningProfiler
 from src.file_loader import load_file
 from src.horodatage import horodater
 from saisie_terminal import demander_regles, retour_immediat
-from src.validator import charger_regles, formater_bilan, sauver_regles, valider
+from src.validator import (charger_regles, formater_bilan, regles_non_realisables,
+                           sauver_regles, valider)
 
 # Chemins par défaut, relatifs à la racine du projet.
 DEFAUT_INPUT = "data/samples/reservations_exemple.csv"
@@ -340,6 +341,12 @@ def main(argv: list[str] = None) -> int:
         try:
             regles = charger_regles(_resoudre_chemin_regles(args.regles))
             print(f"\n📐 {len(regles)} contrainte(s) lue(s) dans {args.regles}")
+            non_realisables = regles_non_realisables(cleaned_df, regles)
+            if non_realisables:
+                print(f"⚠️ {len(non_realisables)} contrainte(s) non réalisable(s) sur ce "
+                      "fichier (elles restent dans la liste) :")
+                for ligne in non_realisables:
+                    print(f"   - {ligne}")
         except (FileNotFoundError, ValueError) as e:
             erreur_regles = e
             print(f"\n❌ {e}\n   Le nettoyage est terminé et sauvegardé ; seules les contraintes n'ont pas pu être vérifiées.")
@@ -348,6 +355,7 @@ def main(argv: list[str] = None) -> int:
         saisies = demander_regles(
             list(cleaned_df.columns),
             apres_ajout=retour_immediat(cleaned_df, "Sur le fichier nettoyé"),
+            df=cleaned_df,
         )
         regles = regles + saisies
     if regles:

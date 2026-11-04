@@ -19,7 +19,8 @@ from src.saisie_regles import (
     construire_regle,
     types_disponibles,
 )
-from src.validator import decrire_regle, formater_bilan, valider
+from src.validator import (colonnes_compatibles, colonnes_comparables, decrire_regle,
+                           formater_bilan, valider)
 
 _OUI = ("o", "oui", "y", "yes")
 _INVITE = ("\n⏳ Voyez-vous des anomalies que le nettoyage ne pouvait pas deviner ? "
@@ -75,24 +76,36 @@ def _demander_champ(champ: dict, saisir) -> str | None:
                   else f"⏳ {champ['libelle']} : ")
 
 
-def _choisir_colonnes(type_regle: str, colonnes: list[str], saisir) -> list[str] | None:
+def _choisir_colonnes(type_regle: str, colonnes: list[str], saisir,
+                      df=None) -> list[str] | None:
     """Fait choisir la ou les colonnes que porte la règle.
 
     Args:
         type_regle: Type de règle en cours de définition.
         colonnes: Colonnes du fichier.
         saisir: Fonction de saisie (`input` en usage normal).
+        df: Données, facultatives. Si elles sont fournies, seules les colonnes
+            qui conviennent au type de règle sont proposées.
 
     Returns:
-        Les colonnes choisies, ou None si l'utilisateur a annulé.
+        Les colonnes choisies, ou None si l'utilisateur a annulé ou si aucune
+        colonne ne convient.
     """
     mini, maxi = colonnes_attendues(type_regle)
-    rang = _choisir("\nSur quelle colonne ?", colonnes, saisir)
+    proposees = colonnes
+    if df is not None:
+        proposees = colonnes_compatibles(df, type_regle)
+        if not proposees:
+            print("⚠️ Aucune colonne ne convient à cette contrainte "
+                  "(il faut des nombres ou des dates).")
+            return None
+    rang = _choisir("\nSur quelle colonne ?", proposees, saisir)
     if rang is None:
         return None
-    choisies = [colonnes[rang]]
+    choisies = [proposees[rang]]
     if mini == 2:
-        autres = [c for c in colonnes if c != choisies[0]]
+        autres = ([c for c in colonnes if c != choisies[0]] if df is None
+                  else colonnes_comparables(df, choisies[0]))
         rang = _choisir(f"\n« {choisies[0]} » doit être comparée à quelle colonne ?", autres, saisir)
         if rang is None:
             return None
@@ -110,12 +123,14 @@ def _choisir_colonnes(type_regle: str, colonnes: list[str], saisir) -> list[str]
     return choisies
 
 
-def saisir_une_regle(colonnes: list[str], saisir=None) -> dict | None:
+def saisir_une_regle(colonnes: list[str], saisir=None, df=None) -> dict | None:
     """Pose les questions nécessaires pour définir une règle.
 
     Args:
         colonnes: Colonnes du fichier, proposées au choix.
         saisir: Fonction de saisie ; `input` si omise, résolu à l'appel.
+        df: Données, facultatives : si elles sont fournies, seules les colonnes
+            qui conviennent au type de règle sont proposées.
 
     Returns:
         La règle définie, ou None si l'utilisateur a annulé ou si la règle
@@ -127,7 +142,7 @@ def saisir_une_regle(colonnes: list[str], saisir=None) -> dict | None:
     if rang is None:
         return None
     type_regle = types[rang][0]
-    cibles = _choisir_colonnes(type_regle, colonnes, saisir)
+    cibles = _choisir_colonnes(type_regle, colonnes, saisir, df)
     if cibles is None:
         return None
 
@@ -141,7 +156,7 @@ def saisir_une_regle(colonnes: list[str], saisir=None) -> dict | None:
             return None
         saisies[champ["nom"]] = texte
 
-    regle, problemes = construire_regle(type_regle, cibles, saisies)
+    regle, problemes = construire_regle(type_regle, cibles, saisies, df=df)
     if regle is None:
         print("⚠️ Contrainte abandonnée :")
         for probleme in problemes:
@@ -166,7 +181,7 @@ def retour_immediat(df, titre: str):
 
 
 def demander_regles(colonnes: list[str], saisir=None, *, invite: str | None = None,
-                    apres_ajout=None) -> list[dict]:
+                    apres_ajout=None, df=None) -> list[dict]:
     """Fait définir des contraintes par questions, une à une.
 
     Une réponse vide, ou l'absence de terminal, termine sans rien ajouter. Les
@@ -179,6 +194,8 @@ def demander_regles(colonnes: list[str], saisir=None, *, invite: str | None = No
         invite: Première question, pour la reformuler.
         apres_ajout: Fonction appelée avec chaque règle ajoutée, pour montrer
             tout de suite ce qu'elle donne sur les données.
+        df: Données, facultatives : si elles sont fournies, seules les colonnes
+            qui conviennent à chaque type de règle sont proposées.
 
     Returns:
         Les règles définies, éventuellement vides.
@@ -191,7 +208,7 @@ def demander_regles(colonnes: list[str], saisir=None, *, invite: str | None = No
             question = premiere if not regles else "⏳ Ajouter une autre contrainte ? [o/N] : "
             if saisir(question).strip().lower() not in _OUI:
                 break
-            regle = saisir_une_regle(colonnes, saisir)
+            regle = saisir_une_regle(colonnes, saisir, df)
             if regle is not None:
                 regles.append(regle)
                 print(f"   ✅ Contrainte ajoutée : {decrire_regle(regle)}")

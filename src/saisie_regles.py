@@ -33,6 +33,7 @@ from src.validator import (
     OPERATEURS,
     TYPES_REGLES,
     nouvelle_regle,
+    verifier_colonnes,
     verifier_regle,
 )
 
@@ -237,7 +238,8 @@ def _convertir(champ: dict, saisie: object, problemes: list[str]):
 
 def construire_regle(type_regle: str, colonnes: list[str] | str,
                      saisies: dict | None = None,
-                     libelle: str | None = None) -> tuple[dict | None, list[str]]:
+                     libelle: str | None = None,
+                     df=None) -> tuple[dict | None, list[str]]:
     """Construit une règle à partir de ce que l'utilisateur a saisi.
 
     Les champs vides sont ignorés (« aucun minimum »). Les problèmes sont
@@ -249,6 +251,9 @@ def construire_regle(type_regle: str, colonnes: list[str] | str,
         colonnes: Nom de colonne, ou liste de noms.
         saisies: Textes saisis, par nom de champ (voir `champs_du_type`).
         libelle: Nom lisible facultatif de la règle.
+        df: Données, facultatives. Si elles sont fournies, les colonnes doivent
+            convenir au type de règle (`validator.verifier_colonnes`) : pas de
+            plage sur du texte, pas de comparaison entre textes.
 
     Returns:
         Le couple (règle, problèmes). La règle est None si les problèmes ne
@@ -279,6 +284,8 @@ def construire_regle(type_regle: str, colonnes: list[str] | str,
         valeur = _convertir(champ, saisie, problemes)
         if valeur is not None:
             parametres[champ["nom"]] = valeur
+    if not problemes and df is not None:
+        problemes.extend(verifier_colonnes(df, type_regle, liste))
     if problemes:
         return None, problemes
 

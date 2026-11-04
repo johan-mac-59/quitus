@@ -24,6 +24,12 @@ Types de règle (`TYPES_REGLES`) :
 * ``unique`` : aucune valeur (ou combinaison de colonnes) répétée.
 * ``comparaison_colonnes`` : première colonne ``operateur`` seconde colonne.
 
+Toutes les colonnes ne conviennent pas à tous les types de règle : une plage ou
+une comparaison supposent des nombres ou des dates, pas du texte. `nature_colonne`
+dit ce qu'une colonne est (nombre, date ou texte), `colonnes_compatibles` et
+`colonnes_comparables` ne proposent que les choix qui ont un sens, et
+`verifier_colonnes` refuse les autres.
+
 Une cellule vide n'enfreint jamais une règle, sauf ``non_vide`` : le manque est
 l'affaire du profilage. Une valeur qu'on ne sait pas lire comme un nombre ou
 une date n'est pas non plus comptée comme une violation : elle est déclarée à
@@ -485,6 +491,137 @@ def _vers_dates(serie: pd.Series) -> pd.Series:
         dates[restantes] = pd.to_datetime(texte[restantes], dayfirst=True,
                                           format="mixed", errors="coerce")
     return dates
+
+
+# Part de valeurs lisibles à partir de laquelle une colonne de texte est tenue
+# pour une colonne de nombres ou de dates, et nombre de valeurs examinées.
+SEUIL_NATURE = 0.8
+_ECHANTILLON_NATURE = 1000
+
+# Natures sur lesquelles une plage ou une comparaison ont un sens.
+NATURES_ORDONNEES = ("nombre", "date")
+
+
+def nature_colonne(serie: pd.Series) -> str:
+    """Dit si une colonne se lit comme des nombres, des dates ou du texte.
+
+    Une colonne de texte est lue comme des nombres (ou des dates) quand au moins
+    80 % de ses valeurs renseignées s'y prêtent, avec la même tolérance que les
+    règles (virgule décimale, symbole monétaire, dates en jour d'abord). Seules
+    les 1 000 premières valeurs renseignées sont examinées.
+
+    Args:
+        serie: La colonne à examiner.
+
+    Returns:
+        « nombre », « date » ou « texte ». Une colonne sans valeur renseignée,
+        et une colonne de booléens, sont du texte.
+    """
+    if pd.api.types.is_datetime64_any_dtype(serie):
+        return "date"
+    if pd.api.types.is_bool_dtype(serie):
+        return "texte"
+    if pd.api.types.is_numeric_dtype(serie):
+        return "nombre"
+    brut = serie[_non_vides(serie)].head(_ECHANTILLON_NATURE)
+    if brut.empty:
+        return "texte"
+    if _vers_nombres(brut).notna().mean() >= SEUIL_NATURE:
+        return "nombre"
+    if _vers_dates(brut).notna().mean() >= SEUIL_NATURE:
+        return "date"
+    return "texte"
+
+
+def colonnes_comparables(df: pd.DataFrame, colonne: str) -> list[str]:
+    """Liste les colonnes qu'on peut comparer à une colonne donnée.
+
+    Deux colonnes se comparent si ce sont toutes deux des nombres, ou toutes deux
+    des dates. Le texte ne se compare pas : l'ordre alphabétique ne dit rien.
+
+    Args:
+        df: Données.
+        colonne: La première colonne de la comparaison.
+
+    Returns:
+        Les autres colonnes de même nature, dans l'ordre du tableau. Vide si la
+        colonne est du texte.
+    """
+    nature = nature_colonne(df[colonne])
+    if nature not in NATURES_ORDONNEES:
+        return []
+    return [c for c in df.columns
+            if c != colonne and nature_colonne(df[c]) == nature]
+
+
+def colonnes_compatibles(df: pd.DataFrame, type_regle: str) -> list[str]:
+    """Liste les colonnes sur lesquelles un type de règle a un sens.
+
+    Args:
+        df: Données.
+        type_regle: Un des `TYPES_REGLES`.
+
+    Returns:
+        Pour `plage`, les colonnes de nombres ou de dates. Pour
+        `comparaison_colonnes`, celles qui ont au moins une colonne comparable.
+        Pour les autres types, toutes les colonnes.
+    """
+    if type_regle == "plage":
+        return [c for c in df.columns if nature_colonne(df[c]) in NATURES_ORDONNEES]
+    if type_regle == "comparaison_colonnes":
+        return [c for c in df.columns if colonnes_comparables(df, c)]
+    return list(df.columns)
+
+
+def verifier_colonnes(df: pd.DataFrame, type_regle: str, colonnes: list[str]) -> list[str]:
+    """Contrôle que les colonnes choisies conviennent au type de règle.
+
+    Args:
+        df: Données.
+        type_regle: Un des `TYPES_REGLES`.
+        colonnes: Colonnes visées par la règle.
+
+    Returns:
+        La liste des problèmes, en français. Vide si le choix est compatible.
+    """
+    absentes = [c for c in colonnes if c not in df.columns]
+    if absentes:
+        return [f"colonne absente du fichier : {', '.join(map(repr, absentes))}"]
+    if type_regle == "plage":
+        return [f"« {c} » est du texte : une plage porte sur des nombres ou des dates"
+                for c in colonnes if nature_colonne(df[c]) not in NATURES_ORDONNEES]
+    if type_regle == "comparaison_colonnes" and len(colonnes) == 2:
+        natures = [nature_colonne(df[c]) for c in colonnes]
+        if natures[0] not in NATURES_ORDONNEES:
+            return [f"« {colonnes[0]} » est du texte : on ne compare que des nombres ou des dates"]
+        if natures[0] != natures[1]:
+            return [f"« {colonnes[0]} » ({natures[0]}) et « {colonnes[1]} » ({natures[1]}) "
+                    "ne se comparent pas : il faut deux nombres ou deux dates"]
+    return []
+
+
+def regles_non_realisables(df: pd.DataFrame, regles: list[dict]) -> list[str]:
+    """Repère, parmi des règles reçues, celles qui sont non réalisables sur les données.
+
+    Une règle importée peut viser une colonne absente du fichier, ou une colonne
+    d'un type qui ne lui convient pas (une plage sur du texte). Elle reste dans
+    la liste, avec son verdict habituel ; cette fonction sert à
+    prévenir l'utilisateur dès l'entrée, au lieu de le laisser le découvrir.
+
+    Args:
+        df: Données sur lesquelles les règles s'appliqueraient.
+        regles: Règles bien formées.
+
+    Returns:
+        Une phrase par règle non réalisable (description et raison). Vide si
+        toutes les règles peuvent s'appliquer.
+    """
+    phrases = []
+    for regle in regles:
+        problemes = verifier_colonnes(df, regle["type"], regle["colonnes"])
+        if problemes:
+            phrases.append(f"{decrire_regle(regle)} : {problemes[0]}")
+    return phrases
 
 
 def _lire_date(valeur: object) -> pd.Timestamp:

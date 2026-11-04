@@ -2051,4 +2051,27 @@ Sur l'échantillon, l'écart est net : au plus 4,5 % de valeurs distinctes pour 
 
 ---
 
+## Étape 50 : Ne proposer que les colonnes qui conviennent à la contrainte
+
+### 1. Le problème
+La question est venue en parlant des catégories de colonnes : peut-on comparer deux colonnes de texte ? Le code ne le prévoit pas. `comparaison_colonnes` lit les deux colonnes comme des nombres, sinon comme des dates, et jamais comme du texte. Sur deux textes (`ville` et `region`), la règle ne vérifiait donc rien : toutes les valeurs finissaient « non évaluables », et le formulaire laissait pourtant créer la règle. Une plage sur une colonne de texte avait le même défaut.
+
+### 2. La règle
+Le porteur du projet a tranché : ne laisser possible que les choix compatibles avec le type de la colonne. Dans `src/validator.py` :
+* **`nature_colonne`** dit si une colonne est un nombre, une date ou du texte, avec la même tolérance que les règles (virgule décimale, symbole monétaire, dates en jour d'abord, 80 % de valeurs lisibles sur les 1 000 premières valeurs renseignées). Sur l'échantillon, `montant_total` (texte à virgule décimale) est un nombre, et les trois dates, aux formats mélangés, sont des dates.
+* **`colonnes_compatibles`** : une plage ne propose que des nombres ou des dates ; une comparaison, que des colonnes qui ont un partenaire ; les autres types gardent toutes les colonnes.
+* **`colonnes_comparables`** : la seconde colonne d'une comparaison est de même nature que la première. Nombre contre date, ou tout contre texte, est exclu : l'ordre alphabétique ne dit rien d'utile, et l'égalité de texte n'est pas un besoin avéré.
+* **`verifier_colonnes`**, appelée par `construire_regle` quand on lui passe les données, refuse le reste avec un message en français.
+
+### 3. Les trois façades
+Le formulaire web, les questions du terminal (`--creer-regles`) et la construction de la règle appliquent le même filtre. Si aucune colonne ne convient, l'interface le dit au lieu d'afficher un choix vide. En modification, une colonne qui ne convient plus n'est pas pré-sélectionnée. Les règles importées d'un fichier ne sont pas refusées à l'import, mais l'utilisateur en est prévenu : `regles_non_realisables` nomme chaque règle non réalisable sur le fichier (colonne absente, ou d'un type qui ne lui convient pas), avec la raison. L'alerte est donnée une fois, à l'import web (avertissement dans l'onglet Contraintes) et au chargement de `--regles` en terminal. Les règles restent dans la liste et gardent leur verdict habituel (« non évaluable » quand aucune valeur n'est lisible) : elles pourraient servir sur un autre fichier, et rien n'est écarté en silence.
+
+### 4. Ce que les tests ont montré
+Quatre tests existants créaient des règles incompatibles sans que personne s'en aperçoive (comparaisons de deux textes, plage sur la colonne « age » choisie par son rang dans une liste qui contenait du texte). Ils sont réécrits sur des colonnes numériques : le défaut ne venait pas du code mais des tests, qui ne vérifiaient pas que la règle servait à quelque chose.
+
+### 5. Résultat
+**743 tests passent**, contre 721 avant cette étape. `docs/API.md` couvre les cinq nouvelles fonctions.
+
+---
+
 *Version 1.1.0 — Deux interfaces (ligne de commande et web) au-dessus d'une logique métier unique, en ligne sur https://quitus.streamlit.app/. 687 tests.*

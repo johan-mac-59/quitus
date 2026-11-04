@@ -55,10 +55,13 @@ from src.saisie_regles import (
 from src.validator import (
     MAX_REGLES,
     MAX_TAILLE_FICHIER_REGLES,
+    colonnes_comparables,
+    colonnes_compatibles,
     decrire_regle,
     echapper_markdown,
     regles_depuis_texte,
     regles_vers_texte,
+    regles_non_realisables,
     resumer_resultat,
     valider,
 )
@@ -133,6 +136,7 @@ ETAT_INITIAL = {
     "regles": [],
     "contraintes": None,    # {"cle", "avant", "apres"} : résultats de `valider`
     "message_regles": None,  # confirmation à afficher après un ajout ou un import
+    "avertissement_regles": None,  # règles importées qui ne s'appliquent pas au fichier
     "regle_en_edition": None,  # identifiant de la contrainte en cours de modification
     # Entrent dans les clés des widgets de saisie et d'import : les incrémenter
     # les recrée vides, comme pour `generation_envoi`.
@@ -171,6 +175,7 @@ def reinitialiser_aval() -> None:
     st.session_state["regles"] = []
     st.session_state["contraintes"] = None
     st.session_state["message_regles"] = None
+    st.session_state["avertissement_regles"] = None
     st.session_state["regle_en_edition"] = None
 
 
@@ -1579,7 +1584,8 @@ def demarrer_modification(identifiant: str) -> None:
     Appelée comme rappel de bouton : les clés des widgets sont renseignées avant
     la réexécution du script, et le formulaire repart d'une génération neuve
     pour qu'aucune saisie en cours ne se mêle à la contrainte choisie. Une
-    colonne qui n'existe plus dans le fichier n'est pas pré-sélectionnée.
+    colonne qui n'existe plus dans le fichier, ou qui ne convient pas au type de
+    règle, n'est pas pré-sélectionnée.
 
     Args:
         identifiant: Identifiant de la règle à modifier.
@@ -1592,12 +1598,15 @@ def demarrer_modification(identifiant: str) -> None:
     st.session_state["regle_en_edition"] = identifiant
 
     type_regle = regle["type"]
-    colonnes = list(st.session_state["df_propre"].columns)
-    cibles = [c for c in regle["colonnes"] if c in colonnes]
+    propre = st.session_state["df_propre"]
+    # Une colonne absente du fichier, ou qui ne convient plus au type de règle,
+    # n'est pas pré-sélectionnée : le formulaire ne propose que des colonnes valides.
+    possibles = colonnes_compatibles(propre, type_regle)
+    cibles = [c for c in regle["colonnes"] if c in possibles]
     st.session_state[f"regle_{generation}_type"] = type_regle
     mini, maxi = colonnes_attendues(type_regle)
     if mini == 2:
-        if len(cibles) == 2:
+        if len(cibles) == 2 and cibles[1] in colonnes_comparables(propre, cibles[0]):
             st.session_state[f"regle_{generation}_col1"] = cibles[0]
             st.session_state[f"regle_{generation}_col2"] = cibles[1]
     elif maxi is None:
@@ -1635,14 +1644,18 @@ def champ_de_regle(champ: dict, generation: int, type_regle: str):
                          placeholder="Payé ; En attente" if champ["genre"] == "liste" else None)
 
 
-def formulaire_regle(colonnes: list[str]) -> None:
+def formulaire_regle(df: pd.DataFrame) -> None:
     """Affiche le formulaire d'ajout, ou de modification, d'une contrainte.
 
     Ni `st.form` ni autre conteneur qui figerait l'affichage : les champs
     dépendent du type choisi et doivent suivre ce choix immédiatement.
 
+    Seules les colonnes qui conviennent au type choisi sont proposées : une plage
+    porte sur des nombres ou des dates, une comparaison sur deux colonnes de même
+    nature, jamais sur du texte.
+
     Args:
-        colonnes: Colonnes du fichier nettoyé, proposées au choix.
+        df: Données nettoyées, dont les colonnes sont proposées au choix.
     """
     generation = st.session_state["generation_regles"]
     en_edition = st.session_state["regle_en_edition"]
@@ -1656,9 +1669,14 @@ def formulaire_regle(colonnes: list[str]) -> None:
         type_regle = st.selectbox("Quelle contrainte ?", list(types), format_func=types.get,
                                   key=f"regle_{generation}_type")
         mini, maxi = colonnes_attendues(type_regle)
+        colonnes = colonnes_compatibles(df, type_regle)
+        if not colonnes:
+            st.info("Aucune colonne de ce fichier ne convient à cette contrainte : "
+                    "elle demande des nombres ou des dates.")
+            return
         if mini == 2:
             premiere = st.selectbox("Première colonne", colonnes, key=f"regle_{generation}_col1")
-            autres = [c for c in colonnes if c != premiere]
+            autres = colonnes_comparables(df, premiere)
             cibles = [premiere, st.selectbox("Seconde colonne", autres,
                                              key=f"regle_{generation}_col2")]
         elif maxi is None:
@@ -1687,7 +1705,8 @@ def formulaire_regle(colonnes: list[str]) -> None:
             valider_saisie = gauche.button("Ajouter la contrainte", type="primary",
                                            key=f"regle_{generation}_ajouter")
         if valider_saisie:
-            regle, problemes = construire_regle(type_regle, cibles, saisies, libelle.strip() or None)
+            regle, problemes = construire_regle(type_regle, cibles, saisies,
+                                                libelle.strip() or None, df=df)
             for probleme in problemes:
                 st.error(echapper_markdown(probleme))
             if regle is not None:
@@ -1750,6 +1769,10 @@ def importer_regles() -> None:
         st.error(echapper_markdown(f"Import impossible : {e}"))
         return
     ajoutees = ajouter_regles(nouvelles)
+    # Les règles non réalisables restent dans la liste : on prévient seulement
+    # l'utilisateur, une fois, à l'entrée.
+    st.session_state["avertissement_regles"] = (
+        regles_non_realisables(st.session_state["df_propre"], nouvelles) or None)
     st.session_state["message_regles"] = (
         f"{ajoutees} contrainte(s) importée(s)"
         + (f", {len(nouvelles) - ajoutees} déjà présente(s) ignorée(s)." if ajoutees < len(nouvelles) else "."))
@@ -1866,8 +1889,16 @@ def onglet_contraintes() -> None:
     if message:
         st.session_state["message_regles"] = None
         st.success(message, icon="✅")
+    alerte = st.session_state["avertissement_regles"]
+    if alerte:
+        st.session_state["avertissement_regles"] = None
+        st.warning(
+            f"{len(alerte)} contrainte(s) importée(s) non réalisable(s) sur ce fichier. "
+            "Elles restent dans la liste :\n\n"
+            + "\n".join(f"- {echapper_markdown(ligne)}" for ligne in alerte),
+            icon="⚠️")
 
-    formulaire_regle(list(propre.columns))
+    formulaire_regle(propre)
     st.divider()
     liste_des_regles(propre)
 

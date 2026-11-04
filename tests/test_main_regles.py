@@ -142,3 +142,23 @@ class TestBoutEnBout:
         mauvais.write_text('{"regles": [{"type": "zzz"}]}', encoding="utf-8")
         assert _lancer(csv, tmp, "--regles", str(mauvais)) == 1
         assert "n° 1" in capsys.readouterr().out
+
+
+class TestAlerteAuChargement:
+    def test_regle_non_realisable_signalee_puis_laissee_non_evaluable(self, fichier_de_test, capsys):
+        csv, _, tmp = fichier_de_test
+        regles = tmp / "autres.json"
+        sauver_regles([nouvelle_regle("plage", "nom", {"max": 5}),
+                       nouvelle_regle("plage", "age", {"min": 0, "max": 120})], regles)
+        assert _lancer(csv, tmp, "--regles", str(regles)) == 0
+        sortie = capsys.readouterr().out
+        assert "1 contrainte(s) non réalisable(s)" in sortie
+        assert "« nom » est du texte" in sortie
+        # La règle écartée de l'alerte, valable, est bien évaluée ; l'autre reste dans le bilan.
+        assert "2 valeur(s) hors règle" in sortie
+        assert "non vérifiée" in sortie or "illisible" in sortie
+
+    def test_aucune_alerte_quand_les_regles_s_appliquent(self, fichier_de_test, capsys):
+        csv, regles, tmp = fichier_de_test
+        assert _lancer(csv, tmp, "--regles", str(regles)) == 0
+        assert "non réalisable" not in capsys.readouterr().out

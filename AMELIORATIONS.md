@@ -40,3 +40,4 @@ Les améliorations à faire sont classées par ordre d'importance ; les amélior
 - ~~**Corrections de l'essai local**~~ : graphiques sur le fichier nettoyé et sans identifiants, bouton « Nettoyer » confirmé et éteint après usage. *Étape 46.*
 - ~~**Validateur de contraintes**~~ : règles saisies par l'utilisateur (plage, longueur, format, valeurs autorisées, valeur obligatoire ou unique, comparaison entre colonnes), signalées sans correction, dans le rapport, l'interface web et le terminal. *Étapes 47 et 48.*
 - ~~**Colonne catégorielle définie une fois**~~ : au plus 10 % et 25 valeurs distinctes après normalisation, entiers admis, dates exclues ; anomalies de casse et d'espaces du profil corrigées. *Étape 49.*
+- ~~**Contraintes adaptées au type de colonne**~~ : plage et comparaison ne proposent que des nombres ou des dates, la seconde colonne d'une comparaison est de même nature, dans l'interface web, le terminal et la construction des règles. *Étape 50.*

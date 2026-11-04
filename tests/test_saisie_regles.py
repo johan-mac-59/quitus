@@ -289,3 +289,33 @@ class TestSaisiesDepuisRegle:
         for type_regle, colonnes, saisies in self.CAS:
             regle, _ = construire_regle(type_regle, colonnes, saisies)
             assert all(isinstance(v, str) for v in saisies_depuis_regle(regle).values())
+
+
+class TestConstruireAvecDonnees:
+    """Avec les données, une règle incompatible avec le type de colonne est refusée."""
+
+    @pytest.fixture
+    def donnees(self):
+        return pd.DataFrame({"ville": ["Lille", "Nice"] * 10, "age": [20, 30] * 10,
+                             "poids": [60, 70] * 10})
+
+    def test_plage_sur_du_texte_refusee(self, donnees):
+        regle, problemes = construire_regle("plage", "ville", {"min": "0"}, df=donnees)
+        assert regle is None and "est du texte" in problemes[0]
+
+    def test_comparaison_de_textes_refusee(self, donnees):
+        donnees["pays"] = ["France", "Italie"] * 10
+        regle, problemes = construire_regle("comparaison_colonnes", ["ville", "pays"],
+                                            {"operateur": "=="}, df=donnees)
+        assert regle is None and "est du texte" in problemes[0]
+
+    def test_regle_compatible_acceptee(self, donnees):
+        regle, problemes = construire_regle("plage", "age", {"min": "0"}, df=donnees)
+        assert problemes == [] and regle["colonnes"] == ["age"]
+        regle, problemes = construire_regle("comparaison_colonnes", ["age", "poids"],
+                                            {"operateur": "<"}, df=donnees)
+        assert problemes == []
+
+    def test_sans_donnees_comportement_inchange(self):
+        regle, problemes = construire_regle("plage", "ville", {"min": "0"})
+        assert problemes == []
