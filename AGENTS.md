@@ -42,6 +42,7 @@ uv run python docs/generer_api.py        # régénérer docs/API.md
 - **Pas de perte silencieuse** : toute valeur vidée par le nettoyage doit être déclarée à l'utilisateur (`tests/test_aucune_perte_silencieuse.py`).
 - **Écrêtage et remplissage des valeurs manquantes** : jamais appliqués sans accord explicite de l'utilisateur, car ils modifient les distributions.
 - **Confidentialité** : rien n'est écrit sur le serveur par l'interface web ; `.streamlit/config.toml` reste versionné (télémétrie désactivée).
+- **Vocabulaire** : reprendre tels quels les termes du mainteneur (ex. « non réalisable » pour une règle qui ne s'applique pas au fichier) dans les messages, la documentation et le journal.
 - Lancer la suite de tests avant de proposer un changement comme terminé.
 
 ## Documentation et journal
